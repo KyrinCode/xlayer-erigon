@@ -99,7 +99,8 @@ type Zk struct {
 	SealBatchImmediatelyOnOverflow bool
 	MockWitnessGeneration          bool
 	WitnessCacheEnabled            bool
-	WitnessCacheLimit              uint64
+	WitnessCachePurge              bool
+	WitnessCacheBatchOffset        uint64
 	WitnessContractInclusion       []common.Address
 	BadTxAllowance                 uint64
 }

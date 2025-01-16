@@ -297,7 +297,8 @@ var DefaultFlags = []cli.Flag{
 	&utils.SealBatchImmediatelyOnOverflow,
 	&utils.MockWitnessGeneration,
 	&utils.WitnessCacheEnable,
-	&utils.WitnessCacheLimit,
+	&utils.WitnessCachePurge,
+	&utils.WitnessCacheBatchOffset,
 	&utils.WitnessContractInclusion,
 	&utils.BadTxAllowance,
 }
