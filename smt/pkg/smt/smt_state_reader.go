@@ -139,10 +139,10 @@ func (s *SMT) getValue(key int, address libcommon.Address, storageKey *libcommon
 	if storageKey == nil {
 		kn = utils.Key(address.String(), key)
 	} else {
-		a := utils.ConvertHexToBigInt(address.String())
-		add := utils.ScalarToArrayBig(a)
+		//a := utils.ConvertHexToBigInt(address.String())
+		//add := utils.ScalarToArrayBig(a)
 
-		kn = utils.KeyContractStorage(add, storageKey.String())
+		kn, _ = utils.KeyContractStorage(address.String(), storageKey.String())
 	}
 
 	return s.getValueInBytes(kn)

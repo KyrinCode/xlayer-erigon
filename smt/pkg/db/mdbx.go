@@ -231,8 +231,7 @@ func (m *EriDb) DeleteByNodeKey(key utils.NodeKey) error {
 }
 
 func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+	k := key.ToHex()
 
 	data, err := m.kvTxRoSMT.GetOne(TableAccountValues, []byte(k))
 	if err != nil {
@@ -250,14 +249,8 @@ func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
 }
 
 func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	vals := make([]*big.Int, 8)
-	copy(vals, value[:]) // Replace the loop with the copy function
-
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
+	k := key.ToHex()
+	v := value.ToHex()
 
 	return m.tx.Put(TableAccountValues, []byte(k), []byte(v))
 }

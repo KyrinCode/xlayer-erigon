@@ -325,11 +325,11 @@ func (s *SMT) SetStorage(ctx context.Context, logPrefix string, accChanges map[l
 		default:
 		}
 		ethAddr := addr.String()
-		ethAddrBigInt := utils.ConvertHexToBigInt(ethAddr)
-		ethAddrBigIngArray := utils.ScalarToArrayBig(ethAddrBigInt)
+		//ethAddrBigInt := utils.ConvertHexToBigInt(ethAddr)
+		//ethAddrBigIngArray := utils.ScalarToArrayBig(ethAddrBigInt)
 
 		for k, v := range storage {
-			keyStoragePosition := utils.KeyContractStorage(ethAddrBigIngArray, k)
+			keyStoragePosition, _ := utils.KeyContractStorage(ethAddr, k)
 			valueBigInt := convertStringToBigInt(v)
 			keysBatchStorage = append(keysBatchStorage, &keyStoragePosition)
 			if valuesBatchStorage, isDelete, err = appendToValuesBatchStorageBigInt(valuesBatchStorage, valueBigInt); err != nil {

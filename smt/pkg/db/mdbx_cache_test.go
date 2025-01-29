@@ -176,7 +176,7 @@ func TestEriCacheDb_GetAccountValue(t *testing.T) {
 	db, dbro := setupTestEriCacheDb(t)
 
 	key := utils.NodeKey{1, 2, 3, 4}
-	expectedValue := utils.NodeValue8{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6), big.NewInt(7), big.NewInt(8)}
+	var expectedValue utils.NodeValue8 = [8]uint64{1, 2, 3, 4, 5, 6, 7, 8}
 
 	// Test when data is not present
 	value, err := dbro.GetAccountValue(key)

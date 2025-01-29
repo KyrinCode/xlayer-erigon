@@ -168,8 +168,7 @@ func (m *EriCacheDb) DeleteByNodeKey(key utils.NodeKey) error {
 }
 
 func (m *EriCacheDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+	k := key.ToHex()
 
 	data, err := m.kvTxRoSMT.GetOne(TableAccountValues, []byte(k))
 	if err != nil {
@@ -187,14 +186,8 @@ func (m *EriCacheDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error
 }
 
 func (m *EriCacheDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	vals := make([]*big.Int, 8)
-	copy(vals, value[:]) // Replace the loop with the copy function
-
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
+	k := key.ToHex()
+	v := value.ToHex()
 
 	return m.cacheTx.Put(TableAccountValues, []byte(k), []byte(v))
 }

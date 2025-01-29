@@ -64,8 +64,8 @@ func TestVerifyAndGetVal(t *testing.T) {
 	}
 
 	contractAddress := libcommon.HexToAddress("0x71dd1027069078091B3ca48093B00E4735B20624")
-	a := utils.ConvertHexToBigInt(contractAddress.String())
-	address := utils.ScalarToArrayBig(a)
+	//a := utils.ConvertHexToBigInt(contractAddress.String())
+	//address := utils.ScalarToArrayBig(a)
 
 	smtRoot, _ := smtTrie.RoSMT.DbRo.GetLastRoot()
 	if err != nil {
@@ -74,7 +74,7 @@ func TestVerifyAndGetVal(t *testing.T) {
 	root := utils.ScalarToRoot(smtRoot)
 
 	t.Run("Value exists and proof is correct", func(t *testing.T) {
-		storageKey := utils.KeyContractStorage(address, libcommon.HexToHash("0x5").String())
+		storageKey, _ := utils.KeyContractStorage(contractAddress.String(), libcommon.HexToHash("0x5").String())
 		storageProof := smt.FilterProofs(proofs, storageKey)
 
 		val, err := smt.VerifyAndGetVal(root, storageProof, storageKey)
@@ -96,8 +96,8 @@ func TestVerifyAndGetVal(t *testing.T) {
 
 		// Fuzz with 1000 non-existent keys
 		for i := 0; i < 1000; i++ {
-			nonExistentKey := utils.KeyContractStorage(
-				address,
+			nonExistentKey, _ := utils.KeyContractStorage(
+				contractAddress.String(),
 				libcommon.HexToHash(fmt.Sprintf("0xdeadbeefabcd1234%d", i)).String(),
 			)
 			nonExistentKeys = append(nonExistentKeys, nonExistentKey)
@@ -132,7 +132,7 @@ func TestVerifyAndGetVal(t *testing.T) {
 
 	t.Run("Value doesn't exist but non-existent proof is insufficient", func(t *testing.T) {
 		nonExistentRl := trie.NewRetainList(0)
-		nonExistentKey := utils.KeyContractStorage(address, libcommon.HexToHash("0x999").String())
+		nonExistentKey, _ := utils.KeyContractStorage(contractAddress.String(), libcommon.HexToHash("0x999").String())
 		nonExistentKeyPath := nonExistentKey.GetPath()
 		keyBytes := make([]byte, 0, len(nonExistentKeyPath))
 
@@ -165,7 +165,7 @@ func TestVerifyAndGetVal(t *testing.T) {
 	})
 
 	t.Run("Value exists but proof is incorrect (first value corrupted)", func(t *testing.T) {
-		storageKey := utils.KeyContractStorage(address, libcommon.HexToHash("0x5").String())
+		storageKey, _ := utils.KeyContractStorage(contractAddress.String(), libcommon.HexToHash("0x5").String())
 		storageProof := smt.FilterProofs(proofs, storageKey)
 
 		// Corrupt the proof by changing a byte
@@ -183,7 +183,7 @@ func TestVerifyAndGetVal(t *testing.T) {
 	})
 
 	t.Run("Value exists but proof is incorrect (last value corrupted)", func(t *testing.T) {
-		storageKey := utils.KeyContractStorage(address, libcommon.HexToHash("0x5").String())
+		storageKey, _ := utils.KeyContractStorage(contractAddress.String(), libcommon.HexToHash("0x5").String())
 		storageProof := smt.FilterProofs(proofs, storageKey)
 
 		// Corrupt the proof by changing the last byte of the last proof element
@@ -204,7 +204,7 @@ func TestVerifyAndGetVal(t *testing.T) {
 	})
 
 	t.Run("Value exists but proof is insufficient", func(t *testing.T) {
-		storageKey := utils.KeyContractStorage(address, libcommon.HexToHash("0x5").String())
+		storageKey, _ := utils.KeyContractStorage(contractAddress.String(), libcommon.HexToHash("0x5").String())
 		storageProof := smt.FilterProofs(proofs, storageKey)
 
 		// Modify the proof to claim the value doesn't exist

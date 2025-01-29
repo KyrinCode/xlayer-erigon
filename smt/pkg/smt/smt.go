@@ -177,8 +177,8 @@ func (s *SMT) InsertStorage(ethAddr string, storage *map[string]string, chm *map
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 
-	a := utils.ConvertHexToBigInt(ethAddr)
-	add := utils.ScalarToArrayBig(a)
+	//a := utils.ConvertHexToBigInt(ethAddr)
+	//add := utils.ScalarToArrayBig(a)
 
 	or, err := s.getLastRoot()
 	if err != nil {
@@ -189,7 +189,7 @@ func (s *SMT) InsertStorage(ethAddr string, storage *map[string]string, chm *map
 		NewRootScalar: &or,
 	}
 	for k := range *storage {
-		keyStoragePosition := utils.KeyContractStorage(add, k)
+		keyStoragePosition, _ := utils.KeyContractStorage(ethAddr, k)
 		smtr, err = s.insert(keyStoragePosition, *(*chm)[k], (*vhm)[k], *smtr.NewRootScalar)
 		if err != nil {
 			return nil, err
