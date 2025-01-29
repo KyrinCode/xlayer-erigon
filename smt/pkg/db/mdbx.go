@@ -189,8 +189,8 @@ func (m *EriDb) SetDepth(depth uint8) error {
 }
 
 func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+
+	k := key.ToHex()
 
 	data, err := m.kvTxRoSMT.GetOne(TableSmt, []byte(k))
 	if err != nil {
@@ -208,14 +208,8 @@ func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 }
 
 func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	vals := make([]*big.Int, 12)
-	copy(vals, value[:])
-
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
+	k := key.ToHex()
+	v := value.ToHex()
 
 	return m.tx.Put(TableSmt, []byte(k), []byte(v))
 }
@@ -365,7 +359,7 @@ func (m *EriRoDb) GetDb() map[string][]string {
 
 		allFirst8PaddedWithZeros := true
 		for i := 0; i < 8; i++ {
-			if !strings.HasPrefix(fmt.Sprintf("%016s", val[i].Text(16)), "00000000") {
+			if !strings.HasPrefix(fmt.Sprintf("%016x", val[i]), "00000000") {
 				allFirst8PaddedWithZeros = false
 				break
 			}
@@ -378,7 +372,7 @@ func (m *EriRoDb) GetDb() map[string][]string {
 		outputArr := make([]string, truncationLength)
 		for i := 0; i < truncationLength; i++ {
 			if i < len(val) {
-				outputArr[i] = fmt.Sprintf("%016s", val[i].Text(16))
+				outputArr[i] = fmt.Sprintf("%016x", val[i])
 			} else {
 				outputArr[i] = "0000000000000000"
 			}
