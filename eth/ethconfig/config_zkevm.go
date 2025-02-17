@@ -100,7 +100,8 @@ type Zk struct {
 	MockWitnessGeneration          bool
 	WitnessCacheEnabled            bool
 	WitnessCachePurge              bool
-	WitnessCacheBatchOffset        uint64
+	WitnessCacheBatchAheadOffset   uint64
+	WitnessCacheBatchBehindOffset  uint64
 	WitnessContractInclusion       []common.Address
 	BadTxAllowance                 uint64
 }

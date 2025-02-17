@@ -298,7 +298,8 @@ var DefaultFlags = []cli.Flag{
 	&utils.MockWitnessGeneration,
 	&utils.WitnessCacheEnable,
 	&utils.WitnessCachePurge,
-	&utils.WitnessCacheBatchOffset,
+	&utils.WitnessCacheBatchAheadOffset,
+	&utils.WitnessCacheBatchBehindOffset,
 	&utils.WitnessContractInclusion,
 	&utils.BadTxAllowance,
 }
