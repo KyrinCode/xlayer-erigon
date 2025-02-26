@@ -157,7 +157,7 @@ lossdata: stop
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
-	go test -count=1 -failfast -race -v -p 120 -timeout 10s -run TestCheckVerify ./e2e/loss_data_test.go
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestCheckVerify ./e2e/loss_data_test.go
 
 mainnet: build-docker
 	# base services

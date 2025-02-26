@@ -228,3 +228,18 @@ jobs:
       - name: Test
         run: make test-${{ matrix.e2e-group }}
         working-directory: test
+
+  test-lost-data:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker
+        run: make build-docker
+
+      - name: Test
+        run: make lossdata
+        working-directory: test

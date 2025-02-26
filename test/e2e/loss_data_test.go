@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/ledgerwatch/erigon/ethclient"
 	"github.com/ledgerwatch/erigon/test/operations"
 	"github.com/ledgerwatch/erigon/zkevm/encoding"
+	"github.com/ledgerwatch/erigon/zkevm/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -106,9 +108,43 @@ func TestCheckSeqStop(t *testing.T) {
 		t.Skip()
 	}
 
-	for i := 0; i < 60; i++ {
+	ctx := context.Background()
+	client, err := ethclient.Dial(operations.DefaultL2NetworkURL)
+	require.NoError(t, err)
+	for i := 1; i < 3000; i++ {
+		from := common.HexToAddress(operations.DefaultL2AdminAddress)
+		to := common.HexToAddress(operations.DefaultL2NewAcc1Address)
+		nonce, err := client.PendingNonceAt(ctx, from)
+		log.Info(fmt.Sprintf("Nonce: %v", nonce))
+		require.NoError(t, err)
+		var tx types.Transaction = &types.LegacyTx{
+			CommonTx: types.CommonTx{
+				Nonce: nonce,
+				To:    &to,
+				Gas:   21000,
+				Value: uint256.NewInt(0),
+			},
+			GasPrice: uint256.NewInt(uint64(i) * 10 * encoding.Gwei),
+		}
+		privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(operations.DefaultL2AdminPrivateKey, "0x"))
+		require.NoError(t, err)
+		signer := types.MakeSigner(operations.GetTestChainConfig(operations.DefaultL2ChainID), 1, 0)
+		signedTx, err := types.SignTx(tx, *signer, privateKey)
+		require.NoError(t, err)
+		err = client.SendTransaction(ctx, signedTx)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, err)
+
+	batchNum, err := operations.GetBatchNumber()
+	require.NoError(t, err)
+	require.Equal(t, batchNum, uint64(4))
+
+	for i := 0; i < 10; i++ {
 		batchNum, err := operations.GetBatchNumber()
 		require.NoError(t, err)
+		log.Info(fmt.Sprintf("Batch Number: %v", batchNum))
 		require.LessOrEqual(t, batchNum, uint64(5))
 		time.Sleep(1 * time.Second)
 	}
@@ -127,7 +163,17 @@ func TestCheckVerify(t *testing.T) {
 
 	from := common.HexToAddress(operations.DefaultL2AdminAddress)
 	to := common.HexToAddress(operations.DefaultL2NewAcc1Address)
-	nonce, err := client.PendingNonceAt(ctx, from)
+	var nonce uint64
+	for i := 0; i < 100; i++ {
+		nonce, err = client.PendingNonceAt(ctx, from)
+		require.NoError(t, err)
+		log.Info(fmt.Sprintf("Nonce: %v", nonce))
+		if nonce == 3007 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
 	require.NoError(t, err)
 	var tx types.Transaction = &types.LegacyTx{
 		CommonTx: types.CommonTx{
@@ -144,6 +190,7 @@ func TestCheckVerify(t *testing.T) {
 	signedTx, err := types.SignTx(tx, *signer, privateKey)
 	var txs []*types.Transaction
 	txs = append(txs, &signedTx)
+	log.Info(fmt.Sprintf("signedTx nonce: %v", signedTx.GetNonce()))
 	_, err = operations.ApplyL2Txs(ctx, txs, auth, client, operations.VerifiedConfirmationLevel)
 	require.NoError(t, err)
 }
