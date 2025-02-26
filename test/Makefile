@@ -148,9 +148,16 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
 
 # Target to add loss data logic
-lossdata:
+lossdata: stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestModifyCode ./e2e/loss_data_test.go
-
+	make all
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestCheckSeqStop ./e2e/loss_data_test.go
+	sleep 3
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestRecoverCode ./e2e/loss_data_test.go
+	make build-docker
+	$(RUN_DOCKER_SEQ)
+	sleep 3
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestRecoverCode ./e2e/loss_data_test.go
 
 mainnet: build-docker
 	# base services
