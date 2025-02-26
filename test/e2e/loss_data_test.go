@@ -119,10 +119,6 @@ func TestCheckVerify(t *testing.T) {
 		t.Skip()
 	}
 
-	if !testVerified {
-		return
-	}
-
 	ctx := context.Background()
 	auth, err := operations.GetAuth(operations.DefaultL2AdminPrivateKey, operations.DefaultL2ChainID)
 	require.NoError(t, err)
