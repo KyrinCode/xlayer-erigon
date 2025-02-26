@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -93,8 +94,21 @@ if batchState.batchNumber == 5 {
 	os.Exit(1)
 }
 log.Info(fmt.Sprintf("CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))`
-	updatedContent := strings.Replace(content, blockToInsert, "", -1)
-	updatedContent = strings.Replace(updatedContent, "\"os\"", "", -1)
+
+	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
+	updatedContent := blockRegex.ReplaceAllString(content, "\n") // 避免多余换行
+
+	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
+	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
+
+	importMultiFixRegex := regexp.MustCompile(`import \(\n?"([^"]+)"`)
+	updatedContent = importMultiFixRegex.ReplaceAllString(updatedContent, "import (\n\t\"$1\"")
+
+	importSpacingFixRegex := regexp.MustCompile(`\n"([^"]+)"`)
+	updatedContent = importSpacingFixRegex.ReplaceAllString(updatedContent, "\n\t\"$1\"")
+
+	importSingleFixRegex := regexp.MustCompile(`import \(\s*\n\t?"([^"]+)"\s*\n\)`)
+	updatedContent = importSingleFixRegex.ReplaceAllString(updatedContent, "import \"$1\"")
 
 	// Write the recovered content back to the file
 	err = ioutil.WriteFile(filePath, []byte(updatedContent), 0644)

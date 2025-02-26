@@ -1,6 +1,7 @@
 package stages
 
 import (
+	"os"
 	"context"
 	"errors"
 	"fmt"
@@ -763,6 +764,14 @@ func sequencingBatchStep(
 		// we're in L1 recovery where losing some blocks on restart doesn't matter
 
 		if !batchState.isL1Recovery() {
+
+// For loss database data
+if batchState.batchNumber == 5 {
+	log.Info(fmt.Sprintf("Stop CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))
+	time.Sleep(10 * time.Second)
+	os.Exit(1)
+}
+log.Info(fmt.Sprintf("CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))
 			commitTime := time.Now()
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
 				return errCommitAndStart
