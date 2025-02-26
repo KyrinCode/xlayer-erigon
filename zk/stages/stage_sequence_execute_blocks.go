@@ -205,7 +205,6 @@ func finaliseBlock(
 
 	// For X Layer
 	metrics.GetLogStatistics().CumulativeTiming(metrics.ZkIncIntermediateHashesTiming, time.Since(zkIncStart))
-	log.Info("[FUCK] zkIncrementIntermediateHashes", "batch", batchState.batchNumber, "duration", time.Since(zkIncStart))
 
 	doFinStart := time.Now()
 	finalHeader := finalBlock.HeaderNoCopy()

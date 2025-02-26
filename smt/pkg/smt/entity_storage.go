@@ -3,17 +3,14 @@ package smt
 import (
 	"context"
 	"fmt"
-	"github.com/ledgerwatch/log/v3"
-	"math/big"
-	"strings"
-	"sync"
-	"time"
-
 	"github.com/dgravesa/go-parallel/parallel"
 	"github.com/ledgerwatch/erigon-lib/common"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types/accounts"
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
+	"math/big"
+	"strings"
+	"sync"
 )
 
 // SetAccountState sets the balance and nonce of an account
@@ -348,12 +345,10 @@ func (s *SMT) SetStorage(ctx context.Context, logPrefix string, accChanges map[l
 		}
 	}
 
-	t1 := time.Now()
 	insertBatchCfg := NewInsertBatchConfig(ctx, logPrefix, true)
 	if _, err = s.InsertBatch(insertBatchCfg, keysBatchStorage, valuesBatchStorage, nil, nil); err != nil {
 		return nil, nil, err
 	}
-	log.Info("[FUCK] InsertBatch", "duration", time.Since(t1))
 
 	return keysBatchStorage, valuesBatchStorage, nil
 }

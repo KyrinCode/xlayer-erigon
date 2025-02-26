@@ -253,33 +253,34 @@ func (m *Mapmutation) Delete(table string, k []byte) error {
 
 func (m *Mapmutation) doCommit(tx kv.RwTx) error {
 	startTime := time.Now()
-	keyCount := 0
-	total := m.count
+	const batchLimit = 4096 // Increased batch size for fewer writes
+	keyCount := int64(0)
+	total := int64(m.count)
 
-	// 批量限制
-	batchLimit := 1000
-	// 预分配批次内存池，减少内存分配
+	// Pre-allocate with larger capacity to reduce re-allocations
 	batchKeys := make([][]byte, 0, batchLimit)
 	batchValues := make([][]byte, 0, batchLimit)
 	collector := etl.NewCollector("", m.tmpdir, etl.NewSortableBuffer(etl.BufferOptimalSize/2), m.logger)
 	defer collector.Close()
 
-	// 开启后台排序与刷新
 	collector.SortAndFlushInBackground(true)
 
-	for table, bucket := range m.puts {
-		for key, value := range bucket {
-			// 批量填充数据
-			batchKeys = append(batchKeys, []byte(key))
-			batchValues = append(batchValues, value)
-			keyCount++
+	logTicker := time.NewTicker(30 * time.Second)
+	defer logTicker.Stop()
 
-			// 达到批量限制时进行批量操作
-			if len(batchKeys) >= batchLimit {
+	for table, bucket := range m.puts {
+		bucketSize := len(bucket)
+		keysIterated := 0
+
+		for key, value := range bucket {
+			batchKeys = append(batchKeys, []byte(key)) // Avoid copy if key is already []byte
+			batchValues = append(batchValues, value)
+			keysIterated++
+
+			if len(batchKeys) >= batchLimit || keysIterated == bucketSize {
 				if err := collectBatch(collector, batchKeys, batchValues); err != nil {
 					return err
 				}
-				// 清空内存池
 				batchKeys = batchKeys[:0]
 				batchValues = batchValues[:0]
 			}
@@ -293,21 +294,11 @@ func (m *Mapmutation) doCommit(tx kv.RwTx) error {
 			}
 		}
 
-		// 处理剩余未满 batchLimit 的数据
-		if len(batchKeys) > 0 {
-			if err := collectBatch(collector, batchKeys, batchValues); err != nil {
-				return err
-			}
-		}
+		keyCount += int64(bucketSize)
 
-		// 一次性执行 Load()，减少对 tx 的多次写入开销
 		if err := collector.Load(tx, table, etl.IdentityLoadFunc, etl.TransformArgs{Quit: m.quit}); err != nil {
 			return err
 		}
-
-		// 清理数据
-		batchKeys = batchKeys[:0]
-		batchValues = batchValues[:0]
 	}
 
 	tx.CollectMetrics()

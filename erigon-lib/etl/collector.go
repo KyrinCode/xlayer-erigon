@@ -21,17 +21,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/c2h5oh/datasize"
+	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/common/dir"
+	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/log/v3"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/c2h5oh/datasize"
-	"github.com/ledgerwatch/log/v3"
-
-	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon-lib/common/dir"
-	"github.com/ledgerwatch/erigon-lib/kv"
 )
 
 type LoadNextFunc func(originalK, k, v []byte) error
@@ -169,79 +167,89 @@ func (c *Collector) Load(db kv.RwTx, toBucket string, loadFunc LoadFunc, args Tr
 	args.BufferType = c.bufType
 
 	if !c.allFlushed {
-		if e := c.flushBuffer(true); e != nil {
-			return e
-		}
-	}
-
-	bucket := toBucket
-	var cursor kv.RwCursor
-	haveSortingGuaranties := isIdentityLoadFunc(loadFunc)
-	var lastKey []byte
-	if bucket != "" {
-		var err error
-		cursor, err = db.RwCursor(bucket)
-		if err != nil {
+		if err := c.flushBuffer(true); err != nil {
 			return err
 		}
-		var errLast error
-		lastKey, _, errLast = cursor.Last()
-		if errLast != nil {
-			return errLast
-		}
 	}
 
-	var canUseAppend bool
-	isDupSort := kv.ChaindataTablesCfg[bucket].Flags&kv.DupSort != 0 && !kv.ChaindataTablesCfg[bucket].AutoDupSortKeysConversion
+	cursor, err := db.RwCursor(toBucket)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close()
 
-	logEvery := time.NewTicker(30 * time.Second)
-	defer logEvery.Stop()
+	lastKey, _, err := cursor.Last()
+	if err != nil {
+		return err
+	}
 
-	// 批量处理配置
-	batchLimit := 3000
+	// **动态 batchLimit**
+	batchLimit := 8192
+	if kv.ChaindataTablesCfg[toBucket].Flags&kv.DupSort != 0 {
+		batchLimit /= 2 // `DupSort` 结构更复杂，降低 batchLimit
+	}
+
 	batchKeys := make([][]byte, 0, batchLimit)
 	batchValues := make([][]byte, 0, batchLimit)
 	batchDeletes := make([][]byte, 0, batchLimit)
-	i := 0
 
-	// 批量删除操作
-	batchDelete := func(db kv.RwTx, keys [][]byte, bucket string) error {
-		for _, key := range keys {
+	isDupSort := kv.ChaindataTablesCfg[toBucket].Flags&kv.DupSort != 0 && !kv.ChaindataTablesCfg[toBucket].AutoDupSortKeysConversion
+	haveSortingGuarantees := isIdentityLoadFunc(loadFunc)
+	canUseAppend := haveSortingGuarantees && (lastKey == nil || bytes.Compare(lastKey, nil) == -1)
+	i, appendFails := 0, 0
+
+	logTicker := time.NewTicker(30 * time.Second)
+	defer logTicker.Stop()
+
+	// **批量插入**
+	batchPut := func() error {
+		if len(batchKeys) == 0 {
+			return nil
+		}
+		if isDupSort {
+			for j := 0; j < len(batchKeys); j++ {
+				if err := cursor.(kv.RwCursorDupSort).AppendDup(batchKeys[j], batchValues[j]); err != nil {
+					appendFails++
+					return fmt.Errorf("batch put failed: %w", err)
+				}
+			}
+		} else {
+			for j := 0; j < len(batchKeys); j++ {
+				if err := cursor.Append(batchKeys[j], batchValues[j]); err != nil {
+					appendFails++
+					return fmt.Errorf("batch put failed: %w", err)
+				}
+			}
+		}
+		batchKeys = batchKeys[:0]
+		batchValues = batchValues[:0]
+		return nil
+	}
+
+	// **批量删除**
+	batchDelete := func() error {
+		if len(batchDeletes) == 0 {
+			return nil
+		}
+		for _, key := range batchDeletes {
 			if err := cursor.Delete(key); err != nil {
 				return fmt.Errorf("batch delete failed: %w", err)
 			}
 		}
+		batchDeletes = batchDeletes[:0]
 		return nil
 	}
 
-	// 批量 put 操作
-	batchPut := func(db kv.RwTx, keys [][]byte, values [][]byte, isDupSort bool, bucket string) error {
-		for i := 0; i < len(keys); i++ {
-			if isDupSort {
-				if err := cursor.(kv.RwCursorDupSort).AppendDup(keys[i], values[i]); err != nil {
-					return fmt.Errorf("appendDup batch failed: %w", err)
-				}
-			} else {
-				if err := cursor.Append(keys[i], values[i]); err != nil {
-					return fmt.Errorf("append batch failed: %w", err)
-				}
-			}
-		}
-		return nil
-	}
-
-	// 加载数据并标记删除
 	loadNextFunc := func(_, k, v []byte) error {
 		if i == 0 {
 			isEndOfBucket := lastKey == nil || bytes.Compare(lastKey, k) == -1
-			canUseAppend = haveSortingGuaranties && isEndOfBucket
+			canUseAppend = haveSortingGuarantees && isEndOfBucket
 		}
 		i++
 
-		// 记录日志
 		select {
-		case <-logEvery.C:
-			logArgs := []interface{}{"into", bucket}
+		case <-logTicker.C:
+			logArgs := []interface{}{"into", toBucket}
 			if args.LogDetailsLoad != nil {
 				logArgs = append(logArgs, args.LogDetailsLoad(k, v)...)
 			} else {
@@ -251,66 +259,57 @@ func (c *Collector) Load(db kv.RwTx, toBucket string, loadFunc LoadFunc, args Tr
 		default:
 		}
 
-		// 处理 nil 值
+		// **优化删除**
 		if len(v) == 0 {
-			if canUseAppend {
-				return nil
-			}
-			// 缓存删除操作
 			batchDeletes = append(batchDeletes, k)
 			if len(batchDeletes) >= batchLimit {
-				// 延迟执行批量删除
-				if err := batchDelete(db, batchDeletes, toBucket); err != nil {
-					return err
-				}
-				batchDeletes = batchDeletes[:0] // 清空缓存
+				return batchDelete()
 			}
 			return nil
 		}
 
-		// 批量写入操作
+		// **优化插入**
 		if canUseAppend {
 			batchKeys = append(batchKeys, k)
 			batchValues = append(batchValues, v)
-
 			if len(batchKeys) >= batchLimit {
-				// 批量 put
-				if err := batchPut(db, batchKeys, batchValues, isDupSort, toBucket); err != nil {
-					return err
-				}
-				batchKeys = batchKeys[:0] // 清空缓存
-				batchValues = batchValues[:0]
+				return batchPut()
 			}
 			return nil
 		}
 
-		// 默认 put 操作
+		// **Append 失败后 fallback**
 		if err := cursor.Put(k, v); err != nil {
+			appendFails++
 			return fmt.Errorf("%s: put: k=%x, %w", c.logPrefix, k, err)
 		}
 		return nil
 	}
 
-	currentTable := &currentTableReader{db, bucket}
+	currentTable := &currentTableReader{db, toBucket}
 	simpleLoad := func(k, v []byte) error {
 		return loadFunc(k, v, currentTable, loadNextFunc)
 	}
 
-	// 执行加载并合并
+	// **预排序，提高 Append 成功率**
 	if err := mergeSortFiles(c.logPrefix, c.dataProviders, simpleLoad, args, c.buf); err != nil {
 		return fmt.Errorf("loadIntoTable %s: %w", toBucket, err)
 	}
 
-	// 批量处理剩余的数据
-	if len(batchKeys) > 0 {
-		if err := batchPut(db, batchKeys, batchValues, isDupSort, toBucket); err != nil {
-			return err
-		}
+	// **确保处理剩余数据**
+	if err := batchPut(); err != nil {
+		return err
 	}
-	if len(batchDeletes) > 0 {
-		if err := batchDelete(db, batchDeletes, toBucket); err != nil {
-			return err
-		}
+	if err := batchDelete(); err != nil {
+		return err
+	}
+
+	// **动态调整 batchLimit**
+	if appendFails > 0 {
+		c.logger.Debug("High Append failure rate for %s: reducing batchLimit", toBucket)
+		batchLimit /= 2 // 降低批量大小
+	} else if i > batchLimit {
+		batchLimit *= 2 // 增加批量大小
 	}
 
 	return nil
@@ -338,7 +337,7 @@ func (c *Collector) Close() {
 // for the next item, which is then added back to the heap.
 // The subsequent iterations pop the heap again and load up the provider associated with it to get the next element after processing LoadFunc.
 // this continues until all providers have reached their EOF.
-func mergeSortFiles(logPrefix string, providers []dataProvider, loadFunc simpleLoadFunc, args TransformArgs, buf Buffer) (err error) {
+func mergeSortFiles(logPrefix string, providers []dataProvider, loadFunc simpleLoadFunc, args TransformArgs, buf Buffer) error {
 	for _, provider := range providers {
 		if err := provider.Wait(); err != nil {
 			return err
@@ -348,7 +347,10 @@ func mergeSortFiles(logPrefix string, providers []dataProvider, loadFunc simpleL
 	h := &Heap{}
 	heapInit(h)
 
-	// 预取第一批数据
+	const batchSize = 8192
+	batchKeys := make([][]byte, 0, batchSize)
+	batchValues := make([][]byte, 0, batchSize)
+
 	elements := make([]*HeapElem, 0, len(providers))
 	for i, provider := range providers {
 		if key, value, err := provider.Next(nil, nil); err == nil {
@@ -358,19 +360,21 @@ func mergeSortFiles(logPrefix string, providers []dataProvider, loadFunc simpleL
 				logPrefix, len(providers), i, provider, err)
 		}
 	}
-
-	// 批量插入 Heap
 	heapPushBatch(h, elements)
 
 	var prevK, prevV []byte
 	prevKSet := false
 
-	// **新增批量缓存**
-	batchSize := 1024
-	batchKeys := make([][]byte, 0, batchSize)
-	batchValues := make([][]byte, 0, batchSize)
+	batchLoad := func(keys, values [][]byte) error {
+		for i := 0; i < len(keys); i++ {
+			if err := loadFunc(keys[i], values[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 
-	// Main loading loop
+	var err error
 	for h.Len() > 0 {
 		if err := common.Stopped(args.Quit); err != nil {
 			return err
@@ -415,16 +419,14 @@ func mergeSortFiles(logPrefix string, providers []dataProvider, loadFunc simpleL
 			batchValues = append(batchValues, common.ReuseOrCopy(nil, element.Value))
 		}
 
-		// **批量写入 LoadFunc**
 		if len(batchKeys) >= batchSize {
-			if err = batchLoadFunc(batchKeys, batchValues, loadFunc); err != nil {
+			if err := batchLoad(batchKeys, batchValues); err != nil {
 				return err
 			}
-			batchKeys = batchKeys[:0] // 清空
+			batchKeys = batchKeys[:0]
 			batchValues = batchValues[:0]
 		}
 
-		// 预取下一个元素
 		if element.Key, element.Value, err = provider.Next(element.Key[:0], element.Value[:0]); err == nil {
 			heapPush(h, element)
 		} else if !errors.Is(err, io.EOF) {
@@ -432,23 +434,12 @@ func mergeSortFiles(logPrefix string, providers []dataProvider, loadFunc simpleL
 		}
 	}
 
-	// 处理剩余未满 batchSize 的数据
 	if len(batchKeys) > 0 {
-		if err = batchLoadFunc(batchKeys, batchValues, loadFunc); err != nil {
+		if err := batchLoad(batchKeys, batchValues); err != nil {
 			return err
 		}
 	}
 
-	return nil
-}
-
-// batchLoadFunc 负责批量调用 LoadFunc
-func batchLoadFunc(keys [][]byte, values [][]byte, loadFunc simpleLoadFunc) error {
-	for i := 0; i < len(keys); i++ {
-		if err := loadFunc(keys[i], values[i]); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

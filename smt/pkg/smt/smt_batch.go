@@ -3,14 +3,11 @@ package smt
 import (
 	"context"
 	"fmt"
-	"github.com/ledgerwatch/log/v3"
-	"runtime"
-	"sync"
-	"time"
-
 	"github.com/dgravesa/go-parallel/parallel"
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"github.com/ledgerwatch/erigon/zk"
+	"runtime"
+	"sync"
 )
 
 type InsertBatchConfig struct {
@@ -183,7 +180,6 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 		rootNodeHash = &utils.NodeKey{0, 0, 0, 0}
 	} else {
 		sdh := newSmtDfsHelper(s)
-		t1 := time.Now()
 
 		go func() {
 			defer sdh.destroy()
@@ -198,7 +194,6 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 			}
 		}
 		sdh.wg.Wait()
-		log.Info("[FUCK] calculateAndSaveHashesDfs", "duration", time.Since(t1))
 	}
 	if err := s.setLastRoot(*rootNodeHash); err != nil {
 		return nil, err
@@ -552,11 +547,22 @@ func calculateAndSaveHashesDfs(
 	path []int,
 	level int,
 ) {
-	const maxConcurrencyFactor = 2
-	dataChan := sdh.dataChan
 	noSave := sdh.s.noSaveOnInsert
+	dataChan := sdh.dataChan
 
-	// Handle leaf node inline
+	// 使用 sync.Pool 复用 path 切片
+	var pathPool = sync.Pool{
+		New: func() interface{} {
+			return make([]int, cap(path)) // 使用 cap 避免长度不足
+		},
+	}
+
+	// 控制最大并发 goroutine 数量，动态适应 CPU
+	maxConcurrency := runtime.GOMAXPROCS(0) * 2 // 动态调整并发数
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrency)
+
+	// 内联叶子节点处理，减少嵌套
 	if smtBatchRootNode.isLeaf() {
 		hashObj, hashValue := utils.HashKeyAndValueByPointers(
 			utils.ConcatArrays4ByPointers(
@@ -567,77 +573,58 @@ func calculateAndSaveHashesDfs(
 		)
 		smtBatchRootNode.hash = hashObj
 
-		if !noSave && len(dataChan) < cap(dataChan) {
+		if !noSave {
 			buffer1 := newSmtDfsHelperDataStruct(hashObj, hashValue)
 			buffer2 := newSmtDfsHelperDataStruct(hashObj, utils.JoinKey(path[:level], *smtBatchRootNode.nodeLeftHashOrRemainingKey))
-			select {
-			case dataChan <- buffer1:
+			// 单次检查通道状态，减少开销
+			if len(dataChan) < cap(dataChan) {
+				dataChan <- buffer1
 				dataChan <- buffer2
-			default:
 			}
 		}
 		return
 	}
 
-	// Initialize path pool and semaphore
-	var pathPool = sync.Pool{
-		New: func() interface{} {
-			return make([]int, 0, cap(path)) // Use original capacity
-		},
-	}
-	maxConcurrency := runtime.NumCPU() * maxConcurrencyFactor
-	sem := make(chan struct{}, maxConcurrency)
-	var wg sync.WaitGroup
 	var totalHash utils.NodeValue8
 
-	// Process children
-	children := [2]*smtBatchNode{smtBatchRootNode.leftNode, smtBatchRootNode.rightNode}
-	for i, child := range children {
-		if child == nil {
+	// 内联 processChild 逻辑，减少闭包开销
+	for i, child := range [2]*smtBatchNode{smtBatchRootNode.leftNode, smtBatchRootNode.rightNode} { // 使用数组替代切片
+		if child != nil {
+			if level < 3 { // 浅层串行处理
+				path[level] = i
+				calculateAndSaveHashesDfs(sdh, child, path, level+1)
+				totalHash.SetHalfValue(*child.hash, i)
+			} else { // 深层并行处理
+				wg.Add(1)
+				sem <- struct{}{}
+				childPath := pathPool.Get().([]int)[:len(path)] // 调整长度
+				copy(childPath, path)
+				childPath[level] = i
+				go func(c *smtBatchNode, p []int) {
+					defer func() { <-sem; pathPool.Put(p); wg.Done() }()
+					calculateAndSaveHashesDfs(sdh, c, p, level+1)
+				}(child, childPath)
+			}
+		} else {
 			defaultHash := smtBatchRootNode.nodeLeftHashOrRemainingKey
 			if i == 1 {
 				defaultHash = smtBatchRootNode.nodeRightHashOrValueHash
 			}
 			totalHash.SetHalfValue(*defaultHash, i)
-			continue
-		}
-
-		// Ensure path has enough length for the new level
-		if level >= len(path) {
-			path = append(path, 0) // Grow path if needed
-		}
-		path[level] = i
-
-		if level < 3 { // Serial processing for shallow levels
-			calculateAndSaveHashesDfs(sdh, child, path, level+1)
-			totalHash.SetHalfValue(*child.hash, i)
-		} else { // Parallel processing for deeper levels
-			wg.Add(1)
-			sem <- struct{}{}
-			childPath := append(pathPool.Get().([]int), path[:level+1]...)
-
-			go func(c *smtBatchNode, p []int) {
-				defer func() {
-					<-sem
-					pathPool.Put(p[:0])
-					wg.Done()
-				}()
-				calculateAndSaveHashesDfs(sdh, c, p, level+1)
-			}(child, childPath)
 		}
 	}
 
-	// Wait for all goroutines to complete
+	// 等待所有 goroutine 完成
 	wg.Wait()
 
-	// Update totalHash with child hashes after all are computed
-	for i, child := range children {
-		if child != nil && level >= 3 {
-			totalHash.SetHalfValue(*child.hash, i)
-		}
+	// 更新当前节点哈希，内联循环
+	if smtBatchRootNode.leftNode != nil {
+		totalHash.SetHalfValue(*smtBatchRootNode.leftNode.hash, 0)
+	}
+	if smtBatchRootNode.rightNode != nil {
+		totalHash.SetHalfValue(*smtBatchRootNode.rightNode.hash, 1)
 	}
 
-	// Compute and set the current node's hash
 	hashObj, hashValue := utils.HashKeyAndValueByPointers(totalHash.ToUintArrayByPointer(), &utils.BranchCapacity)
 	smtBatchRootNode.hash = hashObj
 
