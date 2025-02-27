@@ -149,7 +149,7 @@ if batchState.batchNumber == 5 {
 log.Info(fmt.Sprintf("CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))`
 
 	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
-	updatedContent := blockRegex.ReplaceAllString(content, "\n") // 避免多余换行
+	updatedContent := blockRegex.ReplaceAllString(content, "\n")
 
 	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
 	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
