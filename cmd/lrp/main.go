@@ -14,6 +14,7 @@ func main() {
 
 	commands.WithPathFlags(rootCmd)
 	commands.WithGitFlags(rootCmd)
+	commands.WithExtraFlags(rootCmd)
 	commands.WithPathFlags(commands.KeyCmd)
 
 	if err := rootCmd.Execute(); err != nil {

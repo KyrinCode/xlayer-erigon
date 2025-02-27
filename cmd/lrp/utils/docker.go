@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
@@ -74,5 +76,43 @@ func dockerWait(containerID string, cancel context.CancelFunc, stopSign string) 
 		return fmt.Errorf("failed to execute docker wait %s: %w", containerID, err)
 	}
 	fmt.Printf("Container %s exited with code: %d\n", containerID, exitCode)
+	return nil
+}
+
+func writeContainerLogs(containerID, outputFile string) error {
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+		client.WithVersion("1.45"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %v", err)
+	}
+	defer cli.Close()
+
+	// Open output file
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return fmt.Errorf("failed to create log file %s: %v", outputFile, err)
+	}
+	defer file.Close()
+
+	// Get container logs
+	logsReader, err := cli.ContainerLogs(context.Background(), containerID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     false,
+		Tail:       "all",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get logs for container %s: %v", containerID, err)
+	}
+	defer logsReader.Close()
+
+	// Copy logs to file
+	_, err = io.Copy(file, logsReader)
+	if err != nil && err != io.EOF {
+		return fmt.Errorf("failed to write logs to %s: %v", outputFile, err)
+	}
 	return nil
 }

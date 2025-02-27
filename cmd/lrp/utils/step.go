@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func SpawnWorkDirectory(path, commitID string) (string, *LrpConfig, error) {
+func SpawnWorkDirectory(path, commitID string) (string, *LRPConfig, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	workDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s", timestamp, commitID))
 	if err := os.MkdirAll(workDir, 0755); err != nil {
@@ -40,7 +40,7 @@ func SpawnWorkDirectory(path, commitID string) (string, *LrpConfig, error) {
 	}
 
 	// use 'make lrp-config' to generate new config file
-	if err := runLrpConfig(workDir); err != nil {
+	if err := runLRPConfig(workDir); err != nil {
 		return "", nil, err
 	}
 
@@ -50,7 +50,7 @@ func SpawnWorkDirectory(path, commitID string) (string, *LrpConfig, error) {
 		return "", nil, err
 	}
 
-	var config LrpConfig
+	var config LRPConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return "", nil, fmt.Errorf("failed to read config file: %v", err)
 	}
@@ -106,16 +106,33 @@ func createXlayerConfigFile(rpcKey, path string) error {
 	return nil
 }
 
-func RunMainnetUnwind(dir string, config *LrpConfig) (string, error) {
+func RunMainnetUnwind(workDir string, config *LRPConfig) (string, error) {
 	// use 'make lrp-mainnet-unwind' to make blockchain unwound to specfied height
-	return runLrpMainnetUnwind(dir, config)
+	return runLRPMainnetUnwind(workDir, config)
 }
 
-func RunMainnetReplay(dir string, config *LrpConfig) (string, error) {
+func RunMainnetReplay(workDir string, config *LRPConfig) (string, error) {
 	// use 'make lrp-mainnet-replay' to replay txs
-	return runLrpMainnetReplay(dir, config)
+	return runLRPMainnetReplay(workDir, config)
 }
 
 func RunDockerWait(containerID string, cancel context.CancelFunc, stopSign string) error {
 	return dockerWait(containerID, cancel, stopSign)
+}
+
+func RunLRPStop(workDir string) error {
+	// use 'make lrp-stop' to stop the container and remove it
+	return runLRPStop(workDir)
+}
+
+func WriteUnwindContainerLog(containerID, workDir string) error {
+	return writeContainerLogs(containerID, filepath.Join(workDir, UNWIND_LOG))
+}
+
+func WriteReplayContainerLog(containerID, workDir string) error {
+	return writeContainerLogs(containerID, filepath.Join(workDir, REPLAY_LOG))
+}
+
+func IsLRPBusy() (bool, error) {
+	return isLRPBusy()
 }

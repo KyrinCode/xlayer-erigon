@@ -7,7 +7,7 @@ import (
 	"os/exec"
 )
 
-func runLrpConfig(dir string) error {
+func runLRPConfig(dir string) error {
 	cmd := exec.Command("make", "-C", dir, LRP_CONFIG)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -18,7 +18,7 @@ func runLrpConfig(dir string) error {
 	return nil
 }
 
-func runLrpMainnetUnwind(dir string, config *LrpConfig) (string, error) {
+func runLRPMainnetUnwind(dir string, config *LRPConfig) (string, error) {
 	cmd := exec.Command("make", "-C", dir, LRP_MAINNET_UNWIND)
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -36,7 +36,7 @@ func runLrpMainnetUnwind(dir string, config *LrpConfig) (string, error) {
 	return containerID, nil
 }
 
-func runLrpMainnetReplay(dir string, config *LrpConfig) (string, error) {
+func runLRPMainnetReplay(dir string, config *LRPConfig) (string, error) {
 	cmd := exec.Command("make", "-C", dir, LRP_MAINNET_REPLAY)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -50,4 +50,14 @@ func runLrpMainnetReplay(dir string, config *LrpConfig) (string, error) {
 	}
 
 	return containerID, nil
+}
+
+func runLRPStop(dir string) error {
+	cmd := exec.Command("make", "-C", dir, LRP_STOP)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to execute make lrp-stop: %w", err)
+	}
+	return nil
 }

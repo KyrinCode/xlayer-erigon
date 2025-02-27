@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"path/filepath"
+
 	"github.com/ledgerwatch/erigon/cmd/lrp/utils"
 	"github.com/spf13/cobra"
 )
@@ -10,11 +12,14 @@ var (
 	branch   string
 	commitID string
 
-	chaindata string
+	chaindata     string
+	backupUnwound bool
+	ignoreRunning bool
+	compact       bool
 )
 
 func WithPathFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&path, "path", "p", utils.GetDefaultPath(path), "the destination directory which will store the testing result(recommended to use default)")
+	cmd.Flags().StringVarP(&path, "path", "p", utils.GetDefaultPath(path), "the root directory which will store the whole testing data, including repo and workspace(recommended to use default)")
 }
 
 func WithGitFlags(cmd *cobra.Command) {
@@ -22,6 +27,9 @@ func WithGitFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&branch, "branch", "b", utils.DEFAULT_BRANCH, "which branch to checkout to build the erigon client(lose effect if commitID is set)")
 }
 
-func WithWorkspaceFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&chaindata, "chaindata", utils.DEFAULT_DESTINATION_DIR, "the directory which will be imported to the testing environment")
+func WithExtraFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&chaindata, "chaindata", filepath.Join(utils.GetDefaultPath(path), utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), "the directory which will be imported to the testing environment(e.g. ~/Downloads/mainnet/seq)")
+	cmd.Flags().BoolVar(&backupUnwound, "backup", false, "determine whether to backup unwound chaindata")
+	cmd.Flags().BoolVarP(&ignoreRunning, "ignoreRunning", "i", false, "determine whether to ignore other tests that are already running")
+	cmd.Flags().BoolVar(&compact, "compact", false, "if true, monitor the mainnet data directory and compact it when the size is exceed limit")
 }

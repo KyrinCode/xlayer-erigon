@@ -6,11 +6,12 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"os/signal"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -24,7 +25,7 @@ import (
 var StatsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Monitor Docker container stats with termui",
-	Long:  `Monitor Docker container stats and display CPU, memory, disk, and network stats in sliding line charts.`,
+	Long:  `Monitor Docker container stats and display CPU, memory, disk, network stats, and TPS in sliding line charts.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 2 {
 			log.Fatal("Please provide two container IDs")
@@ -33,14 +34,12 @@ var StatsCmd = &cobra.Command{
 		csvPath1 := "./container1_stats.csv"
 		csvPath2 := "./container2_stats.csv"
 
-		// Monitor first container (no TPS)
 		fmt.Println("Monitoring container 1:", args[0])
 		err := monitorContainer(ctx, args[0], csvPath1, false)
 		if err != nil {
 			log.Printf("Error monitoring container 1: %v", err)
 		}
 
-		// Monitor second container (with TPS)
 		fmt.Println("Monitoring container 2:", args[1])
 		err = monitorContainer(ctx, args[1], csvPath2, true)
 		if err != nil {
@@ -49,7 +48,6 @@ var StatsCmd = &cobra.Command{
 	},
 }
 
-// monitorContainer monitors a single container with optional TPS display
 func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS bool) error {
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
@@ -59,6 +57,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
+	defer cli.Close()
 
 	if err := ui.Init(); err != nil {
 		return fmt.Errorf("failed to initialize termui: %v", err)
@@ -66,7 +65,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	defer ui.Close()
 	defer ui.Clear()
 
-	// Create stats view
+	// UI components
 	lcCPU := widgets.NewPlot()
 	lcCPU.Title = "CPU Usage (%) - Last 5 Minutes"
 	lcCPU.Data = make([][]float64, 1)
@@ -77,7 +76,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	lcCPU.SetRect(0, 0, 68, 20)
 
 	lcMem := widgets.NewPlot()
-	lcMem.Title = "Memory Usage (MB) - Last 5 Minutes"
+	lcMem.Title = "Memory Usage (MiB) - Last 5 Minutes"
 	lcMem.Data = make([][]float64, 1)
 	lcMem.Data[0] = make([]float64, 30)
 	lcMem.HorizontalScale = 2
@@ -86,7 +85,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	lcMem.SetRect(78, 0, 146, 20)
 
 	lcDisk := widgets.NewPlot()
-	lcDisk.Title = "Disk I/O (MB) - Last 5 Minutes"
+	lcDisk.Title = "Disk I/O (MiB) - Last 5 Minutes"
 	lcDisk.Data = make([][]float64, 2)
 	lcDisk.Data[0] = make([]float64, 30)
 	lcDisk.Data[1] = make([]float64, 30)
@@ -97,7 +96,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	lcDisk.SetRect(0, 24, 68, 44)
 
 	lcNet := widgets.NewPlot()
-	lcNet.Title = "Network I/O (MB) - Last 5 Minutes"
+	lcNet.Title = "Network I/O (MiB) - Last 5 Minutes"
 	lcNet.Data = make([][]float64, 2)
 	lcNet.Data[0] = make([]float64, 30)
 	lcNet.Data[1] = make([]float64, 30)
@@ -107,53 +106,49 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	lcNet.LineColors[1] = ui.ColorRed
 	lcNet.SetRect(78, 24, 146, 44)
 
-	// TPS component
 	var lcTPS *widgets.Plot
 	if showTPS {
 		lcTPS = widgets.NewPlot()
-		lcTPS.Title = "TPS - Last 5 Minutes"
+		lcTPS.Title = "TPS by Batch Number (Latest 30 Batches)"
 		lcTPS.Data = make([][]float64, 1)
 		lcTPS.Data[0] = make([]float64, 30)
 		lcTPS.HorizontalScale = 2
 		lcTPS.AxesColor = ui.ColorWhite
 		lcTPS.LineColors[0] = ui.ColorWhite
-		lcTPS.SetRect(0, 48, 146, 68)
+		lcTPS.SetRect(156, 0, 224, 20)
 	}
 
-	// Create logs view
 	logList := widgets.NewList()
 	logList.Title = "Container Logs"
 	logList.Rows = []string{}
 	logList.TextStyle = ui.NewStyle(ui.ColorWhite)
 	logList.WrapText = true
-	if showTPS {
-		logList.SetRect(0, 0, 146, 40)
-	} else {
-		logList.SetRect(0, 0, 146, 44)
-	}
+	logList.SetRect(0, 0, 146, 44)
 
-	// Create key tips area
 	keyHint := widgets.NewParagraph()
 	keyHint.Text = "t: Toggle view | q/Ctrl+C: Quit"
 	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
 	keyHint.Border = false
 	if showTPS {
-		keyHint.SetRect(0, 68, 146, 72)
+		keyHint.SetRect(0, 68, 224, 72)
 	} else {
 		keyHint.SetRect(0, 44, 146, 48)
 	}
 
+	// Data slices
 	xLabels := make([]string, 30)
+	batchLabels := make([]string, 30)
 	startTime := time.Now()
 	for i := 0; i < 30; i++ {
 		xLabels[i] = fmt.Sprintf("%d", (29-i)*10)
+		batchLabels[i] = ""
 	}
 	lcCPU.DataLabels = xLabels
 	lcMem.DataLabels = xLabels
 	lcDisk.DataLabels = xLabels
 	lcNet.DataLabels = xLabels
 	if showTPS {
-		lcTPS.DataLabels = xLabels
+		lcTPS.DataLabels = batchLabels
 	}
 
 	cpuData := make([]float64, 30)
@@ -169,25 +164,42 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	const maxVisibleLines = 30
 	scrollOffset := 0
 
-	// Open or create CSV file
+	// Main CSV setup (for non-TPS data)
 	csvFile, err := os.OpenFile(csvPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open CSV file: %v", err)
+		return fmt.Errorf("failed to open main CSV file: %v", err)
 	}
 	defer csvFile.Close()
 
 	csvWriter := csv.NewWriter(csvFile)
 	defer csvWriter.Flush()
 
-	// Write CSV header
 	if stat, err := csvFile.Stat(); err == nil && stat.Size() == 0 {
-		if showTPS {
-			err = csvWriter.Write([]string{"Timestamp", "CPUUsage", "MemoryUsage", "DiskRead", "DiskWrite", "NetRx", "NetTx", "TPS"})
-		} else {
-			err = csvWriter.Write([]string{"Timestamp", "CPUUsage", "MemoryUsage", "DiskRead", "DiskWrite", "NetRx", "NetTx"})
-		}
+		err = csvWriter.Write([]string{"Timestamp", "CPUUsage", "MemoryUsage", "DiskRead", "DiskWrite", "NetRx", "NetTx"})
 		if err != nil {
-			return fmt.Errorf("failed to write CSV header: %v", err)
+			return fmt.Errorf("failed to write main CSV header: %v", err)
+		}
+	}
+
+	// TPS CSV setup (only for showTPS)
+	var tpsCSVFile *os.File
+	var tpsCSVWriter *csv.Writer
+	if showTPS {
+		tpsCSVPath := csvPath[:len(csvPath)-4] + "-tps.csv"
+		tpsCSVFile, err = os.OpenFile(tpsCSVPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open TPS CSV file: %v", err)
+		}
+		defer tpsCSVFile.Close()
+
+		tpsCSVWriter = csv.NewWriter(tpsCSVFile)
+		defer tpsCSVWriter.Flush()
+
+		if stat, err := tpsCSVFile.Stat(); err == nil && stat.Size() == 0 {
+			err = tpsCSVWriter.Write([]string{"Timestamp", "CPUUsage", "MemoryUsage", "DiskRead", "DiskWrite", "NetRx", "NetTx", "Batch", "TxCount", "Duration", "TPS"})
+			if err != nil {
+				return fmt.Errorf("failed to write TPS CSV header: %v", err)
+			}
 		}
 	}
 
@@ -197,20 +209,17 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 			logList.Rows = []string{"No logs available yet"}
 			return
 		}
-
 		if scrollOffset < 0 {
 			scrollOffset = 0
 		}
 		if totalLines > maxVisibleLines && scrollOffset > totalLines-maxVisibleLines {
 			scrollOffset = totalLines - maxVisibleLines
 		}
-
 		start := scrollOffset
 		end := start + maxVisibleLines
 		if end > totalLines {
 			end = totalLines
 		}
-
 		logList.Rows = logs[start:end]
 	}
 
@@ -222,14 +231,16 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 		}
 	}
 
-	statsStream, err := cli.ContainerStats(context.Background(), containerID, true)
+	logCtx, logCancel := context.WithCancel(ctx)
+	defer logCancel()
+
+	// Use logCtx for both stats and logs to ensure synchronized cancellation
+	statsStream, err := cli.ContainerStats(logCtx, containerID, true)
 	if err != nil {
 		return fmt.Errorf("failed to get container stats: %v", err)
 	}
 	defer statsStream.Body.Close()
 
-	logCtx, logCancel := context.WithCancel(context.Background())
-	defer logCancel()
 	logReader, err := cli.ContainerLogs(logCtx, containerID, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -242,114 +253,51 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	}
 	defer logReader.Close()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
-
+	// Stats goroutine (10-second updates)
+	statsDoneChan := make(chan struct{})
 	go func() {
+		defer close(statsDoneChan)
+
 		decoder := json.NewDecoder(statsStream.Body)
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
-		if showStats {
-			updateKeyHint()
-			if showTPS {
-				ui.Render(lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
-			} else {
-				ui.Render(lcCPU, lcMem, lcDisk, lcNet, keyHint)
-			}
-		}
-
-		// TPS regex (example: "TPS: 123.45")
-		tpsRegex := regexp.MustCompile(`TPS: (\d+\.\d+|\d+)`)
-
 		for {
 			select {
-			case <-ctx.Done():
-				return
-			case <-sigChan:
+			case <-logCtx.Done():
 				return
 			case <-ticker.C:
 				var stat types.StatsJSON
 				if err := decoder.Decode(&stat); err != nil {
+					if logCtx.Err() != nil { // Context canceled, exit silently
+						return
+					}
 					log.Printf("Failed to decode stats: %v", err)
 					continue
 				}
 
-				cpuDelta := float64(stat.CPUStats.CPUUsage.TotalUsage - stat.PreCPUStats.CPUUsage.TotalUsage)
-				systemDelta := float64(stat.CPUStats.SystemUsage - stat.PreCPUStats.SystemUsage)
-				cpuCount := float64(stat.CPUStats.OnlineCPUs)
-				var cpuUsage float64
-				if systemDelta > 0 && cpuDelta > 0 {
-					cpuUsage = (cpuDelta / systemDelta) * cpuCount * 100.0
-				}
+				var (
+					cpuUsage, memoryUsage float64
+					diskRead, diskWrite   float64
+					netRx, netTx          float64
+				)
 
-				memoryUsage := float64(stat.MemoryStats.Usage) / 1048576.0
+				cpuUsage = calculateCPUUsage(stat.CPUStats, stat.PreCPUStats)
+				memoryUsage = calculateMemoryUsage(stat.MemoryStats)
+				diskRead, diskWrite = calculateBlockIO(stat.BlkioStats)
 
-				var diskRead, diskWrite float64
-				for _, blk := range stat.BlkioStats.IoServiceBytesRecursive {
-					switch blk.Op {
-					case "Read":
-						diskRead += float64(blk.Value) / 1048576.0
-					case "Write":
-						diskWrite += float64(blk.Value) / 1048576.0
-					}
-				}
-
-				var netRx, netTx float64
 				for _, net := range stat.Networks {
-					netRx += float64(net.RxBytes) / 1048576.0
-					netTx += float64(net.TxBytes) / 1048576.0
+					netRx += float64(net.RxBytes) / 1024 / 1024
+					netTx += float64(net.TxBytes) / 1024 / 1024
 				}
 
-				// Extract TPS from logs (default to 0 if not found)
-				var tps float64
-				for i := len(logs) - 1; i >= 0 && i > len(logs)-10; i-- { // Check last 10 lines
-					if match := tpsRegex.FindStringSubmatch(logs[i]); match != nil {
-						tps, _ = strconv.ParseFloat(match[1], 64)
-						break
-					}
-				}
-
-				// Record stats to CSV
-				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				var csvRow []string
-				if showTPS {
-					csvRow = []string{
-						timestamp,
-						fmt.Sprintf("%.2f", cpuUsage),
-						fmt.Sprintf("%.2f", memoryUsage),
-						fmt.Sprintf("%.2f", diskRead),
-						fmt.Sprintf("%.2f", diskWrite),
-						fmt.Sprintf("%.2f", netRx),
-						fmt.Sprintf("%.2f", netTx),
-						fmt.Sprintf("%.2f", tps),
-					}
-				} else {
-					csvRow = []string{
-						timestamp,
-						fmt.Sprintf("%.2f", cpuUsage),
-						fmt.Sprintf("%.2f", memoryUsage),
-						fmt.Sprintf("%.2f", diskRead),
-						fmt.Sprintf("%.2f", diskWrite),
-						fmt.Sprintf("%.2f", netRx),
-						fmt.Sprintf("%.2f", netTx),
-					}
-				}
-				err = csvWriter.Write(csvRow)
-				if err != nil {
-					log.Printf("Failed to write to CSV: %v", err)
-				}
-				csvWriter.Flush()
-
+				// Update data
 				cpuData = append(cpuData[1:], cpuUsage)
 				memData = append(memData[1:], memoryUsage)
 				diskReadData = append(diskReadData[1:], diskRead)
 				diskWriteData = append(diskWriteData[1:], diskWrite)
 				netRxData = append(netRxData[1:], netRx)
 				netTxData = append(netTxData[1:], netTx)
-				if showTPS {
-					tpsData = append(tpsData[1:], tps)
-				}
 
 				elapsed := int(time.Since(startTime).Seconds()) / 10 * 10
 				for i := 0; i < 30; i++ {
@@ -357,15 +305,12 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 					if timeAgo < 0 {
 						timeAgo = 0
 					}
-					xLabels[i] = fmt.Sprintf("%d ago", timeAgo)
+					xLabels[i] = fmt.Sprintf("%d", timeAgo)
 				}
 				lcCPU.DataLabels = xLabels
 				lcMem.DataLabels = xLabels
 				lcDisk.DataLabels = xLabels
 				lcNet.DataLabels = xLabels
-				if showTPS {
-					lcTPS.DataLabels = xLabels
-				}
 
 				lcCPU.Data[0] = cpuData
 				lcMem.Data[0] = memData
@@ -373,10 +318,24 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 				lcDisk.Data[1] = diskWriteData
 				lcNet.Data[0] = netRxData
 				lcNet.Data[1] = netTxData
-				if showTPS {
-					lcTPS.Data[0] = tpsData
-				}
 
+				// Write to main CSV periodically (non-TPS data)
+				timestamp := time.Now().Format("2006-01-02 15:04:05")
+				csvRow := []string{
+					timestamp,
+					fmt.Sprintf("%.2f", cpuUsage),
+					fmt.Sprintf("%.2f", memoryUsage),
+					fmt.Sprintf("%.2f", diskRead),
+					fmt.Sprintf("%.2f", diskWrite),
+					fmt.Sprintf("%.2f", netRx),
+					fmt.Sprintf("%.2f", netTx),
+				}
+				if err := csvWriter.Write(csvRow); err != nil {
+					log.Printf("Failed to write periodic main CSV: %v", err)
+				}
+				csvWriter.Flush()
+
+				// Render stats
 				if showStats {
 					if showTPS {
 						ui.Render(lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
@@ -388,40 +347,116 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 		}
 	}()
 
+	// Log and TPS goroutine (real-time updates for showTPS)
+	logDoneChan := make(chan struct{})
 	go func() {
+		defer close(logDoneChan)
+
 		scanner := bufio.NewScanner(logReader)
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if len(line) > 8 {
-				line = line[8:]
-				if len(logs) >= 1000 {
-					logs = logs[1:]
-					if scrollOffset > 0 {
-						scrollOffset--
+
+		// TPS regex patterns
+		batchRegex := regexp.MustCompile(`Batch<(\d+)>`)
+		durationRegex := regexp.MustCompile(`TotalDuration<(\d+)ms>`)
+		txRegex := regexp.MustCompile(`Tx<(\d+)>`)
+
+		for {
+			select {
+			case <-logCtx.Done():
+				return
+			default:
+				if !scanner.Scan() {
+					if err := scanner.Err(); err != nil && err != io.EOF {
+						log.Printf("Scanner error: %v", err)
 					}
+					return
 				}
-				logs = append(logs, line)
-				updateLogDisplay()
-				if !showStats {
-					ui.Render(logList, keyHint)
+				line := scanner.Text()
+				if len(line) > 8 {
+					line = line[8:]
+					if len(logs) >= 1000 {
+						logs = logs[1:]
+						if scrollOffset > 0 {
+							scrollOffset--
+						}
+					}
+					logs = append(logs, line)
+					updateLogDisplay()
+
+					if !showStats {
+						ui.Render(logList, keyHint)
+					}
+
+					// Parse TPS-related fields if showTPS is enabled
+					if showTPS && strings.Contains(line, "Batch") && strings.Contains(line, "TotalDuration") && strings.Contains(line, "Tx") {
+						batchMatch := batchRegex.FindStringSubmatch(line)
+						durationMatch := durationRegex.FindStringSubmatch(line)
+						txMatch := txRegex.FindStringSubmatch(line)
+
+						if batchMatch != nil && durationMatch != nil && txMatch != nil {
+							batchNo, _ := strconv.Atoi(batchMatch[1])
+							durationMs, _ := strconv.Atoi(durationMatch[1])
+							txCount, _ := strconv.Atoi(txMatch[1])
+
+							var instantTPS float64
+							if durationMs > 0 {
+								instantTPS = float64(txCount*1000) / float64(durationMs)
+							}
+
+							// Update TPS data with automatic sliding
+							tpsData = append(tpsData[1:], instantTPS)
+							batchLabels = append(batchLabels[1:], fmt.Sprintf("%d", batchNo))
+							lcTPS.Data[0] = tpsData
+							lcTPS.DataLabels = batchLabels
+
+							// Write to TPS CSV with full data
+							timestamp := time.Now().Format("2006-01-02 15:04:05")
+							tpsCSVRow := []string{
+								timestamp,
+								fmt.Sprintf("%.2f", cpuData[len(cpuData)-1]),
+								fmt.Sprintf("%.2f", memData[len(memData)-1]),
+								fmt.Sprintf("%.2f", diskReadData[len(diskReadData)-1]),
+								fmt.Sprintf("%.2f", diskWriteData[len(diskWriteData)-1]),
+								fmt.Sprintf("%.2f", netRxData[len(netRxData)-1]),
+								fmt.Sprintf("%.2f", netTxData[len(netTxData)-1]),
+								fmt.Sprintf("%d", batchNo),
+								fmt.Sprintf("%d", txCount),
+								fmt.Sprintf("%d", durationMs),
+								fmt.Sprintf("%.2f", instantTPS),
+							}
+							if err := tpsCSVWriter.Write(tpsCSVRow); err != nil {
+								log.Printf("Failed to write TPS CSV: %v", err)
+							}
+							tpsCSVWriter.Flush()
+
+							// Real-time render when TPS updates
+							if showStats {
+								ui.Render(lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
+							}
+						}
+					}
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			log.Printf("Scanner error: %v", err)
-		}
 	}()
 
+	// Event loop
 	uiEvents := ui.PollEvents()
+mainLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			logCancel()
+			<-logDoneChan
+			<-statsDoneChan
+			break mainLoop
 		case e := <-uiEvents:
 			switch e.ID {
 			case "q", "<C-c>":
-				return nil
+				logCancel()
+				<-logDoneChan
+				<-statsDoneChan
+				return fmt.Errorf("capture a quit signal, program interrupted")
 			case "t":
 				showStats = !showStats
 				ui.Clear()
@@ -456,8 +491,176 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 					ui.Render(logList, keyHint)
 				}
 			}
-		case <-sigChan:
-			return nil
+		}
+	}
+	return nil
+}
+
+func calculateMemoryUsage(memoryStats types.MemoryStats) float64 {
+	usage := float64(memoryStats.Usage)
+	if inactiveFile, ok := memoryStats.Stats["inactive_file"]; ok && inactiveFile > 0 {
+		activeMemory := usage - float64(inactiveFile)
+		if activeMemory > 0 {
+			return activeMemory / 1024 / 1024
+		}
+	}
+	if rss, ok := memoryStats.Stats["rss"]; ok && rss > 0 {
+		return float64(rss) / 1024 / 1024
+	}
+	if totalRss, ok := memoryStats.Stats["total_rss"]; ok && totalRss > 0 {
+		return float64(totalRss) / 1024 / 1024
+	}
+	activeAnon, anonOk := memoryStats.Stats["active_anon"]
+	activeFile, fileOk := memoryStats.Stats["active_file"]
+	if anonOk && fileOk && (activeAnon > 0 || activeFile > 0) {
+		return float64(activeAnon+activeFile) / 1024 / 1024
+	}
+	return usage / 1024 / 1024
+}
+
+func calculateCPUUsage(curCPUStats, preCPUStats types.CPUStats) float64 {
+	cpuDelta := float64(curCPUStats.CPUUsage.TotalUsage - preCPUStats.CPUUsage.TotalUsage)
+	systemDelta := float64(curCPUStats.SystemUsage - preCPUStats.SystemUsage)
+	cpuCount := float64(curCPUStats.OnlineCPUs)
+	if systemDelta > 0 && cpuDelta > 0 {
+		return (cpuDelta / systemDelta) * cpuCount * 100.0
+	}
+	return 0.0
+}
+
+func calculateBlockIO(blkioStats types.BlkioStats) (rx float64, tx float64) {
+	for _, blk := range blkioStats.IoServiceBytesRecursive {
+		switch strings.ToLower(blk.Op) {
+		case "read":
+			rx += float64(blk.Value) / 1024 / 1024
+		case "write":
+			tx += float64(blk.Value) / 1024 / 1024
+		}
+	}
+	return rx, tx
+}
+
+// showReport displays a report based on CSV data using termui
+func showReport(csvPath string) error {
+	// Open CSV file
+	file, err := os.Open(csvPath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %v", err)
+	}
+	defer file.Close()
+
+	// Read CSV data
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV: %v", err)
+	}
+
+	if len(records) < 2 { // At least header + 1 row
+		return fmt.Errorf("CSV file is empty or invalid")
+	}
+
+	// Parse header
+	header := records[0]
+	expectedHeader := []string{"Timestamp", "CPUUsage", "MemoryUsage", "DiskRead", "DiskWrite", "NetRx", "NetTx", "Batch", "TxCount", "Duration", "TPS"}
+	if len(header) != len(expectedHeader) {
+		return fmt.Errorf("invalid CSV header")
+	}
+
+	// Variables for computation
+	var startTime, endTime time.Time
+	var totalTxCount int
+	var firstNonZeroBatch, lastNonZeroBatch int
+
+	// Process data rows
+	for i, row := range records[1:] {
+		// Parse Timestamp
+		timestamp, err := time.Parse("2006-01-02 15:04:05", row[0])
+		if err != nil {
+			log.Printf("Failed to parse timestamp in row %d: %v", i+1, err)
+			continue
+		}
+
+		// Parse Batch
+		batchNo, err := strconv.Atoi(row[7])
+		if err != nil {
+			log.Printf("Failed to parse Batch in row %d: %v", i+1, err)
+			continue
+		}
+
+		// Parse TxCount
+		txCount, err := strconv.Atoi(row[8])
+		if err != nil {
+			log.Printf("Failed to parse TxCount in row %d: %v", i+1, err)
+			continue
+		}
+
+		// Update totalTxCount
+		totalTxCount += txCount
+
+		// Find startTime (first non-zero batch)
+		if batchNo > 0 && startTime.IsZero() {
+			startTime = timestamp
+			firstNonZeroBatch = batchNo
+		}
+
+		// Update endTime (last non-zero batch)
+		if batchNo > 0 {
+			endTime = timestamp
+			lastNonZeroBatch = batchNo
+		}
+	}
+
+	// Calculate duration and average TPS
+	duration := endTime.Sub(startTime).Seconds()
+	avgTPS := float64(totalTxCount) / duration
+	if duration <= 0 {
+		avgTPS = 0
+	}
+
+	// Initialize termui
+	if err := ui.Init(); err != nil {
+		return fmt.Errorf("failed to initialize termui: %v", err)
+	}
+	defer ui.Close()
+	defer ui.Clear()
+
+	// Create report table
+	table := widgets.NewTable()
+	table.Title = "Replay Report"
+	table.Rows = [][]string{
+		{"From Batch:", fmt.Sprintf("%d", firstNonZeroBatch)},
+		{"To Batch:", fmt.Sprintf("%d", lastNonZeroBatch)},
+		{"Start Time:", startTime.Format("2006-01-02 15:04:05")},
+		{"End Time:", endTime.Format("2006-01-02 15:04:05")},
+		{"Total Transactions:", fmt.Sprintf("%d", totalTxCount)},
+		{"Replay Duration:", fmt.Sprintf("%.2f seconds", duration)},
+		{"Average TPS:", fmt.Sprintf("%.2f", avgTPS)},
+	}
+	table.TextStyle = ui.NewStyle(ui.ColorWhite)
+	table.RowSeparator = true
+	table.BorderStyle = ui.NewStyle(ui.ColorCyan)
+	table.SetRect(0, 0, 50, 10)
+
+	// Create key hint
+	keyHint := widgets.NewParagraph()
+	keyHint.Text = "q/Ctrl+C: Quit"
+	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
+	keyHint.Border = false
+	keyHint.SetRect(0, 10, 50, 12)
+
+	// Render initial UI
+	ui.Render(table, keyHint)
+
+	// Event loop
+	uiEvents := ui.PollEvents()
+	for {
+		select {
+		case e := <-uiEvents:
+			switch e.ID {
+			case "q", "<C-c>":
+				return nil
+			}
 		}
 	}
 }
