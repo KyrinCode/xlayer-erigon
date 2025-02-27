@@ -28,6 +28,18 @@ func GetBlockNumber() (uint64, error) {
 	return transHexToUint64(response.Result)
 }
 
+func GetBatchNumberBySeq() (uint64, error) {
+	response, err := client.JSONRPCCall(DefaultL2NetworkURLSeq, "zkevm_batchNumber")
+	if err != nil {
+		return 0, err
+	}
+	if response.Error != nil {
+		return 0, fmt.Errorf("%d - %s", response.Error.Code, response.Error.Message)
+	}
+
+	return transHexToUint64(response.Result)
+}
+
 func GetBatchNumber() (uint64, error) {
 	response, err := client.JSONRPCCall(DefaultL2NetworkURL, "zkevm_batchNumber")
 	if err != nil {

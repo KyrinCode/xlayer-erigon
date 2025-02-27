@@ -164,6 +164,16 @@ lossdata: stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDBCheckVerifyStep4 ./e2e/loss_data_test.go
 
 	# Case 2 loss data stream
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDSModifyCodeStep1 ./e2e/loss_data_test.go
+	$(STOP_DOCKER_SEQ)
+	make build-docker
+	$(RUN_DOCKER_SEQ)
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDSStressStep2 ./e2e/loss_data_test.go
+	$(STOP_DOCKER_SEQ)
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDSRecoverCodeStep3 ./e2e/loss_data_test.go
+	make build-docker
+	$(RUN_DOCKER_SEQ)
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDSCheckVerifyStep4 ./e2e/loss_data_test.go
 
 	# Case 3 replace seq form rpc
 	sleep 10
