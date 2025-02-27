@@ -1,8 +1,9 @@
-user: 
-gitCommit: 
-portDiff: 
-fromBatchNumber: 
-toBatchNumber: 
-useExternalDatastream: 
+user:
+gitCommit:
+portDiff:
+fromBatchNumber:
+toBatchNumber:
+useExternalDatastream:
 externalDatastreamPath: ./external_ds/data-stream
 srcMainnetDataPath: $HOME/Downloads/mainnet/seq
+gitRootPath:
