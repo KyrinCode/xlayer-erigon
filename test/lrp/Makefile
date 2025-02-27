@@ -1,6 +1,10 @@
 # global & shell env variables
 USER_PREFIX = $(shell awk '/^user:/ {print $$2}' lrp.config.yaml 2>/dev/null)
-IMAGE_TAG = $(USER_PREFIX)-$(shell git rev-parse --short HEAD)
+GIT_ROOT = $(shell awk '/^gitRootPath:/ {print $$2}' lrp.config.yaml 2>/dev/null)
+ifeq ($(GIT_ROOT),)
+GIT_ROOT = $(shell git rev-parse --show-toplevel)
+endif
+IMAGE_TAG = $(USER_PREFIX)-$(shell cd $(GIT_ROOT) && git rev-parse --short HEAD)
 export USER_PREFIX IMAGE_TAG
 PORT_DIFF = $(shell awk '/^portDiff:/ {print $$2}' lrp.config.yaml 2>/dev/null | grep -E '^[0-9]+$$|^-[0-9]+$$' || echo 0)
 PPROF_PORT = $(shell echo $$((6060 + $(PORT_DIFF))))
@@ -28,8 +32,13 @@ REPLAY_TPS_FILE := tps.log
 
 .PHONY: lrp-build-docker
 lrp-build-docker: # Build cdk-erigoin for lrp
-	@GIT_ROOT=$$(git rev-parse --show-toplevel); \
-	docker build -t cdk-erigon:$(IMAGE_TAG) -f $$GIT_ROOT/Dockerfile.local $$GIT_ROOT
+	@if [ -d $(GIT_ROOT) ]; then \
+		cd $(GIT_ROOT); \
+		docker build -t cdk-erigon:$(IMAGE_TAG) -f Dockerfile.local . ; \
+	else \
+		echo "Error: git root <$(GIT_ROOT)> does not exist"; \
+		exit 1; \
+	fi
 
 .PHONY: lrp-config
 lrp-config:
