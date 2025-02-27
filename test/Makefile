@@ -153,7 +153,7 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 # Target to add loss data logic
 lossdata: stop
 	# Case 1 loss database
-##	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDBModifyCodeStep1 ./e2e/loss_data_test.go
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDBModifyCodeStep1 ./e2e/loss_data_test.go
 	make run
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDBCheckSeqStopStep2 ./e2e/loss_data_test.go
 	sleep 3
