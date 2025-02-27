@@ -206,6 +206,8 @@ func TestLossDBCheckVerifyStep4(t *testing.T) {
 	log.Info(fmt.Sprintf("signedTx nonce: %v", signedTx.GetNonce()))
 	_, err = operations.ApplyL2Txs(ctx, txs, auth, client, operations.VerifiedConfirmationLevel)
 	require.NoError(t, err)
+	err = writeNonce(nonce)
+	require.NoError(t, err)
 }
 
 func writeNonce(nonce uint64) error {
@@ -233,4 +235,44 @@ func readNonce() (uint64, error) {
 	}
 
 	return nonce, nil
+}
+
+func TestReplaceRpcStep1(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	ctx := context.Background()
+	auth, err := operations.GetAuth(operations.DefaultL2AdminPrivateKey, operations.DefaultL2ChainID)
+	require.NoError(t, err)
+	client, err := ethclient.Dial(operations.DefaultL2NetworkURL)
+	require.NoError(t, err)
+
+	from := common.HexToAddress(operations.DefaultL2AdminAddress)
+	to := common.HexToAddress(operations.DefaultL2NewAcc1Address)
+	var nonce uint64
+	nonce, err = client.PendingNonceAt(ctx, from)
+	require.NoError(t, err)
+	var rNonce uint64
+	rNonce, err = readNonce()
+	require.NoError(t, err)
+	require.Equal(t, nonce, rNonce+1)
+	var tx types.Transaction = &types.LegacyTx{
+		CommonTx: types.CommonTx{
+			Nonce: nonce,
+			To:    &to,
+			Gas:   21000,
+			Value: uint256.NewInt(0),
+		},
+		GasPrice: uint256.NewInt(10 * encoding.Gwei),
+	}
+	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(operations.DefaultL2AdminPrivateKey, "0x"))
+	require.NoError(t, err)
+	signer := types.MakeSigner(operations.GetTestChainConfig(operations.DefaultL2ChainID), 1, 0)
+	signedTx, err := types.SignTx(tx, *signer, privateKey)
+	var txs []*types.Transaction
+	txs = append(txs, &signedTx)
+	log.Info(fmt.Sprintf("signedTx nonce: %v", signedTx.GetNonce()))
+	_, err = operations.ApplyL2Txs(ctx, txs, auth, client, operations.VerifiedConfirmationLevel)
+	require.NoError(t, err)
 }

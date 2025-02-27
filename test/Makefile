@@ -51,6 +51,9 @@ RUN_DOCKER_GRAFANA := $(DOCKER_COMPOSE) up -d $(DOCKER_GRAFANA)
 
 STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; rm -rf data
 
+STOP_DOCKER_SEQ := $(DOCKER_COMPOSE) down $(DOCKER_SEQ)
+STOP_DOCKER_RPC := $(DOCKER_COMPOSE) down $(DOCKER_RPC)
+
 .PHONY: build-docker
 build-docker: ## Build cdk-erigoin for sequencer and rpc
 	docker build -t cdk-erigon -f ../Dockerfile.local ../
@@ -149,7 +152,8 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 
 # Target to add loss data logic
 lossdata: stop
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDBModifyCodeStep1 ./e2e/loss_data_test.go
+	# Case 1 loss database
+##	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDBModifyCodeStep1 ./e2e/loss_data_test.go
 	make run
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDBCheckSeqStopStep2 ./e2e/loss_data_test.go
 	sleep 3
@@ -158,6 +162,19 @@ lossdata: stop
 	$(RUN_DOCKER_SEQ)
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDBCheckVerifyStep4 ./e2e/loss_data_test.go
+
+	# Case 2 loss data stream
+
+	# Case 3 replace seq form rpc
+	sleep 10
+	$(STOP_DOCKER_SEQ)
+	$(STOP_DOCKER_RPC)
+	rm -rf data/seq/*; cp -r data/rpc/* data/seq/
+	$(RUN_DOCKER_SEQ)
+	sleep 10
+	$(RUN_DOCKER_RPC)
+	sleep 3
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestReplaceRpcStep1 ./e2e/loss_data_test.go
 
 mainnet: build-docker
 	# base services
