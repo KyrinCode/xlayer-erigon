@@ -168,11 +168,13 @@ lossdata: stop
 	$(STOP_DOCKER_SEQ)
 	make build-docker
 	$(RUN_DOCKER_SEQ)
+	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDSStressStep2 ./e2e/loss_data_test.go
 	$(STOP_DOCKER_SEQ)
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDSRecoverCodeStep3 ./e2e/loss_data_test.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
+	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDSCheckVerifyStep4 ./e2e/loss_data_test.go
 
 	# Case 3 replace seq form rpc
@@ -181,7 +183,7 @@ lossdata: stop
 	$(STOP_DOCKER_RPC)
 	rm -rf data/seq/*; cp -r data/rpc/* data/seq/
 	$(RUN_DOCKER_SEQ)
-	sleep 10
+	sleep 3
 	$(RUN_DOCKER_RPC)
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestReplaceRpcStep1 ./e2e/loss_data_test.go
