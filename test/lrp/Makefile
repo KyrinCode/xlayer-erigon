@@ -19,12 +19,16 @@ DOCKER_MAINNET_UNWIND := xlayer-mainnet-unwind
 DOCKER_MAINNET_UNWIND_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-unwind
 DOCKER_MAINNET_REPLAY := xlayer-mainnet-replay
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := xlayer-mainnet-replay-with-external-datastream
+DOCKER_MAINNET_REPLAY_VMTOUCH := xlayer-mainnet-replay-vmtouch
+DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := xlayer-mainnet-replay-with-external-datastream-and-vmtouch
 DOCKER_MAINNET_REPLAY_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-replay
 
 RUN_DOCKER_STATELESS_EXECUTOR := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXECUTOR)
 RUN_DOCKER_MAINNET_UNWIND := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND)
 RUN_DOCKER_MAINNET_REPLAY := $(DOCKER_COMPOSE) --profile internal-ds up -d $(DOCKER_MAINNET_REPLAY)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := $(DOCKER_COMPOSE) --profile external-ds up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM)
+RUN_DOCKER_MAINNET_REPLAY_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_VMTOUCH)
+RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := $(DOCKER_COMPOSE) --profile external-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH)
 
 UNWIND_LOG_FILE := unwind.log
 REPLAY_LOG_FILE := replay.log
@@ -237,3 +241,12 @@ vmtouch-evict:
 
 vmtouch-check:
 	docker exec -it $(DOCKER_MAINNET_REPLAY_CONTAINER) sh -c "vmtouch /home/erigon/data/chaindata/mdbx.dat"
+
+.PHONY: lrp-mainnet-replay-vmtouch
+lrp-mainnet-replay-vmtouch: lrp-config-apply lrp-build-docker
+	@EXTERNAL_DS=$$(awk '/^useExternalDatastream:/ {print $$2}' lrp.config.yaml); \
+	if [ "$$EXTERNAL_DS" = "true" ]; then \
+		$(RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH); \
+	else \
+		$(RUN_DOCKER_MAINNET_REPLAY_VMTOUCH); \
+	fi
