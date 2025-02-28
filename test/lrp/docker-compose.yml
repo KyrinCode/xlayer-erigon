@@ -8,7 +8,7 @@ services:
     environment:
       - CDK_ERIGON_SEQUENCER=0
     volumes:
-      - ./mainnet/seq/:/home/erigon/data/
+      - ./mainnet/seq:/home/erigon/data/
       - ./xlayerconfig-mainnet.yaml:/usr/src/app/config.yaml
     command: |
       integration state_stages_zkevm \
