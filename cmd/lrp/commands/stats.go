@@ -23,32 +23,20 @@ import (
 )
 
 var StatsCmd = &cobra.Command{
-	Use:   "stats",
-	Short: "Monitor Docker container stats with termui",
-	Long:  `Monitor Docker container stats and display CPU, memory, disk, network stats, and TPS in sliding line charts.`,
+	Use:   "stats [file]",
+	Short: "Specify a file to display the test report",
+	Long:  `Specify a file path as an argument to display a test report in a table.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) < 2 {
-			log.Fatal("Please provide two container IDs")
-		}
-		ctx := context.Background()
-		csvPath1 := "./container1_stats.csv"
-		csvPath2 := "./container2_stats.csv"
-
-		fmt.Println("Monitoring container 1:", args[0])
-		err := monitorContainer(ctx, args[0], csvPath1, false)
+		filePath := args[0]
+		err := showReport(filePath)
 		if err != nil {
-			log.Printf("Error monitoring container 1: %v", err)
-		}
-
-		fmt.Println("Monitoring container 2:", args[1])
-		err = monitorContainer(ctx, args[1], csvPath2, true)
-		if err != nil {
-			log.Fatalf("Error monitoring container 2: %v", err)
+			log.Fatalf("Failed to display test report: %v", err)
 		}
 	},
 }
 
-func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS bool) error {
+func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath string, showTPS bool) error {
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
@@ -185,7 +173,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, showTPS 
 	var tpsCSVFile *os.File
 	var tpsCSVWriter *csv.Writer
 	if showTPS {
-		tpsCSVPath := csvPath[:len(csvPath)-4] + "-tps.csv"
 		tpsCSVFile, err = os.OpenFile(tpsCSVPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open TPS CSV file: %v", err)
@@ -617,6 +604,7 @@ func showReport(csvPath string) error {
 	if duration <= 0 {
 		avgTPS = 0
 	}
+	fmt.Println(totalTxCount)
 
 	// Initialize termui
 	if err := ui.Init(); err != nil {
@@ -640,14 +628,14 @@ func showReport(csvPath string) error {
 	table.TextStyle = ui.NewStyle(ui.ColorWhite)
 	table.RowSeparator = true
 	table.BorderStyle = ui.NewStyle(ui.ColorCyan)
-	table.SetRect(0, 0, 50, 10)
+	table.SetRect(0, 0, 50, 15)
 
 	// Create key hint
 	keyHint := widgets.NewParagraph()
 	keyHint.Text = "q/Ctrl+C: Quit"
 	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
 	keyHint.Border = false
-	keyHint.SetRect(0, 10, 50, 12)
+	keyHint.SetRect(0, 30, 50, 27)
 
 	// Render initial UI
 	ui.Render(table, keyHint)
