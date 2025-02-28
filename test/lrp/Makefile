@@ -88,6 +88,7 @@ lrp-config:
 		echo "useExternalDatastream: $$EXTERNAL_DS" >> lrp.config.yaml; \
 		echo "externalDatastreamPath: " >> lrp.config.yaml; \
 		echo "srcMainnetDataPath: " >> lrp.config.yaml; \
+		echo "gitRootPath: " >> lrp.config.yaml; \
 	else \
 		if [ "$(shell uname)" = "Darwin" ]; then \
 			sed -i '' "s/^fromBatchNumber:.*/fromBatchNumber: $$FROM_BATCH_NO/" lrp.config.yaml; \
