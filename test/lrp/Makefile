@@ -159,7 +159,7 @@ lrp-mainnet: lrp-config-apply lrp-build-docker
 
 .PHONY: lrp-mainnet-unwind
 lrp-mainnet-unwind: lrp-config-apply lrp-build-docker
-	$(RUN_DOCKER_MAINNET_UNWIND)
+	@$(RUN_DOCKER_MAINNET_UNWIND)
 	@docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER); \
 	docker logs $(DOCKER_MAINNET_UNWIND_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 
@@ -197,7 +197,7 @@ lrp-mainnet-data-refresh:
 		exit 1; \
 	fi; \
 	mkdir -p mainnet; \
-	rm -rf mainnet/seq; \
+	rm -rf mainnet/*; \
 	cp -r "$$EXPANDED_PATH" mainnet/seq
 
 .PHONY: lrp-mainnet-data-compact
