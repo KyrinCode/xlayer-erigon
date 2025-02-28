@@ -2,6 +2,7 @@ package commands
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/ledgerwatch/erigon/cmd/lrp/utils"
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ var (
 	backupUnwound bool
 	ignoreRunning bool
 	compact       bool
+	sampleIntv    time.Duration
 )
 
 func WithPathFlags(cmd *cobra.Command) {
@@ -32,4 +34,5 @@ func WithExtraFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&backupUnwound, "backup", false, "determine whether to backup unwound chaindata")
 	cmd.Flags().BoolVarP(&ignoreRunning, "ignoreRunning", "i", false, "determine whether to ignore other tests that are already running")
 	cmd.Flags().BoolVar(&compact, "compact", false, "if true, monitor the mainnet data directory and compact it when the size is exceed limit")
+	cmd.Flags().DurationVar(&sampleIntv, "sample", utils.DEFAULT_SAMPLE_INTERVAL, "set the sampling interval for the Docker container, the minimum value is 1 second")
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	testscripts "github.com/ledgerwatch/erigon/cmd/lrp/test-scripts"
@@ -121,7 +122,7 @@ func RunDockerWait(containerID string, cancel context.CancelFunc, stopSign strin
 }
 
 func RunLRPStop(workDir string) error {
-	// use 'make lrp-stop' to stop the container and remove it
+	// use 'make lrp-stop' to stop the container
 	return runLRPStop(workDir)
 }
 
@@ -135,4 +136,42 @@ func WriteReplayContainerLog(containerID, workDir string) error {
 
 func IsLRPBusy() (bool, error) {
 	return isLRPBusy()
+}
+
+func FindUnwoundDirectory(batchFrom uint64, path string) string {
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return ""
+	}
+
+	closest := -1
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		folderNum, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		if folderNum > int(batchFrom) {
+			if closest == -1 || folderNum < closest {
+				closest = folderNum
+			}
+		}
+	}
+
+	if closest == -1 {
+		return ""
+	}
+	return filepath.Join(path, UNWOUND_REPO, strconv.Itoa(closest))
+}
+
+func BackupUnwound() {
+
 }

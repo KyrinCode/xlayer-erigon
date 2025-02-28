@@ -36,7 +36,7 @@ var StatsCmd = &cobra.Command{
 	},
 }
 
-func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath string, showTPS bool) error {
+func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath string, sampleIntv time.Duration, showTPS bool) error {
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
@@ -53,9 +53,12 @@ func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath stri
 	defer ui.Close()
 	defer ui.Clear()
 
+	totalIntv := 30 * sampleIntv
+	titleSuffix := fmt.Sprintf("%.2f Minutes", totalIntv.Minutes())
+
 	// UI components
 	lcCPU := widgets.NewPlot()
-	lcCPU.Title = "CPU Usage (%) - Last 5 Minutes"
+	lcCPU.Title = "CPU Usage (%) - Last " + titleSuffix
 	lcCPU.Data = make([][]float64, 1)
 	lcCPU.Data[0] = make([]float64, 30)
 	lcCPU.HorizontalScale = 2
@@ -64,7 +67,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath stri
 	lcCPU.SetRect(0, 0, 68, 20)
 
 	lcMem := widgets.NewPlot()
-	lcMem.Title = "Memory Usage (MiB) - Last 5 Minutes"
+	lcMem.Title = "Memory Usage (MiB) - Last" + titleSuffix
 	lcMem.Data = make([][]float64, 1)
 	lcMem.Data[0] = make([]float64, 30)
 	lcMem.HorizontalScale = 2
@@ -73,7 +76,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath stri
 	lcMem.SetRect(78, 0, 146, 20)
 
 	lcDisk := widgets.NewPlot()
-	lcDisk.Title = "Disk I/O (MiB) - Last 5 Minutes"
+	lcDisk.Title = "Disk I/O (MiB) - Last " + titleSuffix
 	lcDisk.Data = make([][]float64, 2)
 	lcDisk.Data[0] = make([]float64, 30)
 	lcDisk.Data[1] = make([]float64, 30)
@@ -84,7 +87,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath stri
 	lcDisk.SetRect(0, 24, 68, 44)
 
 	lcNet := widgets.NewPlot()
-	lcNet.Title = "Network I/O (MiB) - Last 5 Minutes"
+	lcNet.Title = "Network I/O (MiB) - " + titleSuffix
 	lcNet.Data = make([][]float64, 2)
 	lcNet.Data[0] = make([]float64, 30)
 	lcNet.Data[1] = make([]float64, 30)
@@ -240,13 +243,13 @@ func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath stri
 	}
 	defer logReader.Close()
 
-	// Stats goroutine (10-second updates)
+	// Stats goroutine
 	statsDoneChan := make(chan struct{})
 	go func() {
 		defer close(statsDoneChan)
 
 		decoder := json.NewDecoder(statsStream.Body)
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(sampleIntv)
 		defer ticker.Stop()
 
 		for {

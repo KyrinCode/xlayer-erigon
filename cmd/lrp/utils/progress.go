@@ -13,12 +13,13 @@ import (
 
 // CopyProgress stores the copy progress
 type CopyProgress struct {
+	Title       string
 	TotalBytes  int64
 	CopiedBytes int64
 	Mu          sync.Mutex
 }
 
-func (p *CopyProgress) Progress(srcPath, dstPath string) error {
+func (p *CopyProgress) Progress(srcPath, dstPath string, display bool) error {
 	// check if dstPath file is existed
 	if fileInfo, _ := os.Stat(dstPath); fileInfo != nil {
 		fmt.Println("The mainnet data is already copied done")
@@ -41,16 +42,6 @@ func (p *CopyProgress) Progress(srcPath, dstPath string) error {
 	// Create progress object
 	p.TotalBytes = totalBytes
 
-	// Create progress bar
-	gauge := widgets.NewGauge()
-	gauge.Title = "Mainnet Data Copy Progress"
-	gauge.Percent = 0
-	gauge.BarColor = ui.ColorGreen
-	gauge.SetRect(0, 0, 70, 5) // Set initial size
-
-	// Render initial UI
-	ui.Render(gauge)
-
 	// Progress channel
 	progressChan := make(chan int64)
 	doneChan := make(chan struct{})
@@ -58,18 +49,30 @@ func (p *CopyProgress) Progress(srcPath, dstPath string) error {
 	// Start copy Goroutine
 	go copyDir(srcPath, dstPath, progressChan, doneChan)
 
-	// Update UI
-	go func() {
-		for bytes := range progressChan {
-			p.Mu.Lock()
-			p.CopiedBytes += bytes
-			percent := int(float64(p.CopiedBytes) / float64(p.TotalBytes) * 100)
-			p.Mu.Unlock()
+	if display {
+		// Create progress bar
+		gauge := widgets.NewGauge()
+		gauge.Title = p.Title
+		gauge.Percent = 0
+		gauge.BarColor = ui.ColorGreen
+		gauge.SetRect(0, 0, 70, 5) // Set initial size
 
-			gauge.Percent = percent
-			ui.Render(gauge)
-		}
-	}()
+		// Render initial UI
+		ui.Render(gauge)
+
+		// Update UI
+		go func() {
+			for bytes := range progressChan {
+				p.Mu.Lock()
+				p.CopiedBytes += bytes
+				percent := int(float64(p.CopiedBytes) / float64(p.TotalBytes) * 100)
+				p.Mu.Unlock()
+
+				gauge.Percent = percent
+				ui.Render(gauge)
+			}
+		}()
+	}
 
 	// Event loop
 	uiEvents := ui.PollEvents()
