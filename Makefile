@@ -141,6 +141,7 @@ COMMANDS += verkle
 COMMANDS += evm
 COMMANDS += sentinel
 COMMANDS += acl
+COMMANDS += lrp
 
 # build each command using %.cmd rule
 $(COMMANDS): %: %.cmd
