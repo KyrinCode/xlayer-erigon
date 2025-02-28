@@ -7,3 +7,4 @@ processCount: 1
 useExternalDatastream: true
 externalDatastreamPath: ./external_ds/data-stream
 srcMainnetDataPath: $HOME/Downloads/mainnet_unwound_134484_compact_l1synced/seq
+gitRootPath:
