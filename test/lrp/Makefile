@@ -237,6 +237,8 @@ lrp-stop:
 	docker ps -a | grep "$(USER_PREFIX)-xlayer" | cut -d' ' -f1 | xargs -r docker rm -f; \
 	docker network rm $(USER_PREFIX)-erigon-lrp 2>/dev/null || true
 
+# ----------- vmtouch -----------
+
 vmtouch:
 	docker exec -it $(DOCKER_MAINNET_REPLAY_CONTAINER) sh -c "vmtouch -t /home/erigon/data/chaindata/mdbx.dat"
 
