@@ -49,6 +49,7 @@ type Zk struct {
 	SequencerReplay                        bool
 	SequencerReplayHaltOnBatchNumber       uint64
 	SequencerReplayExternalDatastream      bool
+	SequencerReplayL1SyncOnly              bool
 	ExecutorUrls                           []string
 	ExecutorStrictMode                     bool
 	ExecutorRequestTimeout                 time.Duration
