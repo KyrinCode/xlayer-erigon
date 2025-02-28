@@ -22,6 +22,8 @@ DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := xlayer-mainnet-replay-with-ext
 DOCKER_MAINNET_REPLAY_VMTOUCH := xlayer-mainnet-replay-vmtouch
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := xlayer-mainnet-replay-with-external-datastream-and-vmtouch
 DOCKER_MAINNET_REPLAY_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-replay
+DOCKER_MAINNET_L1_SYNC := xlayer-mainnet-l1-sync
+DOCKER_MAINNET_L1_SYNC_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-l1-sync
 
 RUN_DOCKER_STATELESS_EXECUTOR := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXECUTOR)
 RUN_DOCKER_MAINNET_UNWIND := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND)
@@ -29,6 +31,7 @@ RUN_DOCKER_MAINNET_REPLAY := $(DOCKER_COMPOSE) --profile internal-ds up -d $(DOC
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := $(DOCKER_COMPOSE) --profile external-ds up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM)
 RUN_DOCKER_MAINNET_REPLAY_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_VMTOUCH)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := $(DOCKER_COMPOSE) --profile external-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH)
+RUN_DOCKER_MAINNET_L1_SYNC := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_L1_SYNC)
 
 UNWIND_LOG_FILE := unwind.log
 REPLAY_LOG_FILE := replay.log
@@ -81,6 +84,7 @@ lrp-config:
 		echo "portDiff: $$PORT_DIFF" >> lrp.config.yaml; \
 		echo "fromBatchNumber: $$FROM_BATCH_NO" >> lrp.config.yaml; \
 		echo "toBatchNumber: $$TO_BATCH_NO" >> lrp.config.yaml; \
+		echo "processCount: 1" >> lrp.config.yaml; \
 		echo "useExternalDatastream: $$EXTERNAL_DS" >> lrp.config.yaml; \
 		echo "externalDatastreamPath: " >> lrp.config.yaml; \
 		echo "srcMainnetDataPath: " >> lrp.config.yaml; \
@@ -250,3 +254,175 @@ lrp-mainnet-replay-vmtouch: lrp-config-apply lrp-build-docker
 	else \
 		$(RUN_DOCKER_MAINNET_REPLAY_VMTOUCH); \
 	fi
+
+# ---------- multi-process ----------
+
+.PHONY: lrp-mainnet-l1-sync
+lrp-mainnet-l1-sync:
+	@$(RUN_DOCKER_MAINNET_L1_SYNC)
+	@while true; do \
+		if docker logs --tail=1 $(DOCKER_MAINNET_L1_SYNC_CONTAINER) 2>&1 | grep -q "Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true."; then \
+			echo "L1 sync finishes."; \
+			docker stop $(DOCKER_MAINNET_L1_SYNC_CONTAINER); \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+
+.PHONY: lrp-mainnet-parallel
+lrp-mainnet-parallel: lrp-config-apply-parallel lrp-build-docker lrp-mainnet-l1-sync
+	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	for i in $$(seq $$PROCESS_COUNT -1 1); do \
+        mkdir -p mainnet/seq$$i; \
+        if [ $$i -eq $$PROCESS_COUNT ]; then \
+            cp -r mainnet/seq/* mainnet/seq$$i/; \
+        else \
+            cp -r mainnet/seq$$((i+1))/* mainnet/seq$$i/; \
+        fi; \
+        DOCKER_COMPOSE="COMPOSE_IGNORE_ORPHANS=true docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
+        $$DOCKER_COMPOSE up -d xlayer-mainnet-unwind-$$i; \
+        docker wait $(USER_PREFIX)-xlayer-mainnet-unwind-$$i; \
+        docker logs $(USER_PREFIX)-xlayer-mainnet-unwind-$$i > unwind_$$i.log 2>&1; \
+    done; \
+	for i in $$(seq 1 $$PROCESS_COUNT); do \
+		DOCKER_COMPOSE="COMPOSE_IGNORE_ORPHANS=true docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
+		$$DOCKER_COMPOSE --profile internal-ds up -d xlayer-mainnet-replay-$$i; \
+	done; \
+
+.PHONY: lrp-config-apply-parallel
+lrp-config-apply-parallel:
+	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	if [ -z "$$PROCESS_COUNT" ] || [ "$$PROCESS_COUNT" -lt 1 ]; then \
+		echo "Error: Process count must be greater than 0"; \
+		exit 1; \
+	elif [ "$$PROCESS_COUNT" -eq 1 ]; then \
+		echo "Error: Process count is 1, please use 'make lrp-mainnet' for single process mode"; \
+		exit 1; \
+	elif [ "$$PROCESS_COUNT" -gt 10 ]; then \
+		echo "Warning: Process count ($$PROCESS_COUNT) is larger than 10"; \
+	fi; \
+	EXTERNAL_DS=$$(awk '/^useExternalDatastream:/ {print $$2}' lrp.config.yaml); \
+	if [ "$$EXTERNAL_DS" = "true" ]; then \
+		echo "Error: Multi-process LRP does not support external datastream mode"; \
+		exit 1; \
+	fi; \
+	FROM_BATCH_NO=$$(awk '/^fromBatchNumber:/ {print $$2}' lrp.config.yaml); \
+	TO_BATCH_NO=$$(awk '/^toBatchNumber:/ {print $$2}' lrp.config.yaml); \
+	BATCH_RANGE=$$((TO_BATCH_NO - FROM_BATCH_NO + 1)); \
+	SEGMENT_SIZE=$$((BATCH_RANGE / PROCESS_COUNT)); \
+	REMAINDER=$$((BATCH_RANGE % PROCESS_COUNT)); \
+	CURRENT_BATCH=$$TO_BATCH_NO; \
+	for i in $$(seq $$PROCESS_COUNT -1 1); do \
+		END_BATCH=$$CURRENT_BATCH; \
+		if [ $$i -eq $$PROCESS_COUNT ]; then \
+			START_BATCH=$$((CURRENT_BATCH - SEGMENT_SIZE - REMAINDER + 1)); \
+		else \
+			START_BATCH=$$((CURRENT_BATCH - SEGMENT_SIZE + 1)); \
+		fi; \
+		UNWIND_BATCH=$$((START_BATCH - 1)); \
+		cp -f docker-compose.yml docker-compose-$$i.yml; \
+		sed -i '' "s/xlayer-mainnet-unwind/xlayer-mainnet-unwind-$$i/g" docker-compose-$$i.yml; \
+		sed -i '' "s/xlayer-mainnet-replay/xlayer-mainnet-replay-$$i/g" docker-compose-$$i.yml; \
+		sed -i '' "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH/" docker-compose-$$i.yml; \
+		sed -i '' "s|./mainnet/seq:|./mainnet/seq$$i:|" docker-compose-$$i.yml; \
+		sed -i '' "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$END_BATCH/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${PPROF_PORT}/$$(($(PPROF_PORT) + $$i))/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${RPC_PORT}/$$(($(RPC_PORT) + $$i))/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${DS_PORT}/$$(($(DS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${METRICS_PORT}/$$(($(METRICS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		CURRENT_BATCH=$$((START_BATCH - 1)); \
+	done
+
+# 修改停止命令以支持多进程
+.PHONY: lrp-stop-parallel
+lrp-stop-parallel: lrp-stop
+	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	for i in $$(seq 1 $$PROCESS_COUNT); do \
+		rm -f docker-compose-$$i.yml; \
+	done
+
+# ---------- multi-process ----------
+
+.PHONY: lrp-mainnet-l1-sync
+lrp-mainnet-l1-sync:
+	@$(RUN_DOCKER_MAINNET_L1_SYNC)
+	@while true; do \
+		if docker logs --tail=1 $(DOCKER_MAINNET_L1_SYNC_CONTAINER) 2>&1 | grep -q "Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true."; then \
+			echo "L1 sync finishes."; \
+			docker stop $(DOCKER_MAINNET_L1_SYNC_CONTAINER); \
+			break; \
+		fi; \
+		sleep 1; \
+	done
+
+.PHONY: lrp-mainnet-parallel
+lrp-mainnet-parallel: lrp-config-apply-parallel lrp-build-docker lrp-mainnet-l1-sync
+	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	for i in $$(seq $$PROCESS_COUNT -1 1); do \
+        mkdir -p mainnet/seq$$i; \
+        if [ $$i -eq $$PROCESS_COUNT ]; then \
+            cp -r mainnet/seq/* mainnet/seq$$i/; \
+        else \
+            cp -r mainnet/seq$$((i+1))/* mainnet/seq$$i/; \
+        fi; \
+        DOCKER_COMPOSE="COMPOSE_IGNORE_ORPHANS=true docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
+        $$DOCKER_COMPOSE up -d xlayer-mainnet-unwind-$$i; \
+        docker wait $(USER_PREFIX)-xlayer-mainnet-unwind-$$i; \
+        docker logs $(USER_PREFIX)-xlayer-mainnet-unwind-$$i > unwind_$$i.log 2>&1; \
+    done; \
+	for i in $$(seq 1 $$PROCESS_COUNT); do \
+		DOCKER_COMPOSE="COMPOSE_IGNORE_ORPHANS=true docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
+		$$DOCKER_COMPOSE --profile internal-ds up -d xlayer-mainnet-replay-$$i; \
+	done; \
+
+.PHONY: lrp-config-apply-parallel
+lrp-config-apply-parallel:
+	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	if [ -z "$$PROCESS_COUNT" ] || [ "$$PROCESS_COUNT" -lt 1 ]; then \
+		echo "Error: Process count must be greater than 0"; \
+		exit 1; \
+	elif [ "$$PROCESS_COUNT" -eq 1 ]; then \
+		echo "Error: Process count is 1, please use 'make lrp-mainnet' for single process mode"; \
+		exit 1; \
+	elif [ "$$PROCESS_COUNT" -gt 10 ]; then \
+		echo "Warning: Process count ($$PROCESS_COUNT) is larger than 10"; \
+	fi; \
+	EXTERNAL_DS=$$(awk '/^useExternalDatastream:/ {print $$2}' lrp.config.yaml); \
+	if [ "$$EXTERNAL_DS" = "true" ]; then \
+		echo "Error: Multi-process LRP does not support external datastream mode"; \
+		exit 1; \
+	fi; \
+	FROM_BATCH_NO=$$(awk '/^fromBatchNumber:/ {print $$2}' lrp.config.yaml); \
+	TO_BATCH_NO=$$(awk '/^toBatchNumber:/ {print $$2}' lrp.config.yaml); \
+	BATCH_RANGE=$$((TO_BATCH_NO - FROM_BATCH_NO + 1)); \
+	SEGMENT_SIZE=$$((BATCH_RANGE / PROCESS_COUNT)); \
+	REMAINDER=$$((BATCH_RANGE % PROCESS_COUNT)); \
+	CURRENT_BATCH=$$TO_BATCH_NO; \
+	for i in $$(seq $$PROCESS_COUNT -1 1); do \
+		END_BATCH=$$CURRENT_BATCH; \
+		if [ $$i -eq $$PROCESS_COUNT ]; then \
+			START_BATCH=$$((CURRENT_BATCH - SEGMENT_SIZE - REMAINDER + 1)); \
+		else \
+			START_BATCH=$$((CURRENT_BATCH - SEGMENT_SIZE + 1)); \
+		fi; \
+		UNWIND_BATCH=$$((START_BATCH - 1)); \
+		cp -f docker-compose.yml docker-compose-$$i.yml; \
+		sed -i '' "s/xlayer-mainnet-unwind/xlayer-mainnet-unwind-$$i/g" docker-compose-$$i.yml; \
+		sed -i '' "s/xlayer-mainnet-replay/xlayer-mainnet-replay-$$i/g" docker-compose-$$i.yml; \
+		sed -i '' "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH/" docker-compose-$$i.yml; \
+		sed -i '' "s|./mainnet/seq:|./mainnet/seq$$i:|" docker-compose-$$i.yml; \
+		sed -i '' "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$END_BATCH/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${PPROF_PORT}/$$(($(PPROF_PORT) + $$i))/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${RPC_PORT}/$$(($(RPC_PORT) + $$i))/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${DS_PORT}/$$(($(DS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		sed -i '' "s/\$${METRICS_PORT}/$$(($(METRICS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		CURRENT_BATCH=$$((START_BATCH - 1)); \
+	done
+
+# 修改停止命令以支持多进程
+.PHONY: lrp-stop-parallel
+lrp-stop-parallel: lrp-stop
+	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	for i in $$(seq 1 $$PROCESS_COUNT); do \
+		rm -f docker-compose-$$i.yml; \
+	done
