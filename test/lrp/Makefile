@@ -266,7 +266,7 @@ lrp-mainnet-l1-sync:
 	@while true; do \
 		if docker logs --tail=1 $(DOCKER_MAINNET_L1_SYNC_CONTAINER) 2>&1 | grep -q "Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true."; then \
 			echo "L1 sync finishes."; \
-			docker stop $(DOCKER_MAINNET_L1_SYNC_CONTAINER); \
+			docker stop $(DOCKER_MAINNET_L1_SYNC_CONTAINER) > /dev/null; \
 			break; \
 		fi; \
 		sleep 1; \
