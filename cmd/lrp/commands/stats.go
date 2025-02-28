@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -36,7 +37,7 @@ var StatsCmd = &cobra.Command{
 	},
 }
 
-func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath string, sampleIntv time.Duration, showTPS bool) error {
+func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIntv time.Duration, showTPS bool) error {
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
@@ -176,6 +177,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath, tpsCSVPath stri
 	var tpsCSVFile *os.File
 	var tpsCSVWriter *csv.Writer
 	if showTPS {
+		tpsCSVPath := csvPath[:len(csvPath)-4] + "-tps.csv"
 		tpsCSVFile, err = os.OpenFile(tpsCSVPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open TPS CSV file: %v", err)
@@ -531,9 +533,12 @@ func calculateBlockIO(blkioStats types.BlkioStats) (rx float64, tx float64) {
 }
 
 // showReport displays a report based on CSV data using termui
-func showReport(csvPath string) error {
+func showReport(workDir string) error {
+	replayTPSCSV := filepath.Join(workDir, "replay-container-stats-tps.csv")
+	replayLog := filepath.Join(workDir, "replay.log")
+
 	// Open CSV file
-	file, err := os.Open(csvPath)
+	file, err := os.Open(replayTPSCSV)
 	if err != nil {
 		return fmt.Errorf("failed to open CSV file: %v", err)
 	}
@@ -564,37 +569,30 @@ func showReport(csvPath string) error {
 
 	// Process data rows
 	for i, row := range records[1:] {
-		// Parse Timestamp
 		timestamp, err := time.Parse("2006-01-02 15:04:05", row[0])
 		if err != nil {
 			log.Printf("Failed to parse timestamp in row %d: %v", i+1, err)
 			continue
 		}
 
-		// Parse Batch
 		batchNo, err := strconv.Atoi(row[7])
 		if err != nil {
 			log.Printf("Failed to parse Batch in row %d: %v", i+1, err)
 			continue
 		}
 
-		// Parse TxCount
 		txCount, err := strconv.Atoi(row[8])
 		if err != nil {
 			log.Printf("Failed to parse TxCount in row %d: %v", i+1, err)
 			continue
 		}
 
-		// Update totalTxCount
 		totalTxCount += txCount
 
-		// Find startTime (first non-zero batch)
 		if batchNo > 0 && startTime.IsZero() {
 			startTime = timestamp
 			firstNonZeroBatch = batchNo
 		}
-
-		// Update endTime (last non-zero batch)
 		if batchNo > 0 {
 			endTime = timestamp
 			lastNonZeroBatch = batchNo
@@ -607,7 +605,9 @@ func showReport(csvPath string) error {
 	if duration <= 0 {
 		avgTPS = 0
 	}
-	fmt.Println(totalTxCount)
+
+	// check State Root
+	stateRootMismatch, mismatchBlockHeight := checkStateRootMismatch(replayLog)
 
 	// Initialize termui
 	if err := ui.Init(); err != nil {
@@ -627,18 +627,23 @@ func showReport(csvPath string) error {
 		{"Total Transactions:", fmt.Sprintf("%d", totalTxCount)},
 		{"Replay Duration:", fmt.Sprintf("%.2f seconds", duration)},
 		{"Average TPS:", fmt.Sprintf("%.2f", avgTPS)},
+		{"State Root Mismatch:", fmt.Sprintf("%t", stateRootMismatch)},
+		{"Mismatch Block Height:", fmt.Sprintf("%d", mismatchBlockHeight)},
+	}
+	if !stateRootMismatch {
+		table.Rows[8][1] = "N/A"
 	}
 	table.TextStyle = ui.NewStyle(ui.ColorWhite)
 	table.RowSeparator = true
 	table.BorderStyle = ui.NewStyle(ui.ColorCyan)
-	table.SetRect(0, 0, 50, 15)
+	table.SetRect(0, 0, 50, 20)
 
 	// Create key hint
 	keyHint := widgets.NewParagraph()
 	keyHint.Text = "q/Ctrl+C: Quit"
 	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
 	keyHint.Border = false
-	keyHint.SetRect(0, 30, 50, 27)
+	keyHint.SetRect(0, 22, 50, 24)
 
 	// Render initial UI
 	ui.Render(table, keyHint)
@@ -654,4 +659,33 @@ func showReport(csvPath string) error {
 			}
 		}
 	}
+}
+
+func checkStateRootMismatch(logPath string) (bool, int) {
+	file, err := os.Open(logPath)
+	if err != nil {
+		log.Printf("Failed to open log file %s: %v", logPath, err)
+		return false, 0
+	}
+	defer file.Close()
+
+	re := regexp.MustCompile(`State root mismatch of block (\d+) after resequencing`)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if matches := re.FindStringSubmatch(line); matches != nil {
+			blockNumber, err := strconv.Atoi(matches[1])
+			if err != nil {
+				log.Printf("Failed to parse block number from log: %v", err)
+				continue
+			}
+			return true, blockNumber
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading log file %s: %v", logPath, err)
+	}
+	return false, 0
 }

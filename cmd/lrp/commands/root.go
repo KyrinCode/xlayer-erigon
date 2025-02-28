@@ -97,7 +97,7 @@ var rootCmd = &cobra.Command{
 				return
 			} else {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
-				go monitorContainer(monitorCtx, containerID, unwindCSV, "", sampleIntv, false)
+				go monitorContainer(monitorCtx, containerID, unwindCSV, sampleIntv, false)
 				utils.RunDockerWait(containerID, monitorCancel, "")
 				if err := utils.WriteUnwindContainerLog(containerID, workDir); err != nil {
 					fmt.Printf("Output unwind container log failed as: %v\n", err)
@@ -117,13 +117,12 @@ var rootCmd = &cobra.Command{
 		}
 
 		replayCSV := filepath.Join(workDir, "replay-container-stats.csv")
-		replayTPSCSV := filepath.Join(workDir, "replay-container-stats-tps.csv")
 		if containerID, err := utils.RunMainnetReplay(workDir, config); err != nil {
 			fmt.Printf("Running replay step returns an error: %v\n", err)
 			return
 		} else {
 			monitorCtx, monitorCancel := context.WithCancel(ctx)
-			go monitorContainer(monitorCtx, containerID, replayCSV, replayTPSCSV, sampleIntv, true)
+			go monitorContainer(monitorCtx, containerID, replayCSV, sampleIntv, true)
 			utils.RunDockerWait(containerID, monitorCancel, utils.REPLAY_STOP_SIGN)
 			if err := utils.WriteReplayContainerLog(containerID, workDir); err != nil {
 				fmt.Printf("Output replay container log failed as: %v\n", err)
@@ -132,7 +131,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Step 4: show test report
-		showReport(replayTPSCSV)
+		showReport(workDir)
 		fmt.Println("LRP test completed!")
 
 		select {
