@@ -50,6 +50,9 @@ func SpawnSequencingStage(
 
 	var highestBatchInDs uint64
 	if cfg.zk.SequencerResequence && cfg.zk.SequencerReplay {
+		if cfg.zk.SequencerReplayL1SyncOnly {
+			panic(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
+		}
 		var externalDataStreamServer server.DataStreamServer
 		if cfg.zk.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
 			externalDataStreamServer, err = createExternalDataStreamServer(cfg)
