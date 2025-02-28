@@ -151,7 +151,7 @@ lrp-config-apply:
 .PHONY: lrp-mainnet
 lrp-mainnet: lrp-config-apply lrp-build-docker
 	@$(RUN_DOCKER_MAINNET_UNWIND)
-	@docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER); \
+	@docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER) > /dev/null; \
 	docker logs $(DOCKER_MAINNET_UNWIND_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 	@# $(RUN_DOCKER_STATELESS_EXECUTOR)
 	@# sleep 3
@@ -165,7 +165,7 @@ lrp-mainnet: lrp-config-apply lrp-build-docker
 .PHONY: lrp-mainnet-unwind
 lrp-mainnet-unwind: lrp-config-apply lrp-build-docker
 	@$(RUN_DOCKER_MAINNET_UNWIND)
-	@docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER); \
+	@docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER) > /dev/null; \
 	docker logs $(DOCKER_MAINNET_UNWIND_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 
 .PHONY: lrp-mainnet-replay
@@ -275,6 +275,7 @@ lrp-mainnet-l1-sync:
 .PHONY: lrp-mainnet-parallel
 lrp-mainnet-parallel: lrp-config-apply-parallel lrp-build-docker lrp-mainnet-l1-sync
 	@PROCESS_COUNT=$$(awk '/^processCount:/ {print $$2}' lrp.config.yaml); \
+	export COMPOSE_IGNORE_ORPHANS=true; \
 	for i in $$(seq $$PROCESS_COUNT -1 1); do \
         mkdir -p mainnet/seq$$i; \
         if [ $$i -eq $$PROCESS_COUNT ]; then \
@@ -282,14 +283,14 @@ lrp-mainnet-parallel: lrp-config-apply-parallel lrp-build-docker lrp-mainnet-l1-
         else \
             cp -r mainnet/seq$$((i+1))/* mainnet/seq$$i/; \
         fi; \
-        DOCKER_COMPOSE="COMPOSE_IGNORE_ORPHANS=true docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
-        $$DOCKER_COMPOSE up -d xlayer-mainnet-unwind-$$i; \
-        docker wait $(USER_PREFIX)-xlayer-mainnet-unwind-$$i; \
-        docker logs $(USER_PREFIX)-xlayer-mainnet-unwind-$$i > unwind_$$i.log 2>&1; \
+        DOCKER_COMPOSE="docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
+        $$DOCKER_COMPOSE up -d $(DOCKER_MAINNET_UNWIND)-$$i; \
+        docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER)-$$i > /dev/null; \
+        docker logs $(DOCKER_MAINNET_UNWIND_CONTAINER)-$$i > unwind_$$i.log 2>&1; \
     done; \
 	for i in $$(seq 1 $$PROCESS_COUNT); do \
-		DOCKER_COMPOSE="COMPOSE_IGNORE_ORPHANS=true docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
-		$$DOCKER_COMPOSE --profile internal-ds up -d xlayer-mainnet-replay-$$i; \
+		DOCKER_COMPOSE="docker compose -f docker-compose-$$i.yml -p $(USER_PREFIX)-xlayer-lrp"; \
+		$$DOCKER_COMPOSE --profile internal-ds up -d $(DOCKER_MAINNET_REPLAY)-$$i; \
 	done; \
 
 .PHONY: lrp-config-apply-parallel
