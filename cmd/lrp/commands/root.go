@@ -71,13 +71,13 @@ var rootCmd = &cobra.Command{
 		unwoundPath := utils.FindUnwoundDirectory(config.BatchFrom, path)
 		if unwoundPath != "" {
 			copyProgress := utils.CopyProgress{Title: "Unwound Mainnet Data Copy Progress", Mu: sync.Mutex{}}
-			if err := copyProgress.Progress(unwoundPath, filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), true); err != nil {
+			if err := copyProgress.Progress(filepath.Join(unwoundPath, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), workDir); err != nil {
 				fmt.Printf("Received an error while copy unwound mainnet data from %s to %s: %v\n", config.SrcMainnetDataPath, filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), err)
 				return
 			}
 		} else {
 			copyProgress := utils.CopyProgress{Title: "Mainnet Data Copy Progress", Mu: sync.Mutex{}}
-			if err := copyProgress.Progress(config.SrcMainnetDataPath, filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), true); err != nil {
+			if err := copyProgress.Progress(config.SrcMainnetDataPath, workDir); err != nil {
 				fmt.Printf("Received an error while copy mainnet data from %s to %s: %v\n", config.SrcMainnetDataPath, filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), err)
 				return
 			}
@@ -85,8 +85,8 @@ var rootCmd = &cobra.Command{
 
 		// Step 3: run test
 		var needUnwind = false
-		targetPath := filepath.Join(path, utils.UNWOUND_REPO, strconv.Itoa(int(config.BatchFrom)))
-		if unwoundPath != targetPath {
+		backupTargetPath := filepath.Join(path, utils.UNWOUND_REPO, strconv.Itoa(int(config.BatchFrom)))
+		if unwoundPath != backupTargetPath {
 			needUnwind = true
 		}
 
@@ -109,11 +109,10 @@ var rootCmd = &cobra.Command{
 		// backup the unwound chaindata if necessary
 		if backupUnwound && needUnwind {
 			copyProgress := utils.CopyProgress{Title: "Backing Up Unwound Mainnet Data Progress", Mu: sync.Mutex{}}
-			go copyProgress.Progress(filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), targetPath, false)
-			// if err := copyProgress.Progress(filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), targetPath, false); err != nil {
-			// 	fmt.Printf("Received an error while backup unwound mainnet data from %s to %s: %v\n", config.SrcMainnetDataPath, filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), err)
-			// 	return
-			// }
+			if err := copyProgress.Progress(filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath); err != nil {
+				fmt.Printf("Received an error while backup unwound mainnet data from %s to %s: %v\n", filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath, err)
+				return
+			}
 		}
 
 		replayCSV := filepath.Join(workDir, "replay-container-stats.csv")
@@ -123,6 +122,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			monitorCtx, monitorCancel := context.WithCancel(ctx)
 			go monitorContainer(monitorCtx, containerID, replayCSV, sampleIntv, true)
+
 			utils.RunDockerWait(containerID, monitorCancel, utils.REPLAY_STOP_SIGN)
 			if err := utils.WriteReplayContainerLog(containerID, workDir); err != nil {
 				fmt.Printf("Output replay container log failed as: %v\n", err)
@@ -133,6 +133,7 @@ var rootCmd = &cobra.Command{
 		// Step 4: show test report
 		showReport(workDir)
 		fmt.Println("LRP test completed!")
+		fmt.Println("Now is stopping and cleaning the containers, please wait for seconds...")
 
 		select {
 		case <-ctx.Done():

@@ -68,7 +68,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	lcCPU.SetRect(0, 0, 68, 20)
 
 	lcMem := widgets.NewPlot()
-	lcMem.Title = "Memory Usage (MiB) - Last" + titleSuffix
+	lcMem.Title = "Memory Usage (MiB) - Last " + titleSuffix
 	lcMem.Data = make([][]float64, 1)
 	lcMem.Data[0] = make([]float64, 30)
 	lcMem.HorizontalScale = 2
@@ -88,7 +88,7 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	lcDisk.SetRect(0, 24, 68, 44)
 
 	lcNet := widgets.NewPlot()
-	lcNet.Title = "Network I/O (MiB) - " + titleSuffix
+	lcNet.Title = "Network I/O (MiB) - Last " + titleSuffix
 	lcNet.Data = make([][]float64, 2)
 	lcNet.Data[0] = make([]float64, 30)
 	lcNet.Data[1] = make([]float64, 30)

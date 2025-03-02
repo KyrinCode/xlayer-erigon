@@ -143,7 +143,8 @@ func FindUnwoundDirectory(batchFrom uint64, path string) string {
 		return ""
 	}
 
-	entries, err := os.ReadDir(path)
+	unwoundRepo := filepath.Join(path, UNWOUND_REPO)
+	entries, err := os.ReadDir(unwoundRepo)
 	if err != nil {
 		return ""
 	}
@@ -159,7 +160,7 @@ func FindUnwoundDirectory(batchFrom uint64, path string) string {
 			continue
 		}
 
-		if folderNum > int(batchFrom) {
+		if folderNum >= int(batchFrom) {
 			if closest == -1 || folderNum < closest {
 				closest = folderNum
 			}
@@ -169,9 +170,54 @@ func FindUnwoundDirectory(batchFrom uint64, path string) string {
 	if closest == -1 {
 		return ""
 	}
-	return filepath.Join(path, UNWOUND_REPO, strconv.Itoa(closest))
+	return filepath.Join(unwoundRepo, strconv.Itoa(closest))
 }
 
-func BackupUnwound() {
+func MonitorChaindataSize(ctx context.Context, workDir string, sizeLimit int64, triggerChan chan struct{}) {
+	// current setting is 1 minute interval, there is no need to make it too short
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
 
+	chaindataDir := filepath.Join(workDir, DEFAULT_SOURCE_MAINNET_DATA_PATH)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			size, err := getFolderSize(chaindataDir)
+			if err != nil {
+				fmt.Printf("Error checking folder size: %v", err)
+				continue
+			}
+
+			fmt.Printf("Chaindata folder size: %d bytes (%.2f GB)", size, float64(size)/(1024*1024*1024))
+
+			if size >= sizeLimit {
+				fmt.Printf("Folder size %d bytes exceeds limit %d bytes, pausing replay...", size, sizeLimit)
+
+				// use `make lrp-mainnet-replay-pause` to pasue the replay container
+				runLRPMainnetReplayPause(workDir)
+
+				triggerChan <- struct{}{}
+			}
+		}
+	}
+}
+
+func getFolderSize(chaindataDir string) (int64, error) {
+	var size int64
+	err := filepath.Walk(chaindataDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to calculate size of %s: %v", chaindataDir, err)
+	}
+	return size, nil
 }
