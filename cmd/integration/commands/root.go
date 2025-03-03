@@ -63,6 +63,8 @@ func dbCfg(label kv.Label, path string) kv2.MdbxOpts {
 	opts := kv2.NewMDBX(log.New()).Path(path).Label(label).RoTxsLimiter(limiterB)
 	// integration tool don't intent to create db, then easiest way to open db - it's pass mdbx.Accede flag, which allow
 	// to read all options from DB, instead of overriding them
+
+	// For X Layer, get around the issue of failing to open db because of bad_tx_hashes table
 	// opts = opts.Accede()
 
 	if databaseVerbosity != -1 {

@@ -19,7 +19,7 @@ DOCKER_MAINNET_UNWIND := xlayer-mainnet-unwind
 DOCKER_MAINNET_UNWIND_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-unwind
 DOCKER_MAINNET_REPLAY := xlayer-mainnet-replay
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := xlayer-mainnet-replay-with-external-datastream
-DOCKER_MAINNET_REPLAY_VMTOUCH := xlayer-mainnet-replay-vmtouch
+DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := xlayer-mainnet-replay-with-vmtouch
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := xlayer-mainnet-replay-with-external-datastream-and-vmtouch
 DOCKER_MAINNET_REPLAY_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-replay
 DOCKER_MAINNET_L1_SYNC := xlayer-mainnet-l1-sync
@@ -29,7 +29,7 @@ RUN_DOCKER_STATELESS_EXECUTOR := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXEC
 RUN_DOCKER_MAINNET_UNWIND := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND)
 RUN_DOCKER_MAINNET_REPLAY := $(DOCKER_COMPOSE) --profile internal-ds up -d $(DOCKER_MAINNET_REPLAY)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := $(DOCKER_COMPOSE) --profile external-ds up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM)
-RUN_DOCKER_MAINNET_REPLAY_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_VMTOUCH)
+RUN_DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_VMTOUCH)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := $(DOCKER_COMPOSE) --profile external-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH)
 RUN_DOCKER_MAINNET_L1_SYNC := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_L1_SYNC)
 
@@ -41,7 +41,7 @@ REPLAY_TPS_FILE := tps.log
 lrp-build-docker: # Build cdk-erigoin for lrp
 	@if [ -d $(GIT_ROOT) ]; then \
 		cd $(GIT_ROOT); \
-		docker build -t cdk-erigon:$(IMAGE_TAG) -f Dockerfile.local . ; \
+		docker build -t cdk-erigon:$(IMAGE_TAG) -f Dockerfile.lrp . ; \
 	else \
 		echo "Error: git root <$(GIT_ROOT)> does not exist"; \
 		exit 1; \
@@ -59,7 +59,7 @@ lrp-config:
 	done; \
 	while true; do \
 		read -p "Enter toBatchNumber: " TO_BATCH_NO; \
-		if [ "$$TO_BATCH_NO" -ge "$$FROM_BATCH_NO" ]; then \
+		if [ "$$TO_BATCH_NO" = "0" ] || [ "$$TO_BATCH_NO" -ge "$$FROM_BATCH_NO" ]; then \
 			break; \
 		else \
 			echo "Error: toBatchNumber must be greater than or equal to fromBatchNumber ($$FROM_BATCH_NO)"; \
@@ -255,7 +255,7 @@ lrp-mainnet-replay-vmtouch: lrp-config-apply lrp-build-docker
 	if [ "$$EXTERNAL_DS" = "true" ]; then \
 		$(RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH); \
 	else \
-		$(RUN_DOCKER_MAINNET_REPLAY_VMTOUCH); \
+		$(RUN_DOCKER_MAINNET_REPLAY_WITH_VMTOUCH); \
 	fi
 
 # ---------- multi-process ----------

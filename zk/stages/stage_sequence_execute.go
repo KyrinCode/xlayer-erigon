@@ -10,8 +10,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/log/v3"
 
-	"github.com/0xPolygonHermez/zkevm-data-streamer/datastreamer"
-	dslog "github.com/0xPolygonHermez/zkevm-data-streamer/log"
 	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/state"
@@ -27,6 +25,8 @@ import (
 )
 
 var shouldCheckForExecutionAndDataStreamAlignment = true
+
+// For X Layer, for local replay feature
 var externalDataStreamServerCreated = false
 
 func SpawnSequencingStage(
@@ -49,12 +49,14 @@ func SpawnSequencingStage(
 	}
 
 	var highestBatchInDs uint64
-	if cfg.zk.SequencerResequence && cfg.zk.SequencerReplay {
-		if cfg.zk.SequencerReplayL1SyncOnly {
+
+	// For X Layer, local replay feature
+	if cfg.zk.SequencerResequence && cfg.zk.XLayer.SequencerReplay {
+		if cfg.zk.XLayer.SequencerReplayL1SyncOnly {
 			panic(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
 		}
 		var externalDataStreamServer server.DataStreamServer
-		if cfg.zk.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
+		if cfg.zk.XLayer.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
 			externalDataStreamServer, err = createExternalDataStreamServer(cfg)
 			if err != nil {
 				return err
@@ -367,7 +369,10 @@ func sequencingBatchStep(
 
 		innerBreak := false
 		emptyBlockOverflow := false
+
+		// For X Layer, local replay's feature of stateroot mismatch detection
 		stateRootBeforeResequence := common.Hash{}
+
 		sendersToTriggerStatechanges := make(map[common.Address]struct{})
 		processingTxTime := time.Now()
 	OuterLoopTransactions:
@@ -425,6 +430,8 @@ func sequencingBatchStep(
 				if err != nil {
 					return err
 				}
+
+				// For X Layer, local replay's feature of stateroot mismatch detection
 				stateRootBeforeResequence = batchState.resequenceBatchJob.CurrentBlock().StateRoot
 			} else if !batchState.isL1Recovery() {
 
@@ -786,6 +793,7 @@ func sequencingBatchStep(
 		}
 		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries)
 
+		// For X Layer, local replay's feature of stateroot mismatch detection
 		if batchState.isResequence() {
 			if stateRootBeforeResequence != block.Root() {
 				err := fmt.Errorf("[%s] State root mismatch of block %d after resequencing, expected %s, got %s",
@@ -868,42 +876,4 @@ func handleBadTxHashCounter(hermezDb *hermez_db.HermezDb, txHash common.Hash) (u
 	newCounter := counter + 1
 	hermezDb.WriteBadTxHashCounter(txHash, newCounter)
 	return newCounter, nil
-}
-
-func createExternalDataStreamServer(cfg SequenceBlockCfg) (server.DataStreamServer, error) {
-	// Use hardcoded timeout values & port & datastream file
-	writeTimeout := 20 * time.Second
-	inactivityTimeout := 10 * time.Minute
-	inactivityCheckInterval := 5 * time.Minute
-	port := uint16(16900)
-	datastreamFile := "/home/data-stream"
-
-	logConfig := &dslog.Config{
-		Environment: "production",
-		Level:       "warn",
-		Outputs:     nil,
-	}
-
-	factory := server.NewZkEVMDataStreamServerFactory()
-
-	streamServer, err := factory.CreateStreamServer(
-		port,
-		uint8(cfg.zk.DatastreamVersion),
-		1,
-		datastreamer.StreamType(1),
-		datastreamFile,
-		writeTimeout,
-		inactivityTimeout,
-		inactivityCheckInterval,
-		logConfig,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stream server: %v", err)
-	}
-
-	fmt.Printf("Successfully created external data stream server with file: %s\n", datastreamFile)
-
-	dataStreamServer := factory.CreateDataStreamServer(streamServer, cfg.zk.L2ChainId)
-
-	return dataStreamServer, nil
 }
