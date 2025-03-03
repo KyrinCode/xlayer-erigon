@@ -193,6 +193,7 @@ func ApplyFlagsForZkConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		SequencerReplay:                        ctx.Bool(utils.SequencerReplay.Name),
 		SequencerReplayHaltOnBatchNumber:       ctx.Uint64(utils.SequencerReplayHaltOnBatchNumber.Name),
 		SequencerReplayExternalDatastream:      ctx.Bool(utils.SequencerReplayExternalDatastream.Name),
+		SequencerReplayL1SyncOnly:              ctx.Bool(utils.SequencerReplayL1SyncOnly.Name),
 		ExecutorUrls:                           strings.Split(strings.ReplaceAll(ctx.String(utils.ExecutorUrls.Name), " ", ""), ","),
 		ExecutorStrictMode:                     ctx.Bool(utils.ExecutorStrictMode.Name),
 		ExecutorRequestTimeout:                 ctx.Duration(utils.ExecutorRequestTimeout.Name),

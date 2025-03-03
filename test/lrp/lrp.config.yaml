@@ -3,6 +3,8 @@ gitCommit:
 portDiff: 
 fromBatchNumber: 
 toBatchNumber: 
+processCount: 1
 useExternalDatastream: 
 externalDatastreamPath: ./external_ds/data-stream
 srcMainnetDataPath: $HOME/Downloads/mainnet/seq
+gitRootPath:
