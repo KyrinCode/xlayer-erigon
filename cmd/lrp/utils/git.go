@@ -79,7 +79,7 @@ func CheckoutGitTarget(path, branch, commitID string) (string, error) {
 		}
 		target = commitID
 	} else if branch != "" {
-		target = branch
+		target = "origin/" + branch
 	} else {
 		return "", fmt.Errorf("either branch or commitID must be provided")
 	}

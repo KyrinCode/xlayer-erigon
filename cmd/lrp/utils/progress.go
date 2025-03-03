@@ -19,18 +19,18 @@ type CopyProgress struct {
 	Mu          sync.Mutex
 }
 
-func (p *CopyProgress) Progress(srcPath, dstPath string, display bool) error {
-	// check if dstPath file is existed
-	if fileInfo, _ := os.Stat(dstPath); fileInfo != nil {
-		fmt.Println("The mainnet data is already copied done")
-		return nil
+func (p *CopyProgress) Progress(srcPath, dstPath string) error {
+	// Validate source path
+	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+		return fmt.Errorf("source path %s does not exist", srcPath)
 	}
 
-	if err := ui.Init(); err != nil {
-		fmt.Println("Failed to initialize termui", err)
-		return err
+	// Adjust dstPath to include the source folder name
+	dstPath = filepath.Join(dstPath, filepath.Base(srcPath))
+	if fileInfo, _ := os.Stat(dstPath); fileInfo != nil {
+		fmt.Println("The source data is already copied done")
+		return nil
 	}
-	defer ui.Close()
 
 	// Calculate total size
 	totalBytes, err := getDirSize(srcPath)
@@ -42,39 +42,43 @@ func (p *CopyProgress) Progress(srcPath, dstPath string, display bool) error {
 	// Create progress object
 	p.TotalBytes = totalBytes
 
-	// Progress channel
+	// Progress and done channels
 	progressChan := make(chan int64)
 	doneChan := make(chan struct{})
 
 	// Start copy Goroutine
 	go copyDir(srcPath, dstPath, progressChan, doneChan)
 
-	if display {
-		// Create progress bar
-		gauge := widgets.NewGauge()
-		gauge.Title = p.Title
-		gauge.Percent = 0
-		gauge.BarColor = ui.ColorGreen
-		gauge.SetRect(0, 0, 70, 5) // Set initial size
-
-		// Render initial UI
-		ui.Render(gauge)
-
-		// Update UI
-		go func() {
-			for bytes := range progressChan {
-				p.Mu.Lock()
-				p.CopiedBytes += bytes
-				percent := int(float64(p.CopiedBytes) / float64(p.TotalBytes) * 100)
-				p.Mu.Unlock()
-
-				gauge.Percent = percent
-				ui.Render(gauge)
-			}
-		}()
+	if err := ui.Init(); err != nil {
+		fmt.Println("Failed to initialize termui", err)
+		return err
 	}
+	defer ui.Close()
 
-	// Event loop
+	// Create progress bar
+	gauge := widgets.NewGauge()
+	gauge.Title = p.Title
+	gauge.Percent = 0
+	gauge.BarColor = ui.ColorGreen
+	gauge.SetRect(0, 0, 70, 5)
+
+	// Render initial UI
+	ui.Render(gauge)
+
+	// Update UI
+	go func() {
+		for bytes := range progressChan {
+			p.Mu.Lock()
+			p.CopiedBytes += bytes
+			percent := int(float64(p.CopiedBytes) / float64(p.TotalBytes) * 100)
+			p.Mu.Unlock()
+
+			gauge.Percent = percent
+			ui.Render(gauge)
+		}
+	}()
+
+	// Event loop for TermUI
 	uiEvents := ui.PollEvents()
 	for {
 		select {
