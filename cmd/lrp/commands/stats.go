@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -38,11 +39,8 @@ var StatsCmd = &cobra.Command{
 }
 
 func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIntv time.Duration, showTPS bool) error {
-	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-		client.WithVersion("1.45"),
-	)
+	// time.Sleep(1 * time.Minute)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
@@ -247,10 +245,30 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 
 	// Stats goroutine
 	statsDoneChan := make(chan struct{})
+
+	type statsHolder struct {
+		sync.Mutex
+		stats types.StatsJSON
+	}
+	currentStats := &statsHolder{}
+
+	go func() {
+		decoder := json.NewDecoder(statsStream.Body)
+		for {
+			var stats types.StatsJSON
+			if err := decoder.Decode(&stats); err != nil {
+				log.Printf("Stream decode error: %v", err)
+				return
+			}
+			currentStats.Lock()
+			currentStats.stats = stats
+			currentStats.Unlock()
+		}
+	}()
+
 	go func() {
 		defer close(statsDoneChan)
 
-		decoder := json.NewDecoder(statsStream.Body)
 		ticker := time.NewTicker(sampleIntv)
 		defer ticker.Stop()
 
@@ -259,14 +277,9 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 			case <-logCtx.Done():
 				return
 			case <-ticker.C:
-				var stat types.StatsJSON
-				if err := decoder.Decode(&stat); err != nil {
-					if logCtx.Err() != nil { // Context canceled, exit silently
-						return
-					}
-					log.Printf("Failed to decode stats: %v", err)
-					continue
-				}
+				currentStats.Lock()
+				stat := currentStats.stats // 获取最新快照
+				currentStats.Unlock()
 
 				var (
 					cpuUsage, memoryUsage float64

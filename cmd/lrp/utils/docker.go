@@ -80,11 +80,7 @@ func dockerWait(containerID string, cancel context.CancelFunc, stopSign string) 
 }
 
 func writeContainerLogs(containerID, outputFile string) error {
-	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-		client.WithVersion("1.45"),
-	)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
