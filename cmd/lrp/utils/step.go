@@ -117,13 +117,23 @@ func RunMainnetReplay(workDir string, config *LRPConfig) (string, error) {
 	return runLRPMainnetReplay(workDir, config)
 }
 
-func RunDockerWait(containerID string, cancel context.CancelFunc, stopSign string) error {
-	return dockerWait(containerID, cancel, stopSign)
+func RunMainnetReplayVmtouch(workDir string, config *LRPConfig) (string, error) {
+	// use 'make lrp-mainnet-replay-vmtouch' to replay txs
+	return runLRPMainnetReplayVmtouch(workDir, config)
+}
+
+func RunDockerWait(ctx context.Context, cancel context.CancelFunc, containerID string, stopSign string) (int64, error) {
+	return dockerWait(ctx, cancel, containerID, stopSign)
 }
 
 func RunLRPStop(workDir string) error {
 	// use 'make lrp-stop' to stop the container
 	return runLRPStop(workDir)
+}
+
+func RunLRPClean(workDir string) error {
+	// use 'make lrp-clean' to stop the container and clean the mainnet chaindata
+	return runLRPClean(workDir)
 }
 
 func WriteUnwindContainerLog(containerID, workDir string) error {
@@ -173,7 +183,7 @@ func FindUnwoundDirectory(batchFrom uint64, path string) string {
 	return filepath.Join(unwoundRepo, strconv.Itoa(closest))
 }
 
-func MonitorChaindataSize(ctx context.Context, workDir string, sizeLimit int64, triggerChan chan struct{}) {
+func MonitorChaindataSize(ctx context.Context, workDir string, sizeLimit int64) {
 	// current setting is 1 minute interval, there is no need to make it too short
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
@@ -191,15 +201,12 @@ func MonitorChaindataSize(ctx context.Context, workDir string, sizeLimit int64, 
 				continue
 			}
 
-			fmt.Printf("Chaindata folder size: %d bytes (%.2f GB)", size, float64(size)/(1024*1024*1024))
-
 			if size >= sizeLimit {
 				fmt.Printf("Folder size %d bytes exceeds limit %d bytes, pausing replay...", size, sizeLimit)
 
 				// use `make lrp-mainnet-replay-pause` to pasue the replay container
 				runLRPMainnetReplayPause(workDir)
-
-				triggerChan <- struct{}{}
+				return
 			}
 		}
 	}

@@ -8,14 +8,14 @@ services:
     environment:
       - CDK_ERIGON_SEQUENCER=0
     volumes:
-      - ./mainnet/seq/:/home/erigon/data/
+      - ./mainnet/seq:/home/erigon/data/
       - ./xlayerconfig-mainnet.yaml:/usr/src/app/config.yaml
     command: |
       integration state_stages_zkevm \
         --config=/usr/src/app/config.yaml \
         --chain xlayer-mainnet \
         --datadir /home/erigon/data/ \
-        --unwind-batch-no=134484
+        --unwind-batch-no=134465
 
   xlayer-mainnet-replay:
     container_name: ${USER_PREFIX:-default}-xlayer-mainnet-replay
@@ -33,7 +33,7 @@ services:
     profiles:
       - internal-ds
     command: >
-      cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-halt-on-batch-number=134500 --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml
+      cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-halt-on-batch-number=134482 --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml
 
   xlayer-mainnet-replay-with-external-datastream:
     container_name: ${USER_PREFIX:-default}-xlayer-mainnet-replay
@@ -47,7 +47,32 @@ services:
     profiles:
       - external-ds
     command: >
-      cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-halt-on-batch-number=134500 --zkevm.sequencer-replay-external-datastream=true --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml
+      cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-halt-on-batch-number=134482 --zkevm.sequencer-replay-external-datastream=true --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml
+
+  xlayer-mainnet-l1-sync:
+    container_name: ${USER_PREFIX:-default}-xlayer-mainnet-l1-sync
+    image: cdk-erigon:${IMAGE_TAG}
+    extends: xlayer-mainnet-replay
+    command: >
+      cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-l1-sync-only=true --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml
+
+  xlayer-mainnet-replay-with-vmtouch:
+    container_name: ${USER_PREFIX:-default}-xlayer-mainnet-replay
+    image: cdk-erigon:${IMAGE_TAG}
+    extends: xlayer-mainnet-replay
+    profiles:
+      - internal-ds-vmtouch
+    command: >
+      sh -c "vmtouch -t /home/erigon/data/chaindata/mdbx.dat && cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-halt-on-batch-number=134500 --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml"
+
+  xlayer-mainnet-replay-with-external-datastream-and-vmtouch:
+    container_name: ${USER_PREFIX:-default}-xlayer-mainnet-replay
+    image: cdk-erigon:${IMAGE_TAG}
+    extends: xlayer-mainnet-replay-with-external-datastream
+    profiles:
+      - external-ds-vmtouch
+    command: >
+      sh -c "vmtouch -t /home/erigon/data/chaindata/mdbx.dat && cdk-erigon --zkevm.sequencer-resequence=true --zkevm.sequencer-replay=true --zkevm.sequencer-replay-halt-on-batch-number=134500 --zkevm.sequencer-replay-external-datastream=true --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml"
 
   xlayer-executor:
     container_name: ${USER_PREFIX:-default}:-xlayer-executor

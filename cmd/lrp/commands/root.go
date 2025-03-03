@@ -62,10 +62,7 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		defer func() {
-			utils.RunLRPStop(workDir)
-			// utils.RunLRPClean(workDir)
-		}()
+		defer utils.RunLRPClean(workDir)
 
 		// Step 2-2: prepare - copy chain data to the work directory
 		unwoundPath := utils.FindUnwoundDirectory(config.BatchFrom, path)
@@ -98,7 +95,10 @@ var rootCmd = &cobra.Command{
 			} else {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
 				go monitorContainer(monitorCtx, containerID, unwindCSV, sampleIntv, false)
-				utils.RunDockerWait(containerID, monitorCancel, "")
+				if _, err := utils.RunDockerWait(ctx, monitorCancel, containerID, ""); err != nil {
+					fmt.Printf("Receive an error during waiting for unwind container to complete execution: %v\n", err)
+					return
+				}
 				if err := utils.WriteUnwindContainerLog(containerID, workDir); err != nil {
 					fmt.Printf("Output unwind container log failed as: %v\n", err)
 				}
@@ -116,31 +116,53 @@ var rootCmd = &cobra.Command{
 		}
 
 		replayCSV := filepath.Join(workDir, "replay-container-stats.csv")
-		if containerID, err := utils.RunMainnetReplay(workDir, config); err != nil {
-			fmt.Printf("Running replay step returns an error: %v\n", err)
-			return
+		var replayContainerID string
+		if vmtouch {
+			replayContainerID, err = utils.RunMainnetReplayVmtouch(workDir, config)
+			if err != nil {
+				fmt.Printf("Running replay step returns an error: %v\n", err)
+				return
+			}
+		} else {
+			replayContainerID, err = utils.RunMainnetReplay(workDir, config)
+			if err != nil {
+				fmt.Printf("Running replay step returns an error: %v\n", err)
+				return
+			}
+		}
+
+		if compact && config.UseExternalDatastream {
+			for {
+				monitorCtx, monitorCancel := context.WithCancel(ctx)
+				go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)
+				go utils.MonitorChaindataSize(monitorCtx, workDir, utils.DEFAULT_CHAINDATA_LIMIT)
+				exitCode, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID, "")
+				if err != nil {
+					fmt.Printf("Receive an error during waiting for replay container to complete execution: %v\n", err)
+					return
+				}
+				if exitCode == 0 {
+					break
+				}
+			}
 		} else {
 			monitorCtx, monitorCancel := context.WithCancel(ctx)
-			go monitorContainer(monitorCtx, containerID, replayCSV, sampleIntv, true)
-
-			utils.RunDockerWait(containerID, monitorCancel, utils.REPLAY_STOP_SIGN)
-			if err := utils.WriteReplayContainerLog(containerID, workDir); err != nil {
-				fmt.Printf("Output replay container log failed as: %v\n", err)
+			go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)
+			if _, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID, utils.REPLAY_STOP_SIGN); err != nil {
+				fmt.Printf("Receive an error during waiting for replay container to complete execution: %v\n", err)
+				return
 			}
-			fmt.Println("The replay container is stopped, now prepared to show test result")
 		}
+
+		if err := utils.WriteReplayContainerLog(replayContainerID, workDir); err != nil {
+			fmt.Printf("Output replay container log failed as: %v\n", err)
+		}
+		fmt.Println("The replay container is stopped, now prepared to show test result")
 
 		// Step 4: show test report
 		showReport(workDir)
 		fmt.Println("LRP test completed!")
 		fmt.Println("Now is stopping and cleaning the containers, please wait for seconds...")
-
-		select {
-		case <-ctx.Done():
-			fmt.Println("Run function exiting due to context cancellation")
-			return
-		default:
-		}
 	},
 }
 

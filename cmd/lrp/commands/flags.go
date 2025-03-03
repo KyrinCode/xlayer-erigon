@@ -17,7 +17,10 @@ var (
 	backupUnwound bool
 	ignoreRunning bool
 	compact       bool
-	sampleIntv    time.Duration
+
+	vmtouch    bool
+	parallel   int
+	sampleIntv time.Duration
 )
 
 func WithPathFlags(cmd *cobra.Command) {
@@ -35,4 +38,6 @@ func WithExtraFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&ignoreRunning, "ignoreRunning", "i", false, "determine whether to ignore other tests that are already running")
 	cmd.Flags().BoolVar(&compact, "compact", false, "if true, monitor the mainnet data directory and compact it when the size is exceed limit")
 	cmd.Flags().DurationVar(&sampleIntv, "sample", utils.DEFAULT_SAMPLE_INTERVAL, "set the sampling interval for the Docker container, the minimum value is 1 second")
+	cmd.Flags().BoolVar(&vmtouch, "vmtouch", false, "when enabled, the replay container will run on vmtouch mode")
+	cmd.Flags().IntVar(&parallel, "parallel", 1, "determine how many process will run for multi-process test")
 }

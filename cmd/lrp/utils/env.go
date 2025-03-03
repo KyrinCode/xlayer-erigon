@@ -130,7 +130,7 @@ func CheckEnviorment(path string) error {
 
 	// Check if Dockerfile.local exists, if not, create it
 	dockerfileLocalPath := filepath.Join(path, "Dockerfile.local")
-	if err := createFileIfNotExist(dockerfileLocalPath, testscripts.DockerfileLocalContent); err != nil {
+	if err := createFileIfNotExist(dockerfileLocalPath, testscripts.DockerfileLRPContent); err != nil {
 		return err
 	}
 

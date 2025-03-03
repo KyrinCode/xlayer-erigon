@@ -13,7 +13,7 @@ import (
 )
 
 // dockerWaitAPI waits for the container to exit or stops when stopSign is found in logs
-func dockerWaitAPI(containerID string, cancel context.CancelFunc, stopSign string) (int64, error) {
+func dockerWaitAPI(ctx context.Context, cancel context.CancelFunc, containerID string, stopSign string) (int64, error) {
 	defer cancel()
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -22,13 +22,13 @@ func dockerWaitAPI(containerID string, cancel context.CancelFunc, stopSign strin
 	}
 	defer cli.Close()
 
-	ctx, logCancel := context.WithCancel(context.Background())
+	logCtx, logCancel := context.WithCancel(context.Background())
 	defer logCancel()
 
-	statusCh, errCh := cli.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+	statusCh, errCh := cli.ContainerWait(logCtx, containerID, container.WaitConditionNotRunning)
 
 	// read container logs
-	logReader, err := cli.ContainerLogs(ctx, containerID, container.LogsOptions{
+	logReader, err := cli.ContainerLogs(logCtx, containerID, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
@@ -61,6 +61,8 @@ func dockerWaitAPI(containerID string, cancel context.CancelFunc, stopSign strin
 
 	select {
 	case <-ctx.Done():
+		return -1000, fmt.Errorf("receive an interrupt during waiting for container %s", containerID)
+	case <-logCtx.Done():
 		return 0, nil
 	case err := <-errCh:
 		return -1, fmt.Errorf("error waiting for container: %v", err)
@@ -70,13 +72,13 @@ func dockerWaitAPI(containerID string, cancel context.CancelFunc, stopSign strin
 }
 
 // dockerWait wraps dockerWaitAPI and handles the result
-func dockerWait(containerID string, cancel context.CancelFunc, stopSign string) error {
-	exitCode, err := dockerWaitAPI(containerID, cancel, stopSign)
+func dockerWait(ctx context.Context, cancel context.CancelFunc, containerID string, stopSign string) (int64, error) {
+	exitCode, err := dockerWaitAPI(ctx, cancel, containerID, stopSign)
 	if err != nil {
-		return fmt.Errorf("failed to execute docker wait %s: %w", containerID, err)
+		return exitCode, err
 	}
 	fmt.Printf("Container %s exited with code: %d\n", containerID, exitCode)
-	return nil
+	return exitCode, nil
 }
 
 func writeContainerLogs(containerID, outputFile string) error {

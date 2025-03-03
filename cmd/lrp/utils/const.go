@@ -17,11 +17,13 @@ const (
 	UNWOUND_REPO    = "unwound-repo"
 
 	// commands
-	LRP_CONFIG               = "lrp-config"
-	LRP_MAINNET_UNWIND       = "lrp-mainnet-unwind"
-	LRP_MAINNET_REPLAY       = "lrp-mainnet-replay"
-	LRP_STOP                 = "lrp-stop"
-	LRP_MAINNET_REPLAY_PAUSE = "lrp-mainnet-replay-pause"
+	LRP_CONFIG                 = "lrp-config"
+	LRP_MAINNET_UNWIND         = "lrp-mainnet-unwind"
+	LRP_MAINNET_REPLAY         = "lrp-mainnet-replay"
+	LRP_MAINNET_REPLAY_VMTOUCH = "lrp-mainnet-replay-vmtouch"
+	LRP_STOP                   = "lrp-stop"
+	LRP_CLEAN                  = "lrp-clean"
+	LRP_MAINNET_REPLAY_PAUSE   = "lrp-mainnet-replay-pause"
 
 	// stop sign
 	REPLAY_STOP_SIGN = "Resequencing completed"
