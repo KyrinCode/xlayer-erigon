@@ -56,13 +56,15 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Step 2-1: prepare - create a work directory
-		workDir, config, err := utils.SpawnWorkDirectory(path, commitID)
+		workDir, config, err := utils.SpawnWorkDirectory(path, commitID, parallel)
 		if err != nil {
 			fmt.Printf("Creating work directory returns an error: %v\n", err)
 			return
 		}
 
-		defer utils.RunLRPClean(workDir)
+		if !vmtouch {
+			defer utils.RunLRPClean(workDir)
+		}
 
 		// Step 2-2: prepare - copy chain data to the work directory
 		unwoundPath := utils.FindUnwoundDirectory(config.BatchFrom, path)
@@ -108,11 +110,16 @@ var rootCmd = &cobra.Command{
 
 		// backup the unwound chaindata if necessary
 		if backupUnwound && needUnwind {
+			if err := utils.RunMainnetDataCompact(workDir); err != nil {
+				fmt.Printf("Received an error while backup unwound mainnet data from %s to %s: %v\n", filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath, err)
+				return
+			}
 			copyProgress := utils.CopyProgress{Title: "Backing Up Unwound Mainnet Data Progress", Mu: sync.Mutex{}}
 			if err := copyProgress.Progress(filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath); err != nil {
 				fmt.Printf("Received an error while backup unwound mainnet data from %s to %s: %v\n", filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath, err)
 				return
 			}
+
 		}
 
 		replayCSV := filepath.Join(workDir, "replay-container-stats.csv")
@@ -131,7 +138,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		if compact && config.UseExternalDatastream {
+		if fuse && config.UseExternalDatastream {
 			for {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
 				go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)

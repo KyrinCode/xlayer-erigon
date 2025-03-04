@@ -9,6 +9,7 @@ const (
 	DEFAULT_SAMPLE_INTERVAL          = 10 * time.Second
 	MIN_SMAPLE_INTERVAL              = time.Second
 	DEFAULT_CHAINDATA_LIMIT          = 100 * 1024 * 1024 * 1024
+	DEFAULT_PROCESS_COUNT            = 1
 
 	REPO_NAME       = "xlayer-erigon"
 	LRP_CONFIG_FILE = "lrp.config.yaml"
@@ -20,6 +21,7 @@ const (
 	LRP_CONFIG                 = "lrp-config"
 	LRP_MAINNET_UNWIND         = "lrp-mainnet-unwind"
 	LRP_MAINNET_REPLAY         = "lrp-mainnet-replay"
+	LRP_MAINNET_DATA_COMPACT   = "lrp-mainnet-data-compact"
 	LRP_MAINNET_REPLAY_VMTOUCH = "lrp-mainnet-replay-vmtouch"
 	LRP_STOP                   = "lrp-stop"
 	LRP_CLEAN                  = "lrp-clean"

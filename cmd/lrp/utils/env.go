@@ -35,6 +35,7 @@ type LRPConfig struct {
 	UseExternalDatastream  bool   `yaml:"useExternalDatastream"`
 	ExternalDataStreamPath string `yaml:"externalDatastreamPath"`
 	SrcMainnetDataPath     string `yaml:"srcMainnetDataPath"`
+	ProcessCount           int    `yaml:"processCount"`
 }
 
 func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {

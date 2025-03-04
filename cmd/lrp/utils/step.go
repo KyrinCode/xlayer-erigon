@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func SpawnWorkDirectory(path, commitID string) (string, *LRPConfig, error) {
+func SpawnWorkDirectory(path, commitID string, processCount int) (string, *LRPConfig, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	workDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s", timestamp, commitID))
 	if err := os.MkdirAll(workDir, 0755); err != nil {
@@ -56,6 +56,7 @@ func SpawnWorkDirectory(path, commitID string) (string, *LRPConfig, error) {
 		return "", nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 	config.GitCommit = commitID
+	config.ProcessCount = processCount
 
 	// override the config file
 	data, _ = yaml.Marshal(&config)
@@ -115,6 +116,11 @@ func RunMainnetUnwind(workDir string, config *LRPConfig) (string, error) {
 func RunMainnetReplay(workDir string, config *LRPConfig) (string, error) {
 	// use 'make lrp-mainnet-replay' to replay txs
 	return runLRPMainnetReplay(workDir, config)
+}
+
+func RunMainnetDataCompact(workDir string) error {
+	// use 'make lrp-mainnet-data-compact' to compact mainnet data
+	return runLRPMainnetDataCompact(workDir)
 }
 
 func RunMainnetReplayVmtouch(workDir string, config *LRPConfig) (string, error) {

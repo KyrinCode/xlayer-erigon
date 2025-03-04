@@ -52,6 +52,17 @@ func runLRPMainnetReplay(dir string, config *LRPConfig) (string, error) {
 	return containerID, nil
 }
 
+func runLRPMainnetDataCompact(dir string) error {
+	cmd := exec.Command("make", "-C", dir, LRP_MAINNET_DATA_COMPACT)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to execute make lrp-mainnet-data-compact: %w", err)
+	}
+
+	return nil
+}
+
 func runLRPMainnetReplayVmtouch(dir string, config *LRPConfig) (string, error) {
 	cmd := exec.Command("make", "-C", dir, LRP_MAINNET_REPLAY_VMTOUCH)
 	cmd.Stdout = os.Stdout

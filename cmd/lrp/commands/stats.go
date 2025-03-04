@@ -39,23 +39,24 @@ var StatsCmd = &cobra.Command{
 }
 
 func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIntv time.Duration, showTPS bool) error {
-	// time.Sleep(1 * time.Minute)
+	// Initialize Docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
 	defer cli.Close()
 
+	// Initialize TermUI
 	if err := ui.Init(); err != nil {
 		return fmt.Errorf("failed to initialize termui: %v", err)
 	}
 	defer ui.Close()
 	defer ui.Clear()
 
+	// Set time window title suffix
 	totalIntv := 30 * sampleIntv
 	titleSuffix := fmt.Sprintf("%.2f Minutes", totalIntv.Minutes())
 
-	// UI components
 	lcCPU := widgets.NewPlot()
 	lcCPU.Title = "CPU Usage (%) - Last " + titleSuffix
 	lcCPU.Data = make([][]float64, 1)
@@ -63,7 +64,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	lcCPU.HorizontalScale = 2
 	lcCPU.AxesColor = ui.ColorWhite
 	lcCPU.LineColors[0] = ui.ColorGreen
-	lcCPU.SetRect(0, 0, 68, 20)
 
 	lcMem := widgets.NewPlot()
 	lcMem.Title = "Memory Usage (MiB) - Last " + titleSuffix
@@ -72,7 +72,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	lcMem.HorizontalScale = 2
 	lcMem.AxesColor = ui.ColorWhite
 	lcMem.LineColors[0] = ui.ColorYellow
-	lcMem.SetRect(78, 0, 146, 20)
 
 	lcDisk := widgets.NewPlot()
 	lcDisk.Title = "Disk I/O (MiB) - Last " + titleSuffix
@@ -83,7 +82,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	lcDisk.AxesColor = ui.ColorWhite
 	lcDisk.LineColors[0] = ui.ColorBlue
 	lcDisk.LineColors[1] = ui.ColorCyan
-	lcDisk.SetRect(0, 24, 68, 44)
 
 	lcNet := widgets.NewPlot()
 	lcNet.Title = "Network I/O (MiB) - Last " + titleSuffix
@@ -94,7 +92,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	lcNet.AxesColor = ui.ColorWhite
 	lcNet.LineColors[0] = ui.ColorMagenta
 	lcNet.LineColors[1] = ui.ColorRed
-	lcNet.SetRect(78, 24, 146, 44)
 
 	var lcTPS *widgets.Plot
 	if showTPS {
@@ -105,7 +102,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		lcTPS.HorizontalScale = 2
 		lcTPS.AxesColor = ui.ColorWhite
 		lcTPS.LineColors[0] = ui.ColorWhite
-		lcTPS.SetRect(156, 0, 224, 20)
 	}
 
 	logList := widgets.NewList()
@@ -113,19 +109,18 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	logList.Rows = []string{}
 	logList.TextStyle = ui.NewStyle(ui.ColorWhite)
 	logList.WrapText = true
-	logList.SetRect(0, 0, 146, 44)
+
+	titleBar := widgets.NewParagraph()
+	titleBar.Text = fmt.Sprintf("Container: %s - Monitoring Stats & Logs", containerID)
+	titleBar.TextStyle = ui.NewStyle(ui.ColorYellow, ui.ColorBlack, ui.ModifierBold)
+	titleBar.Border = true
 
 	keyHint := widgets.NewParagraph()
 	keyHint.Text = "t: Toggle view | q/Ctrl+C: Quit"
 	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
-	keyHint.Border = false
-	if showTPS {
-		keyHint.SetRect(0, 68, 224, 72)
-	} else {
-		keyHint.SetRect(0, 44, 146, 48)
-	}
+	keyHint.Border = true
 
-	// Data slices
+	// Data storage
 	xLabels := make([]string, 30)
 	batchLabels := make([]string, 30)
 	startTime := time.Now()
@@ -150,11 +145,11 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	tpsData := make([]float64, 30)
 	logs := make([]string, 0, 1000)
 
+	// State variables
 	showStats := true
-	const maxVisibleLines = 30
 	scrollOffset := 0
 
-	// Main CSV setup (for non-TPS data)
+	// Initialize CSV file
 	csvFile, err := os.OpenFile(csvPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open main CSV file: %v", err)
@@ -171,7 +166,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		}
 	}
 
-	// TPS CSV setup (only for showTPS)
 	var tpsCSVFile *os.File
 	var tpsCSVWriter *csv.Writer
 	if showTPS {
@@ -193,17 +187,21 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		}
 	}
 
-	updateLogDisplay := func() {
+	// Update log display function
+	updateLogDisplay := func(maxHeight int) {
 		totalLines := len(logs)
 		if totalLines == 0 {
 			logList.Rows = []string{"No logs available yet"}
 			return
 		}
-		if scrollOffset < 0 {
-			scrollOffset = 0
+		maxVisibleLines := maxHeight - 2
+		if maxVisibleLines < 1 {
+			maxVisibleLines = 1
 		}
-		if totalLines > maxVisibleLines && scrollOffset > totalLines-maxVisibleLines {
+		if totalLines > maxVisibleLines {
 			scrollOffset = totalLines - maxVisibleLines
+		} else {
+			scrollOffset = 0
 		}
 		start := scrollOffset
 		end := start + maxVisibleLines
@@ -213,18 +211,56 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		logList.Rows = logs[start:end]
 	}
 
+	// Update key hint
 	updateKeyHint := func() {
 		if showStats {
 			keyHint.Text = "t: Toggle to Logs | q/Ctrl+C: Quit"
 		} else {
-			keyHint.Text = "t: Toggle to Stats | Up/Down: Scroll | q/Ctrl+C: Quit"
+			keyHint.Text = "t: Toggle to Stats | q/Ctrl+C: Quit"
 		}
 	}
 
+	// Adjust UI layout
+	resizeUI := func(width, height int) {
+		const minWidth, minHeight = 60, 20
+		if width < minWidth || height < minHeight {
+			return
+		}
+
+		titleBar.SetRect(0, 0, width, 3)
+		keyHint.SetRect(0, height-3, width, height)
+
+		if showStats {
+			availableHeight := height - 6
+			halfWidth := width / 2
+			halfHeight := availableHeight / 2
+
+			lcCPU.SetRect(0, 3, halfWidth, 3+halfHeight)
+			lcMem.SetRect(halfWidth, 3, width, 3+halfHeight)
+			lcDisk.SetRect(0, 3+halfHeight, halfWidth, height-3)
+			lcNet.SetRect(halfWidth, 3+halfHeight, width, height-3)
+
+			if showTPS {
+				thirdWidth := width / 3
+				lcTPS.SetRect(0, 3, thirdWidth, height-3)
+				lcCPU.SetRect(thirdWidth, 3, 2*thirdWidth, 3+availableHeight/2)
+				lcMem.SetRect(thirdWidth, 3+availableHeight/2, 2*thirdWidth, height-3)
+				lcDisk.SetRect(2*thirdWidth, 3+availableHeight/2, width, height-3)
+				lcNet.SetRect(2*thirdWidth, 3, width, 3+availableHeight/2)
+			}
+		} else {
+			logList.SetRect(0, 3, width, height-3)
+			updateLogDisplay(height - 6)
+		}
+	}
+
+	w, h := ui.TerminalDimensions()
+	resizeUI(w, h)
+
+	// Create context for logs and stats streams
 	logCtx, logCancel := context.WithCancel(ctx)
 	defer logCancel()
 
-	// Use logCtx for both stats and logs to ensure synchronized cancellation
 	statsStream, err := cli.ContainerStats(logCtx, containerID, true)
 	if err != nil {
 		return fmt.Errorf("failed to get container stats: %v", err)
@@ -243,9 +279,8 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	}
 	defer logReader.Close()
 
-	// Stats goroutine
+	// Stats processing
 	statsDoneChan := make(chan struct{})
-
 	type statsHolder struct {
 		sync.Mutex
 		stats types.StatsJSON
@@ -266,6 +301,84 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		}
 	}()
 
+	// Update stats data
+	updateStats := func() {
+		currentStats.Lock()
+		stat := currentStats.stats
+		currentStats.Unlock()
+
+		var (
+			cpuUsage, memoryUsage float64
+			diskRead, diskWrite   float64
+			netRx, netTx          float64
+		)
+
+		cpuUsage = calculateCPUUsage(stat.CPUStats, stat.PreCPUStats)
+		memoryUsage = calculateMemoryUsage(stat.MemoryStats)
+		diskRead, diskWrite = calculateBlockIO(stat.BlkioStats)
+
+		for _, net := range stat.Networks {
+			netRx += float64(net.RxBytes) / 1024 / 1024
+			netTx += float64(net.TxBytes) / 1024 / 1024
+		}
+
+		cpuData = append(cpuData[1:], cpuUsage)
+		memData = append(memData[1:], memoryUsage)
+		diskReadData = append(diskReadData[1:], diskRead)
+		diskWriteData = append(diskWriteData[1:], diskWrite)
+		netRxData = append(netRxData[1:], netRx)
+		netTxData = append(netTxData[1:], netTx)
+
+		elapsed := int(time.Since(startTime).Seconds()) / 10 * 10
+		for i := 0; i < 30; i++ {
+			timeAgo := elapsed - (29-i)*10
+			if timeAgo < 0 {
+				timeAgo = 0
+			}
+			xLabels[i] = fmt.Sprintf("%d", timeAgo)
+		}
+		lcCPU.DataLabels = xLabels
+		lcMem.DataLabels = xLabels
+		lcDisk.DataLabels = xLabels
+		lcNet.DataLabels = xLabels
+
+		lcCPU.Data[0] = cpuData
+		lcMem.Data[0] = memData
+		lcDisk.Data[0] = diskReadData
+		lcDisk.Data[1] = diskWriteData
+		lcNet.Data[0] = netRxData
+		lcNet.Data[1] = netTxData
+
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		csvRow := []string{
+			timestamp,
+			fmt.Sprintf("%.2f", cpuUsage),
+			fmt.Sprintf("%.2f", memoryUsage),
+			fmt.Sprintf("%.2f", diskRead),
+			fmt.Sprintf("%.2f", diskWrite),
+			fmt.Sprintf("%.2f", netRx),
+			fmt.Sprintf("%.2f", netTx),
+		}
+		if err := csvWriter.Write(csvRow); err != nil {
+			log.Printf("Failed to write periodic main CSV: %v", err)
+		}
+		csvWriter.Flush()
+	}
+
+	// Display stats immediately on start
+	go func() {
+		for currentStats.stats.CPUStats.CPUUsage.TotalUsage == 0 {
+			time.Sleep(50 * time.Millisecond)
+		}
+		updateStats()
+		if showTPS {
+			ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
+		} else {
+			ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, keyHint)
+		}
+	}()
+
+	// Periodically update stats
 	go func() {
 		defer close(statsDoneChan)
 
@@ -277,82 +390,19 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 			case <-logCtx.Done():
 				return
 			case <-ticker.C:
-				currentStats.Lock()
-				stat := currentStats.stats // 获取最新快照
-				currentStats.Unlock()
-
-				var (
-					cpuUsage, memoryUsage float64
-					diskRead, diskWrite   float64
-					netRx, netTx          float64
-				)
-
-				cpuUsage = calculateCPUUsage(stat.CPUStats, stat.PreCPUStats)
-				memoryUsage = calculateMemoryUsage(stat.MemoryStats)
-				diskRead, diskWrite = calculateBlockIO(stat.BlkioStats)
-
-				for _, net := range stat.Networks {
-					netRx += float64(net.RxBytes) / 1024 / 1024
-					netTx += float64(net.TxBytes) / 1024 / 1024
-				}
-
-				// Update data
-				cpuData = append(cpuData[1:], cpuUsage)
-				memData = append(memData[1:], memoryUsage)
-				diskReadData = append(diskReadData[1:], diskRead)
-				diskWriteData = append(diskWriteData[1:], diskWrite)
-				netRxData = append(netRxData[1:], netRx)
-				netTxData = append(netTxData[1:], netTx)
-
-				elapsed := int(time.Since(startTime).Seconds()) / 10 * 10
-				for i := 0; i < 30; i++ {
-					timeAgo := elapsed - (29-i)*10
-					if timeAgo < 0 {
-						timeAgo = 0
-					}
-					xLabels[i] = fmt.Sprintf("%d", timeAgo)
-				}
-				lcCPU.DataLabels = xLabels
-				lcMem.DataLabels = xLabels
-				lcDisk.DataLabels = xLabels
-				lcNet.DataLabels = xLabels
-
-				lcCPU.Data[0] = cpuData
-				lcMem.Data[0] = memData
-				lcDisk.Data[0] = diskReadData
-				lcDisk.Data[1] = diskWriteData
-				lcNet.Data[0] = netRxData
-				lcNet.Data[1] = netTxData
-
-				// Write to main CSV periodically (non-TPS data)
-				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				csvRow := []string{
-					timestamp,
-					fmt.Sprintf("%.2f", cpuUsage),
-					fmt.Sprintf("%.2f", memoryUsage),
-					fmt.Sprintf("%.2f", diskRead),
-					fmt.Sprintf("%.2f", diskWrite),
-					fmt.Sprintf("%.2f", netRx),
-					fmt.Sprintf("%.2f", netTx),
-				}
-				if err := csvWriter.Write(csvRow); err != nil {
-					log.Printf("Failed to write periodic main CSV: %v", err)
-				}
-				csvWriter.Flush()
-
-				// Render stats
+				updateStats()
 				if showStats {
 					if showTPS {
-						ui.Render(lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
+						ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
 					} else {
-						ui.Render(lcCPU, lcMem, lcDisk, lcNet, keyHint)
+						ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, keyHint)
 					}
 				}
 			}
 		}
 	}()
 
-	// Log and TPS goroutine (real-time updates for showTPS)
+	// Log processing
 	logDoneChan := make(chan struct{})
 	go func() {
 		defer close(logDoneChan)
@@ -360,7 +410,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		scanner := bufio.NewScanner(logReader)
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
-		// TPS regex patterns
 		batchRegex := regexp.MustCompile(`Batch<(\d+)>`)
 		durationRegex := regexp.MustCompile(`TotalDuration<(\d+)ms>`)
 		txRegex := regexp.MustCompile(`Tx<(\d+)>`)
@@ -386,13 +435,13 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 						}
 					}
 					logs = append(logs, line)
-					updateLogDisplay()
-
 					if !showStats {
-						ui.Render(logList, keyHint)
+						_, h := ui.TerminalDimensions()
+						updateLogDisplay(h - 6)
+						ui.Clear()
+						ui.Render(titleBar, logList, keyHint)
 					}
 
-					// Parse TPS-related fields if showTPS is enabled
 					if showTPS && strings.Contains(line, "Batch") && strings.Contains(line, "TotalDuration") && strings.Contains(line, "Tx") {
 						batchMatch := batchRegex.FindStringSubmatch(line)
 						durationMatch := durationRegex.FindStringSubmatch(line)
@@ -408,13 +457,11 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 								instantTPS = float64(txCount*1000) / float64(durationMs)
 							}
 
-							// Update TPS data with automatic sliding
 							tpsData = append(tpsData[1:], instantTPS)
 							batchLabels = append(batchLabels[1:], fmt.Sprintf("%d", batchNo))
 							lcTPS.Data[0] = tpsData
 							lcTPS.DataLabels = batchLabels
 
-							// Write to TPS CSV with full data
 							timestamp := time.Now().Format("2006-01-02 15:04:05")
 							tpsCSVRow := []string{
 								timestamp,
@@ -434,9 +481,9 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 							}
 							tpsCSVWriter.Flush()
 
-							// Real-time render when TPS updates
 							if showStats {
-								ui.Render(lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
+								ui.Clear()
+								ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
 							}
 						}
 					}
@@ -445,7 +492,6 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		}
 	}()
 
-	// Event loop
 	uiEvents := ui.PollEvents()
 mainLoop:
 	for {
@@ -456,44 +502,58 @@ mainLoop:
 			<-statsDoneChan
 			break mainLoop
 		case e := <-uiEvents:
-			switch e.ID {
-			case "q", "<C-c>":
-				logCancel()
-				<-logDoneChan
-				<-statsDoneChan
-				return fmt.Errorf("capture a quit signal, program interrupted")
-			case "t":
-				showStats = !showStats
+			switch e.Type {
+			case ui.KeyboardEvent:
+				switch e.ID {
+				case "q", "<C-c>":
+					logCancel()
+					<-logDoneChan
+					<-statsDoneChan
+					return fmt.Errorf("capture a quit signal, program interrupted")
+				case "t":
+					showStats = !showStats
+					ui.Clear()
+					updateKeyHint()
+					w, h := ui.TerminalDimensions()
+					resizeUI(w, h)
+					if showStats {
+						if showTPS {
+							ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
+						} else {
+							ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, keyHint)
+						}
+					} else {
+						totalLines := len(logs)
+						maxVisibleLines := h - 6
+						if totalLines > maxVisibleLines {
+							scrollOffset = totalLines - maxVisibleLines
+						} else {
+							scrollOffset = 0
+						}
+						updateLogDisplay(h - 6)
+						ui.Render(titleBar, logList, keyHint)
+					}
+				}
+			case ui.ResizeEvent:
+				payload := e.Payload.(ui.Resize)
+				resizeUI(payload.Width, payload.Height)
 				ui.Clear()
-				updateKeyHint()
 				if showStats {
 					if showTPS {
-						ui.Render(lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
+						ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
 					} else {
-						ui.Render(lcCPU, lcMem, lcDisk, lcNet, keyHint)
+						ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, keyHint)
 					}
 				} else {
-					if len(logs) <= maxVisibleLines {
-						scrollOffset = 0
+					totalLines := len(logs)
+					maxVisibleLines := payload.Height - 6
+					if totalLines > maxVisibleLines {
+						scrollOffset = totalLines - maxVisibleLines
 					} else {
-						scrollOffset = len(logs) - maxVisibleLines
+						scrollOffset = 0
 					}
-					updateLogDisplay()
-					ui.Render(logList, keyHint)
-				}
-			case "<Up>":
-				if !showStats {
-					scrollOffset--
-					updateLogDisplay()
-					ui.Clear()
-					ui.Render(logList, keyHint)
-				}
-			case "<Down>":
-				if !showStats {
-					scrollOffset++
-					updateLogDisplay()
-					ui.Clear()
-					ui.Render(logList, keyHint)
+					updateLogDisplay(payload.Height - 6)
+					ui.Render(titleBar, logList, keyHint)
 				}
 			}
 		}
