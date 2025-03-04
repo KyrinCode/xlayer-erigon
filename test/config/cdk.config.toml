@@ -63,7 +63,26 @@ GetBatchWaitInterval = "10s"
 			[SequenceSender.EthTxManager.Etherman]
 				URL = "http://xlayer-mock-l1-network:8545"
 				MultiGasProvider = false
+				PolygonZkEVMAddress = "0xeb173087729c88a47568AF87b17C653039377BA6"
+				PolygonRollupManagerAddress = "0x2d42E2899662EFf08b13eeb65b154b904C7a1c8a"
 				L1ChainID = 1337
+		   [SequenceSender.EthTxManager.CustodialAssets]
+           Enable = true
+           URL = "http://xlayer-signer:7001"
+           Symbol = 2
+           OperateTypeSeq = 1
+           SequencerAddr = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+           AggregatorAddr = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+           WaitResultTimeout = "2m"
+           AccessKey = ""
+           SecretKey = ""
+           ProjectSymbol = 3011
+           OperateSymbol = 2882
+           SysFrom = 3
+           UserID = 0
+           OperateAmount = 0
+           RequestSignURI = "/priapi/v1/assetonchain/ecology/ecologyOperate"
+           QuerySignURI = "/priapi/v1/assetonchain/ecology/querySignDataByOrderNo"
 [Aggregator]
 # GRPC server host
 Host = "0.0.0.0"

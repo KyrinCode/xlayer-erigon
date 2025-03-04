@@ -19,7 +19,7 @@ services:
 
   xlayer-seqs:
     container_name: xlayer-seqs
-    image: zjg555543/cdk:v0.4.0-beta10
+    image: giskook/cdk:v0.5.0
     volumes:
       - ./data/seqs:/tmp/cdk
       - ./keystore/da.permit.keystore:/pk/da.permit.keystore
@@ -330,7 +330,7 @@ services:
   xlayer-signer:
     container_name: xlayer-signer
     restart: unless-stopped
-    image: zjg555543/xlayer-signer:v0.4.1
+    image: giskook/xlayer-signer:v0.5.0
     ports:
       - 7001:7001
     volumes:
@@ -361,7 +361,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.51.2
-    command: 
+    command:
       - --log.level=warn
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
