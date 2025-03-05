@@ -106,6 +106,7 @@ func sequencingBatchStep(
 	defer func() {
 		metrics.GetLogStatistics().CumulativeTiming(metrics.SequencingBatchTiming, time.Since(startSequenceTime))
 		log.Info(fmt.Sprintf("[%s] Finished sequencing stage", logPrefix))
+		metrics.GetLogStatistics().Summary()
 	}()
 
 	// For X Layer metrics
@@ -282,8 +283,6 @@ func sequencingBatchStep(
 	sendersToSkip := make(map[common.Address]struct{})
 
 	for blockNumber := executionAt + 1; runLoopBlocks; blockNumber++ {
-		// For X Layer
-		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
 		if batchTimedOut {
 			log.Debug(fmt.Sprintf("[%s] Closing batch due to timeout", logPrefix))
 			break
@@ -322,6 +321,9 @@ func sequencingBatchStep(
 				break
 			}
 		}
+
+		// For X Layer
+		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
 
 		header, parentBlock, err := prepareHeader(sdb.tx, blockNumber-1, batchState.blockState.getDeltaTimestamp(), batchState.getBlockHeaderForcedTimestamp(), batchState.forkId, batchState.getCoinbase(&cfg), cfg.chainConfig, cfg.miningConfig)
 		if err != nil {
@@ -420,6 +422,7 @@ func sequencingBatchStep(
 			default:
 			}
 
+			getTxTime := time.Now()
 			if batchState.isLimboRecovery() {
 				batchState.blockState.transactionsForInclusion, err = getLimboTransaction(ctx, cfg, batchState.limboRecoveryData.limboTxHash, executionAt)
 				if err != nil {
@@ -440,7 +443,6 @@ func sequencingBatchStep(
 				var allConditionsOK bool
 				var newTransactions []types.Transaction
 				var newIds []common.Hash
-				getTxTime := time.Now()
 				newTransactions, newIds, allConditionsOK, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
 				if err != nil {
 					return err
@@ -828,6 +830,10 @@ func sequencingBatchStep(
 		if err != nil || needsUnwind {
 			return err
 		}
+
+		// For X Layer
+		metrics.GetLogStatistics().SetTag(metrics.FinalizeBlockNumber, strconv.Itoa(int(blockNumber)))
+		metrics.GetLogStatistics().SummaryCheckpoint()
 	}
 
 	/*
@@ -858,7 +864,6 @@ func sequencingBatchStep(
 
 	batchTime := time.Since(batchStart)
 	metrics.BatchExecuteTime(string(batchCloseReason), batchTime)
-	metrics.GetLogStatistics().Summary()
 
 	return err
 }
