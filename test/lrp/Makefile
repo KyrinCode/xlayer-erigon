@@ -89,8 +89,8 @@ lrp-config:
 		echo "toBatchNumber: $$TO_BATCH_NO" >> lrp.config.yaml; \
 		echo "processCount: 1" >> lrp.config.yaml; \
 		echo "useExternalDatastream: $$EXTERNAL_DS" >> lrp.config.yaml; \
-		echo "externalDatastreamPath: " >> lrp.config.yaml; \
 		echo "srcMainnetDataPath: " >> lrp.config.yaml; \
+		echo "externalDatastreamPath: " >> lrp.config.yaml; \
 		echo "gitRootPath: " >> lrp.config.yaml; \
 	else \
 		if [ "$(shell uname)" = "Darwin" ]; then \
