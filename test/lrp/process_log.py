@@ -68,7 +68,7 @@ def main(log_file):
                     instant_tps = (tx_count * 1000) / duration_ms if duration_ms > 0 else 0
                     logging.info(f"Batch {batch_no}: {tx_count} txs in {duration_ms/1000:.3f} seconds, Instant TPS: {instant_tps:.2f}")
             
-            if "Resequencing completed." in line:
+            if "Replay completed." in line:
                 end_time = parse_time(line)
                 break
 

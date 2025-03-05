@@ -279,14 +279,6 @@ lrp-mainnet-replay-vmtouch: lrp-config-apply lrp-build-docker
 .PHONY: lrp-mainnet-l1-sync
 lrp-mainnet-l1-sync:
 	@$(RUN_DOCKER_MAINNET_L1_SYNC)
-	@while true; do \
-		if docker logs --tail=1 $(DOCKER_MAINNET_L1_SYNC_CONTAINER) 2>&1 | grep -q "Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true."; then \
-			echo "L1 sync finishes."; \
-			docker stop $(DOCKER_MAINNET_L1_SYNC_CONTAINER) > /dev/null; \
-			break; \
-		fi; \
-		sleep 1; \
-	done
 
 .PHONY: lrp-mainnet-parallel
 lrp-mainnet-parallel: lrp-config-apply-parallel lrp-build-docker lrp-mainnet-l1-sync

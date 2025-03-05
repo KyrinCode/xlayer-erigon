@@ -132,7 +132,8 @@ func replay(
 		default:
 		}
 	}
-
+	log.Info(fmt.Sprintf("[%s] Replay completed.", s.LogPrefix()))
+	os.Exit(0)
 	return nil
 }
 

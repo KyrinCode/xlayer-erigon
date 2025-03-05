@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -56,7 +57,8 @@ func SpawnSequencingStage(
 	// For X Layer, local replay feature
 	if cfg.zk.XLayer.SequencerReplay {
 		if cfg.zk.XLayer.SequencerReplayL1SyncOnly {
-			panic(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
+			log.Info(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
+			os.Exit(0)
 		}
 		var externalDataStreamServer server.DataStreamServer
 		if cfg.zk.XLayer.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
