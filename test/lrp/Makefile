@@ -22,6 +22,8 @@ DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := xlayer-mainnet-replay-with-ext
 DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := xlayer-mainnet-replay-with-vmtouch
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := xlayer-mainnet-replay-with-external-datastream-and-vmtouch
 DOCKER_MAINNET_REPLAY_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-replay
+DOCKER_MAINNET_UNWIND_SEQ := xlayer-mainnet-unwind-seq
+DOCKER_MAINNET_UNWIND_SEQ_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-unwind-seq
 DOCKER_MAINNET_L1_SYNC := xlayer-mainnet-l1-sync
 DOCKER_MAINNET_L1_SYNC_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-l1-sync
 
@@ -31,6 +33,7 @@ RUN_DOCKER_MAINNET_REPLAY := $(DOCKER_COMPOSE) --profile internal-ds up -d $(DOC
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := $(DOCKER_COMPOSE) --profile external-ds up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM)
 RUN_DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_VMTOUCH)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := $(DOCKER_COMPOSE) --profile external-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH)
+RUN_DOCKER_MAINNET_UNWIND_SEQ := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND_SEQ)
 RUN_DOCKER_MAINNET_L1_SYNC := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_L1_SYNC)
 
 UNWIND_LOG_FILE := unwind.log
@@ -128,14 +131,21 @@ lrp-config-apply:
 	if [ "$$EXTERNAL_DS" = "true" ]; then \
 		DS_PATH=$$(awk '/^externalDatastreamPath:/ {print $$2}' lrp.config.yaml); \
 		if [ ! -z "$$DS_PATH" ]; then \
-			EXPANDED_DS_PATH=$$(echo "$$DS_PATH" | envsubst); \
-			if [ "$(shell uname)" = "Darwin" ]; then \
-				sed -i '' "s|- .*:/home/data-stream.bin|- $$EXPANDED_DS_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
-				sed -i '' "s|- .*:/home/data-stream.db/|- $$EXPANDED_DS_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
-			else \
-				sed -i "s|- .*:/home/data-stream.bin|- $$EXPANDED_DS_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
-				sed -i "s|- .*:/home/data-stream.db/|- $$EXPANDED_DS_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
+			EXPANDED_PATH=$$(echo "$$DS_PATH" | envsubst)/data-stream; \
+		else \
+			SRC_PATH=$$(awk '/^srcMainnetDataPath:/ {print $$2}' lrp.config.yaml); \
+			if [ -z "$$SRC_PATH" ]; then \
+				echo "Error: Neither externalDatastreamPath nor srcMainnetDataPath is set in lrp.config.yaml"; \
+				exit 1; \
 			fi; \
+			EXPANDED_PATH=$$(echo "$$SRC_PATH" | envsubst)/data-stream; \
+		fi; \
+		if [ "$(shell uname)" = "Darwin" ]; then \
+			sed -i '' "s|- .*:/home/data-stream.bin|- $$EXPANDED_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
+			sed -i '' "s|- .*:/home/data-stream.db/|- $$EXPANDED_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
+		else \
+			sed -i "s|- .*:/home/data-stream.bin|- $$EXPANDED_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
+			sed -i "s|- .*:/home/data-stream.db/|- $$EXPANDED_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
 		fi; \
 	fi; \
 	if [ "$(shell uname)" = "Darwin" ]; then \
@@ -187,6 +197,12 @@ lrp-mainnet-replay-pause:
 	else \
 		echo "Warning: useExternalDatastream is set to false, batches data will be lost"; \
 	fi
+
+.PHONY: lrp-mainnet-unwind-seq
+lrp-mainnet-unwind-seq: lrp-config-apply lrp-build-docker
+	@$(RUN_DOCKER_MAINNET_UNWIND_SEQ)
+	@docker wait $(DOCKER_MAINNET_UNWIND_SEQ_CONTAINER) > /dev/null; \
+	docker logs $(DOCKER_MAINNET_UNWIND_SEQ_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 
 .PHONY: lrp-mainnet-data-refresh
 lrp-mainnet-data-refresh:
