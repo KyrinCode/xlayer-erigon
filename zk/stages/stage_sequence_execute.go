@@ -48,7 +48,10 @@ func SpawnSequencingStage(
 		return err
 	}
 
-	var highestBatchInDs uint64
+	highestBatchInDs, err := cfg.dataStreamServer.GetHighestBatchNumber()
+	if err != nil {
+		return err
+	}
 
 	// For X Layer, local replay feature
 	if cfg.zk.XLayer.SequencerReplay {
@@ -72,11 +75,6 @@ func SpawnSequencingStage(
 		if lastBatch < highestBatchInDs {
 			return replay(s, u, ctx, cfg, historyCfg, lastBatch, highestBatchInDs, externalDataStreamServer)
 		}
-	}
-
-	highestBatchInDs, err = cfg.dataStreamServer.GetHighestBatchNumber()
-	if err != nil {
-		return err
 	}
 
 	if lastBatch < highestBatchInDs {
