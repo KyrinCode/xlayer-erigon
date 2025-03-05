@@ -51,7 +51,7 @@ func SpawnSequencingStage(
 	var highestBatchInDs uint64
 
 	// For X Layer, local replay feature
-	if cfg.zk.SequencerResequence && cfg.zk.XLayer.SequencerReplay {
+	if cfg.zk.XLayer.SequencerReplay {
 		if cfg.zk.XLayer.SequencerReplayL1SyncOnly {
 			panic(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
 		}
@@ -336,7 +336,7 @@ func sequencingBatchStep(
 		// timer: evm + smt
 		t := utils.StartTimer("stage_sequence_execute", "evm", "smt")
 
-		infoTreeIndexProgress, l1TreeUpdate, l1TreeUpdateIndex, l1BlockHash, ger, shouldWriteGerToContract, err := prepareL1AndInfoTreeRelatedStuff(sdb, batchState, header.Time, cfg.zk.SequencerResequenceReuseL1InfoIndex)
+		infoTreeIndexProgress, l1TreeUpdate, l1TreeUpdateIndex, l1BlockHash, ger, shouldWriteGerToContract, err := prepareL1AndInfoTreeRelatedStuff(sdb, batchState, header.Time, cfg.zk.SequencerResequenceReuseL1InfoIndex, cfg.zk.XLayer.SequencerReplay)
 		if err != nil {
 			return err
 		}
@@ -371,7 +371,7 @@ func sequencingBatchStep(
 		emptyBlockOverflow := false
 
 		// For X Layer, local replay's feature of stateroot mismatch detection
-		stateRootBeforeResequence := common.Hash{}
+		stateRootBeforeReplay := common.Hash{}
 
 		sendersToTriggerStatechanges := make(map[common.Address]struct{})
 		processingTxTime := time.Now()
@@ -432,7 +432,9 @@ func sequencingBatchStep(
 				}
 
 				// For X Layer, local replay's feature of stateroot mismatch detection
-				stateRootBeforeResequence = batchState.resequenceBatchJob.CurrentBlock().StateRoot
+				if cfg.zk.XLayer.SequencerReplay {
+					stateRootBeforeReplay = batchState.resequenceBatchJob.CurrentBlock().StateRoot
+				}
 			} else if !batchState.isL1Recovery() {
 
 				var allConditionsOK bool
@@ -794,12 +796,12 @@ func sequencingBatchStep(
 		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries)
 
 		// For X Layer, local replay's feature of stateroot mismatch detection
-		if batchState.isResequence() {
-			if stateRootBeforeResequence != block.Root() {
+		if cfg.zk.XLayer.SequencerReplay {
+			if stateRootBeforeReplay != block.Root() {
 				err := fmt.Errorf("[%s] State root mismatch of block %d after resequencing, expected %s, got %s",
 					logPrefix,
 					blockNumber,
-					stateRootBeforeResequence.Hex(),
+					stateRootBeforeReplay.Hex(),
 					block.Root().Hex(),
 				)
 				log.Error(err.Error())

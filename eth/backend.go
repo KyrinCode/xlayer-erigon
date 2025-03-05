@@ -1936,7 +1936,7 @@ func (s *Ethereum) Start() error {
 func (s *Ethereum) Stop() error {
 	// For X Layer, local replay's feature of resuming from breakpoint
 	// Wait for the batch resequence done
-	if s.config.Zk.SequencerResequence && s.config.Zk.XLayer.SequencerReplay && s.config.Zk.XLayer.SequencerReplayExternalDatastream {
+	if s.config.Zk.XLayer.SequencerReplay && s.config.Zk.XLayer.SequencerReplayExternalDatastream {
 		if done, running := zkStages.WaitResequenceBatchDone(); running {
 			s.logger.Info("Waiting for resequencing latest batch...")
 			<-done
