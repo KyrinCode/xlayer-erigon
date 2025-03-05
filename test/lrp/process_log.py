@@ -54,10 +54,10 @@ def main(log_file):
 
         total_tx_count = 0
         for line in lines[i:]:
-            if "Batch" in line and "TotalDuration" in line and "Tx" in line:
+            if "Batch" in line and "TotalDuration-batch" in line and "Txs" in line:
                 batch_match = re.search(r'Batch<(\d+)>', line)
-                duration_match = re.search(r'TotalDuration<(\d+)ms>', line)
-                tx_match = re.search(r'Tx<(\d+)>', line)
+                duration_match = re.search(r'TotalDuration-batch<(\d+)ms>', line)
+                tx_match = re.search(r'Txs<(\d+)>', line)
                 
                 if batch_match and duration_match and tx_match:
                     batch_no = int(batch_match.group(1))

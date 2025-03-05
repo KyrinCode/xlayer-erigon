@@ -149,11 +149,11 @@ lrp-config-apply:
 		fi; \
 	fi; \
 	if [ "$(shell uname)" = "Darwin" ]; then \
-		sed -i '' "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
+		sed -i '' "s/--unwind-batch-no=.*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
 		sed -i '' "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$TO_BATCH_NO/" docker-compose.yml; \
 		sed -i '' "s/--zkevm.sequencer-replay-external-datastream=\(true\|false\)/--zkevm.sequencer-replay-external-datastream=$$EXTERNAL_DS/" docker-compose.yml; \
 	else \
-		sed -i "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
+		sed -i "s/--unwind-batch-no=.*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
 		sed -i "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$TO_BATCH_NO/" docker-compose.yml; \
 		sed -i "s/--zkevm.sequencer-replay-external-datastream=\(true\|false\)/--zkevm.sequencer-replay-external-datastream=$$EXTERNAL_DS/" docker-compose.yml; \
 	fi
