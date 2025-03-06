@@ -30,19 +30,15 @@ func TestMemDb(t *testing.T) {
 	//fmt.Printf("retrieved raw value: %v\n", retrievedRawValue)
 }
 
-func BenchmarkMemDb_InsertRaw(b *testing.B) {
-	// Setup
+func BenchmarkMemDb_Insert(b *testing.B) {
 	db := NewMemDb()
 
-	// The key and value we're going to test
 	key := utils.NodeKey{1, 2, 3, 4}
 	value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6),
 		big.NewInt(7), big.NewInt(8), big.NewInt(1), big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 
-	// Reset timer before the loop
 	b.ResetTimer()
 
-	// Run b.N iterations
 	for i := 0; i < b.N; i++ {
 		// Modify key slightly for each iteration to avoid measuring cache effects
 		key[0] = uint64(i)
