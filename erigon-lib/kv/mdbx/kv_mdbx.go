@@ -297,6 +297,9 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 	if dbg.WriteMap() {
 		opts = opts.WriteMap() //nolint
 	}
+	if dbg.LifoReclaim() {
+		opts = opts.LifoReclaim() //nolint
+	}
 	if dbg.DirtySpace() > 0 {
 		opts = opts.DirtySpace(dbg.DirtySpace()) //nolint
 	}

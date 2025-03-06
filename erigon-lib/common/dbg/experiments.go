@@ -66,6 +66,22 @@ func WriteMap() bool {
 }
 
 var (
+	lifoReclaim     bool
+	lifoReclaimOnce sync.Once
+)
+
+func LifoReclaim() bool {
+	lifoReclaimOnce.Do(func() {
+		v, _ := os.LookupEnv("MDBX_LIFORECLAIM")
+		if v == "true" {
+			lifoReclaim = true
+			log.Info("[Experiment]", "MDBX_LIFORECLAIM", lifoReclaim)
+		}
+	})
+	return lifoReclaim
+}
+
+var (
 	dirtySace     uint64
 	dirtySaceOnce sync.Once
 )
