@@ -32,10 +32,8 @@ func TestRawMemDb(t *testing.T) {
 }
 
 func BenchmarkRawMemDb_InsertRaw(b *testing.B) {
-	// Setup
 	db := NewRawMemDb()
 
-	// Create test data
 	key := utils.NodeKey{1, 2, 3, 4}
 	value := utils.NodeValue12Raw{
 		Value: utils.NodeValue8Raw{
@@ -43,7 +41,6 @@ func BenchmarkRawMemDb_InsertRaw(b *testing.B) {
 		},
 		Flag: byte(1),
 	}
-	// Reset timer before the loop
 	b.ResetTimer()
 
 	// Run b.N iterations

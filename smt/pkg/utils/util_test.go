@@ -1,14 +1,15 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 const forkId7BlockGasLimit = 18446744073709551615
@@ -174,6 +175,52 @@ func TestConvertHexToBigInt(t *testing.T) {
 				t.Errorf("ConvertHexToBigInt(%q) = %v; want %v", tc.hexInput, result, tc.expected)
 			}
 		})
+	}
+}
+
+func BenchmarkConvertHexToBigInt(b *testing.B) {
+	num := 1000000
+	inputs := make([]string, num)
+	for i := 0; i < num; i++ {
+		var bytes [64]byte
+		_, err := rand.Read(bytes[:])
+		if err != nil {
+			fmt.Println("Error generating random bytes:", err)
+			return
+		}
+		hexStr := hex.EncodeToString(bytes[:])
+		inputs[i] = hexStr
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Modify key slightly for each iteration to avoid measuring cache effects
+		ret := ConvertHexToBigInt(inputs[i%num])
+		if ret == nil {
+			b.Fatal("wrong result")
+		}
+	}
+}
+
+func BenchmarkConvertBigIntToHex2(b *testing.B) {
+	num := 1000000
+	inputs := make([]*big.Int, num)
+	for i := 0; i < num; i++ {
+		var bytes [64]byte
+		_, err := rand.Read(bytes[:])
+		if err != nil {
+			fmt.Println("Error generating random bytes:", err)
+			return
+		}
+		hexStr := hex.EncodeToString(bytes[:])
+		inputs[i] = ConvertHexToBigInt(hexStr)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Modify key slightly for each iteration to avoid measuring cache effects
+		ret := ConvertBigIntToHex(inputs[i%num])
+		if ret == "" {
+			b.Fatal("wrong result")
+		}
 	}
 }
 
