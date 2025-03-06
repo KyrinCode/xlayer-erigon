@@ -15,7 +15,7 @@ zkevm.l1-rpc-url: https://rpc.ankr.com/eth
 zkevm.executor-strict: false
 zkevm.witness-full: false
 
-zkevm.sequencer-block-seal-time: "3s"
+zkevm.sequencer-block-seal-time: "1s"
 zkevm.sequencer-batch-seal-time: "10s"
 zkevm.sequencer-batch-sleep-duration: "0s"
 
