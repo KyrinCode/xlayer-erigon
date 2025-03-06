@@ -167,7 +167,7 @@ services:
 
   xlayer-da:
     container_name: xlayer-da
-    image: zjg555543/xlayer-da:merge-v0.0.10
+    image: giskook/xlayer-data-availability:93a1ff3
     ports:
       - 8444:8444
     volumes:
@@ -176,7 +176,7 @@ services:
     command:
       - "/bin/sh"
       - "-c"
-      - "/app/xlayer-data-availability run --cfg /app/config.toml"
+      - "cat /app/config.toml && /app/xlayer-data-availability run --cfg /app/config.toml"
 
   xlayer-da-db:
     container_name: xlayer-da-db
@@ -335,7 +335,7 @@ services:
       - 7001:7001
     volumes:
       - ./config/signer.config.toml:/app/config.toml
-      - ./keystore/sequencer.keystore:/pk/sequencer.keystore
+      - ./keystore/mock_signer.keystore:/pk/sequencer.keystore
       - ./keystore/aggregator.keystore:/pk/aggregator.keystore
     command:
       - "/bin/sh"
