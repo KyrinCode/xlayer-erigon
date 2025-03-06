@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -27,9 +28,14 @@ const (
 )
 
 type NodeValue8 [8]*big.Int
+type NodeValue8Raw [8]uint64
 type NodeValue12 [12]*big.Int
+type NodeValue12Raw struct {
+	Value NodeValue8Raw
+	Flag  byte
+}
 type NodeKey [4]uint64
-
+type NodeKeyRaw [4]uint64
 type NodeType int
 
 const (
@@ -85,6 +91,20 @@ func (nv *NodeValue8) IsZero() bool {
 
 	for i := 0; i < 8; i++ {
 		if nv[i] == nil || nv[i].Uint64() != 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (nv *NodeValue8Raw) IsZero() bool {
+	if nv == nil {
+		return true
+	}
+
+	for i := 0; i < 8; i++ {
+		if nv[i] != 0 {
 			return false
 		}
 	}
@@ -197,6 +217,14 @@ func NodeKeyFromBigIntArray(arr []*big.Int) NodeKey {
 	return nk
 }
 
+func NodeKeyFromUint64ArrayByPointer(arr []uint64) NodeKey {
+	nk := NodeKey{}
+	for i, v := range arr {
+		nk[i] = v
+	}
+	return nk
+}
+
 func IsArrayUint64Empty(arr []uint64) bool {
 	for _, v := range arr {
 		if v > 0 {
@@ -230,6 +258,80 @@ func NodeValue8FromBigInt(value *big.Int) (*NodeValue8, error) {
 func NodeValue8ToBigInt(value *NodeValue8) *big.Int {
 	x := BigIntArrayFromNodeValue8(value)
 	return ArrayBigToScalar(x)
+}
+
+func NodeKeyToByteArray(nk *NodeKey) [32]byte {
+
+	var bytes [32]byte
+	for i := 0; i < len(nk); i++ {
+		binary.BigEndian.PutUint64(bytes[i*8:i*8+8], nk[i])
+		//fmt.Printf("bytes: %v\n", bytes[i*8:i*8+8])
+	}
+	return bytes
+}
+func NodeValue8RawToByteArray(value *NodeValue8Raw) []byte {
+	if value == nil {
+		return nil
+	}
+	bytes := make([]byte, 64)
+	for i := 0; i < len(value); i++ {
+		binary.BigEndian.PutUint64(bytes[i*8:i*8+8], value[i])
+	}
+	return bytes
+}
+
+func NodeValue12RawToByteArray(nodeVal *NodeValue12Raw) []byte {
+	if nodeVal == nil {
+		return nil
+	}
+	bytes := make([]byte, 65)
+	for i := 0; i < len(nodeVal.Value); i++ {
+		binary.BigEndian.PutUint64(bytes[i*8:i*8+8], nodeVal.Value[i])
+	}
+	bytes[64] = nodeVal.Flag
+	return bytes
+}
+
+func NodeValue12ToRaw(value *NodeValue12) (NodeValue12Raw, error) {
+
+	var vals [8]uint64
+	vals[0] = value[0].Uint64()
+	vals[1] = value[1].Uint64()
+	vals[2] = value[2].Uint64()
+	vals[3] = value[3].Uint64()
+	vals[4] = value[4].Uint64()
+	vals[5] = value[5].Uint64()
+	vals[6] = value[6].Uint64()
+	vals[7] = value[7].Uint64()
+
+	flag := byte(0)
+	if value[8].Uint64() == 1 {
+		flag = byte(1)
+	}
+	output := NodeValue12Raw{
+		Value: vals,
+		Flag:  flag,
+	}
+	return output, nil
+}
+
+func NodeValue12RawFromByteArray(input []byte) NodeValue12Raw {
+
+	var vals [8]uint64
+
+	vals[0] = binary.BigEndian.Uint64(input[:8])
+	vals[1] = binary.BigEndian.Uint64(input[8:16])
+	vals[2] = binary.BigEndian.Uint64(input[16:24])
+	vals[3] = binary.BigEndian.Uint64(input[24:32])
+	vals[4] = binary.BigEndian.Uint64(input[32:40])
+	vals[5] = binary.BigEndian.Uint64(input[40:48])
+	vals[6] = binary.BigEndian.Uint64(input[48:56])
+	vals[7] = binary.BigEndian.Uint64(input[56:64])
+	output := NodeValue12Raw{
+		Value: vals,
+		Flag:  input[64],
+	}
+	return output
 }
 
 func NodeValue8FromBigIntArray(arr []*big.Int) (*NodeValue8, error) {

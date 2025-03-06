@@ -7,9 +7,45 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const forkId7BlockGasLimit = 18446744073709551615
+
+func TestNodeValue8RawToByteArray(t *testing.T) {
+	var nodeVal NodeValue8Raw = [8]uint64{6371129496289898950, 18283847843957677356, 11202811336117908831, 12091140740923607667, 7281587074323180658, 4422880010217841068, 3135811464678012425, 10723281989013652654}
+	byteArrs := NodeValue8RawToByteArray(&nodeVal)
+	assert.Equal(t, []byte{
+		88, 106, 204, 133, 108, 95, 113, 198,
+		253, 189, 70, 189, 250, 99, 157, 44,
+		155, 120, 97, 142, 31, 6, 245, 95,
+		167, 204, 92, 113, 56, 1, 74, 115,
+		101, 13, 100, 221, 86, 27, 236, 114,
+		61, 97, 57, 239, 149, 53, 225, 172,
+		43, 132, 163, 233, 178, 186, 246, 9,
+		148, 208, 192, 39, 149, 128, 196, 174}, byteArrs, "Values should be equal")
+}
+
+func TestNodeValue12RawToByteArray(t *testing.T) {
+	var nodeVal8 NodeValue8Raw = [8]uint64{6371129496289898950, 18283847843957677356, 11202811336117908831, 12091140740923607667, 7281587074323180658, 4422880010217841068, 3135811464678012425, 10723281989013652654}
+	var nodeVal12 NodeValue12Raw = NodeValue12Raw{
+		Value: nodeVal8,
+		Flag:  byte(1),
+	}
+	byteArrs := NodeValue12RawToByteArray(&nodeVal12)
+	fmt.Println(byteArrs)
+	assert.Equal(t, []byte{
+		88, 106, 204, 133, 108, 95, 113, 198,
+		253, 189, 70, 189, 250, 99, 157, 44,
+		155, 120, 97, 142, 31, 6, 245, 95,
+		167, 204, 92, 113, 56, 1, 74, 115,
+		101, 13, 100, 221, 86, 27, 236, 114,
+		61, 97, 57, 239, 149, 53, 225, 172,
+		43, 132, 163, 233, 178, 186, 246, 9,
+		148, 208, 192, 39, 149, 128, 196, 174,
+		1}, byteArrs, "Values should be equal")
+}
 
 func TestBinaryStringToInt64(t *testing.T) {
 	testCases := []struct {

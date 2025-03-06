@@ -93,6 +93,32 @@ func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 	return values, nil
 }
 
+func (m *MemDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
+	m.lock.RLock()         // Lock for reading
+	defer m.lock.RUnlock() // Make sure to unlock when done
+
+	keyConc := utils.ArrayToScalar(key[:])
+
+	k := utils.ConvertBigIntToHex(keyConc)
+
+	values := utils.NodeValue12Raw{
+		Value: utils.NodeValue8Raw{},
+		Flag:  byte(0),
+	}
+
+	dbVal := m.Db[k]
+	for i := 0; i < 8; i++ {
+		strVal := utils.ConvertHexToBigInt(dbVal[i])
+		values.Value[i] = strVal.Uint64()
+	}
+	strVal8 := utils.ConvertHexToBigInt(dbVal[8])
+	if strVal8.Uint64() == 1 {
+		values.Flag = byte(1)
+	}
+
+	return values, nil
+}
+
 func (m *MemDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
 	m.lock.Lock()         // Lock for writing
 	defer m.lock.Unlock() // Make sure to unlock when done
@@ -104,6 +130,27 @@ func (m *MemDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
 	for i, v := range value {
 		values[i] = utils.ConvertBigIntToHex(v)
 	}
+
+	m.Db[k] = values
+	return nil
+}
+
+func (m *MemDb) InsertRaw(key utils.NodeKey, value utils.NodeValue12Raw) error {
+	m.lock.Lock()         // Lock for writing
+	defer m.lock.Unlock() // Make sure to unlock when done
+
+	keyConc := utils.ArrayToScalar(key[:])
+	k := utils.ConvertBigIntToHex(keyConc)
+
+	//bytes := utils.NodeValue12RawToByteArray(&value)
+	values := make([]string, 12)
+	for i, v := range value.Value {
+		values[i] = utils.ConvertBigIntToHex(new(big.Int).SetUint64(v))
+	}
+	values[8] = utils.ConvertBigIntToHex(new(big.Int).SetBytes([]byte{value.Flag}))
+	values[9] = utils.ConvertBigIntToHex(new(big.Int))
+	values[10] = utils.ConvertBigIntToHex(new(big.Int))
+	values[11] = utils.ConvertBigIntToHex(new(big.Int))
 
 	m.Db[k] = values
 	return nil
