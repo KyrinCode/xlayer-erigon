@@ -77,22 +77,24 @@ func (m *RawMemDb) SetDepth(depth uint8) error {
 }
 
 func (m *RawMemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-	//m.lock.RLock()         // Lock for reading
-	//defer m.lock.RUnlock() // Make sure to unlock when done
-	//
-	//keyConc := utils.ArrayToScalar(key[:])
-	//
-	//k := utils.ConvertBigIntToHex(keyConc)
-	//
-	//values := utils.NodeValue12{}
-	//for i, v := range m.Db[k] {
-	//	values[i] = utils.ConvertHexToBigInt(v)
-	//}
-
-	return utils.NodeValue12{}, nil
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	rawVal, err := m.GetRaw(key)
+	if err != nil {
+		return utils.NodeValue12{}, err
+	}
+	val, _ := utils.NodeValue12FromRaw(&rawVal)
+	return val, nil
 }
 
 func (m *RawMemDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	rawVal, err := utils.NodeValue12ToRaw(&value)
+	if err != nil {
+		return err
+	}
+	m.InsertRaw(key, rawVal)
 	return nil
 }
 
@@ -101,8 +103,9 @@ func (m *RawMemDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	defer m.lock.RUnlock()
 
 	keyBytes := utils.NodeKeyToByteArray(&key)
-
-	data, _ := m.Db[keyBytes]
+	buf := [32]byte{}
+	copy(buf[:], keyBytes)
+	data, _ := m.Db[buf]
 
 	if data == nil {
 		return utils.NodeValue12Raw{}, nil
@@ -116,7 +119,10 @@ func (m *RawMemDb) InsertRaw(key utils.NodeKey, value utils.NodeValue12Raw) erro
 	defer m.lock.Unlock() // Make sure to unlock when done
 	keyBytes := utils.NodeKeyToByteArray(&key)
 	valBytes := utils.NodeValue12RawToByteArray(&value)
-	m.Db[keyBytes] = valBytes
+
+	buf := [32]byte{}
+	copy(buf[:], keyBytes)
+	m.Db[buf] = valBytes
 	return nil
 }
 

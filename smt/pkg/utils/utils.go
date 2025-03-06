@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"encoding/hex"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -262,9 +262,9 @@ func NodeValue8ToBigInt(value *NodeValue8) *big.Int {
 	return ArrayBigToScalar(x)
 }
 
-func NodeKeyToByteArray(nk *NodeKey) [32]byte {
+func NodeKeyToByteArray(nk *NodeKey) []byte {
 
-	var bytes [32]byte
+	bytes := make([]byte, 32)
 	for i := 0; i < len(nk); i++ {
 		binary.BigEndian.PutUint64(bytes[i*8:i*8+8], nk[i])
 		//fmt.Printf("bytes: %v\n", bytes[i*8:i*8+8])
@@ -315,6 +315,24 @@ func NodeValue12ToRaw(value *NodeValue12) (NodeValue12Raw, error) {
 		Flag:  flag,
 	}
 	return output, nil
+}
+
+func NodeValue12FromRaw(value *NodeValue12Raw) (NodeValue12, error) {
+
+	var vals NodeValue12
+	for i := 0; i < len(value.Value); i++ {
+		vals[i] = big.NewInt(0).SetUint64(value.Value[i])
+	}
+
+	vals[8] = big.NewInt(0)
+	vals[9] = big.NewInt(0)
+	vals[10] = big.NewInt(0)
+	vals[11] = big.NewInt(0)
+	if value.Flag == byte(1) {
+		vals[8] = big.NewInt(1)
+	}
+
+	return vals, nil
 }
 
 func NodeValue12RawFromByteArray(input []byte) NodeValue12Raw {

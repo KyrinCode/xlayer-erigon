@@ -225,7 +225,7 @@ func TestConvertHexToBigInt(t *testing.T) {
 	}
 }
 
-func BenchmarkConvertHexToBigInt(b *testing.B) {
+func BenchmarkConvertHexToBigInt2(b *testing.B) {
 	num := 1000000
 	inputs := make([]string, num)
 	for i := 0; i < num; i++ {

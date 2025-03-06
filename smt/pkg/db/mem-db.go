@@ -80,7 +80,6 @@ func (m *MemDb) SetDepth(depth uint8) error {
 func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 	m.lock.RLock()         // Lock for reading
 	defer m.lock.RUnlock() // Make sure to unlock when done
-
 	keyConc := utils.ArrayToScalar(key[:])
 
 	k := utils.ConvertBigIntToHex(keyConc)
