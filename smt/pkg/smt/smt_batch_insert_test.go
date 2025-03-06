@@ -3,17 +3,20 @@ package smt_test
 import (
 	"context"
 	"fmt"
+	db "github.com/ledgerwatch/erigon/smt/pkg/db"
 	"math/big"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"gotest.tools/v3/assert"
 )
 
 func TestBatchSimpleInsert(t *testing.T) {
+
 	keysRaw := []*big.Int{
 		big.NewInt(8),
 		big.NewInt(8),
@@ -50,7 +53,7 @@ func TestBatchSimpleInsert(t *testing.T) {
 
 		smtIncremental.InsertKA(k, valuesRaw[i])
 	}
-
+	smtIncremental.DumpTree()
 	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
 	_, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
 	assert.NilError(t, err)
@@ -58,7 +61,6 @@ func TestBatchSimpleInsert(t *testing.T) {
 	_, err = smtBatchNoSave.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
 	assert.NilError(t, err)
 
-	smtIncremental.DumpTree()
 	fmt.Println()
 	smtBatch.DumpTree()
 	fmt.Println()
@@ -72,6 +74,87 @@ func TestBatchSimpleInsert(t *testing.T) {
 	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtBatchNoSaveRootHash))
 
 	assertSmtDbStructure(t, smtBatch, false)
+}
+
+func TestBatchSimpleInsertNoRemove(t *testing.T) {
+
+	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	tx, _ := dbi.BeginRw(context.Background())
+	database := db.NewEriDb(tx)
+	err := db.CreateEriDbBuckets(tx)
+	assert.NilError(t, err)
+
+	keysRaw := []*big.Int{
+		big.NewInt(8),
+		big.NewInt(8),
+		big.NewInt(1),
+		big.NewInt(31),
+	}
+	valuesRaw := []*big.Int{
+		big.NewInt(17),
+		big.NewInt(18),
+		big.NewInt(19),
+		big.NewInt(20),
+	}
+
+	keyPointers := []*utils.NodeKey{}
+	valuePointers := []*utils.NodeValue8{}
+
+	smtIncremental := smt.NewSMT(database, false)
+	// smtBatch := smt.NewSMT(nil, false)
+	// smtBatchNoSave := smt.NewSMT(nil, true)
+
+	for i := range keysRaw {
+		k := utils.ScalarToNodeKey(keysRaw[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers = append(keyPointers, &k)
+		valuePointers = append(valuePointers, v)
+
+		smtIncremental.InsertKA(k, valuesRaw[i])
+	}
+
+	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	// _, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	// smtBatch.DumpTree()
+	// assert.NilError(t, err)
+
+	keysRaw2 := []*big.Int{
+		big.NewInt(2),
+	}
+	valuesRaw2 := []*big.Int{
+		big.NewInt(0),
+	}
+
+	keyPointers2 := []*utils.NodeKey{}
+	valuePointers2 := []*utils.NodeValue8{}
+	for i := range keysRaw2 {
+		k := utils.ScalarToNodeKey(keysRaw2[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw2[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers2 = append(keyPointers2, &k)
+		valuePointers2 = append(valuePointers2, v)
+		// smtIncremental.InsertKA(k, valuesRaw2[i])
+	}
+	smtIncremental.InsertBatch(insertBatchCfg, keyPointers2, valuePointers2, nil, nil)
+
+	// smtBatch.DumpTree()
+
+	// fmt.Println()
+	// smtBatch.DumpTree()
+	// fmt.Println()
+	// fmt.Println()
+	// fmt.Println()
+
+	// smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
+	// smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
+	// smtBatchNoSaveRootHash, _ := smtBatchNoSave.Db.GetLastRoot()
+	// assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
+	// assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtBatchNoSaveRootHash))
+
+	// assertSmtDbStructure(t, smtBatch, false)
 }
 
 func TestBatchRawInsert(t *testing.T) {

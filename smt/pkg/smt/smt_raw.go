@@ -17,72 +17,32 @@ import (
 	"github.com/ledgerwatch/log/v3"
 )
 
-type DB interface {
-	Insert(key utils.NodeKey, value utils.NodeValue12) error
-	InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error
-	InsertKeySource(key utils.NodeKey, value []byte) error
-	DeleteKeySource(key utils.NodeKey) error
-	InsertHashKey(key utils.NodeKey, value utils.NodeKey) error
-	AddCode(code []byte) error
-	DeleteHashKey(key utils.NodeKey) error
-	Delete(string) error
-	DeleteByNodeKey(key utils.NodeKey) error
-	SetLastRoot(lr *big.Int) error
-	SetDepth(uint8) error
-	CommitBatch() error
-	OpenBatch(quitCh <-chan struct{})
-	RollbackBatch()
-	RoDB
-}
-
-type RoDB interface {
-	GetDepth() (uint8, error)
-	GetLastRoot() (*big.Int, error)
-	GetCode(codeHash []byte) ([]byte, error)
-	GetHashKey(key utils.NodeKey) (utils.NodeKey, error)
-	GetKeySource(key utils.NodeKey) ([]byte, error)
-	Get(key utils.NodeKey) (utils.NodeValue12, error)
-	GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error)
-	GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error)
-}
-
-type DebuggableDB interface {
-	DB
-	PrintDb()
-	GetDb() map[string][]string
-}
-
-type SMT struct {
+type SMTRaw struct {
 	noSaveOnInsert bool
 	Db             DB
 	*RoSMT
 }
 
-type RoSMT struct {
+type RoSMTRaw struct {
 	DbRo         RoDB
 	clearUpMutex sync.Mutex
 }
 
-type SMTResponse struct {
-	NewRootScalar *utils.NodeKey
-	Mode          string
-}
-
-func NewSMT(database DB, noSaveOnInsert bool) *SMT {
+func NewSMTRaw(database DB, noSaveOnInsert bool) *SMTRaw {
 	if database == nil {
-		database = db.NewMemDb()
+		database = db.NewRawMemDb()
 	}
 
-	return &SMT{
+	return &SMTRaw{
 		noSaveOnInsert: noSaveOnInsert,
 		Db:             database,
-		RoSMT:          NewRoSMT(database),
+		RoSMT:          NewRoSMTRaw(database),
 	}
 }
 
-func NewRoSMT(database RoDB) *RoSMT {
+func NewRoSMTRaw(database RoDB) *RoSMT {
 	if database == nil {
-		database = db.NewMemDb()
+		database = db.NewRawMemDb()
 	}
 
 	return &RoSMT{
@@ -90,7 +50,7 @@ func NewRoSMT(database RoDB) *RoSMT {
 	}
 }
 
-func (s *RoSMT) LastRoot() *big.Int {
+func (s *RoSMTRaw) LastRoot() *big.Int {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 	lr, err := s.DbRo.GetLastRoot()
@@ -101,7 +61,7 @@ func (s *RoSMT) LastRoot() *big.Int {
 	return cop
 }
 
-func (s *SMT) SetLastRoot(lr *big.Int) {
+func (s *SMTRaw) SetLastRoot(lr *big.Int) {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 	err := s.Db.SetLastRoot(lr)
@@ -110,7 +70,7 @@ func (s *SMT) SetLastRoot(lr *big.Int) {
 	}
 }
 
-func (s *SMT) StartPeriodicCheck(doneChan chan bool) {
+func (s *SMTRaw) StartPeriodicCheck(doneChan chan bool) {
 	if _, ok := s.Db.(*db.EriDb); ok {
 		log.Warn("mdbx tx cannot be used in goroutine - periodic check disabled")
 		return
@@ -136,13 +96,13 @@ func (s *SMT) StartPeriodicCheck(doneChan chan bool) {
 	}()
 }
 
-func (s *SMT) InsertBI(key *big.Int, value *big.Int) (*SMTResponse, error) {
+func (s *SMTRaw) InsertBI(key *big.Int, value *big.Int) (*SMTResponse, error) {
 	k := utils.ScalarToNodeKey(key)
 	v := utils.ScalarToNodeValue8(value)
 	return s.insertSingle(k, v, [4]uint64{})
 }
 
-func (s *SMT) InsertKA(key utils.NodeKey, value *big.Int) (*SMTResponse, error) {
+func (s *SMTRaw) InsertKA(key utils.NodeKey, value *big.Int) (*SMTResponse, error) {
 	x := utils.ScalarToArrayBig(value)
 	v, err := utils.NodeValue8FromBigIntArray(x)
 	if err != nil {
@@ -152,11 +112,11 @@ func (s *SMT) InsertKA(key utils.NodeKey, value *big.Int) (*SMTResponse, error) 
 	return s.insertSingle(key, *v, [4]uint64{})
 }
 
-func (s *SMT) Insert(key utils.NodeKey, value utils.NodeValue8) (*SMTResponse, error) {
+func (s *SMTRaw) Insert(key utils.NodeKey, value utils.NodeValue8) (*SMTResponse, error) {
 	return s.insertSingle(key, value, [4]uint64{})
 }
 
-func (s *SMT) InsertStorage(ethAddr string, storage *map[string]string, chm *map[string]*utils.NodeValue8, vhm *map[string][4]uint64, progressChan chan uint64) (*SMTResponse, error) {
+func (s *SMTRaw) InsertStorage(ethAddr string, storage *map[string]string, chm *map[string]*utils.NodeValue8, vhm *map[string][4]uint64, progressChan chan uint64) (*SMTResponse, error) {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 
@@ -199,7 +159,7 @@ func (s *SMT) InsertStorage(ethAddr string, storage *map[string]string, chm *map
 	return smtr, nil
 }
 
-func (s *SMT) insertSingle(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64) (*SMTResponse, error) {
+func (s *SMTRaw) insertSingle(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64) (*SMTResponse, error) {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 
@@ -220,7 +180,7 @@ func (s *SMT) insertSingle(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint6
 	return smtr, nil
 }
 
-func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, oldRoot utils.NodeKey) (*SMTResponse, error) {
+func (s *SMTRaw) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, oldRoot utils.NodeKey) (*SMTResponse, error) {
 	newRoot := oldRoot
 
 	smtResponse := &SMTResponse{
@@ -546,7 +506,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 }
 
 // used only by old smt (not by smt batch/create)
-func (s *SMT) hashSave(in [8]uint64, capacity, h [4]uint64) error {
+func (s *SMTRaw) hashSave(in [8]uint64, capacity, h [4]uint64) error {
 	if s.noSaveOnInsert {
 		return nil
 	}
@@ -555,7 +515,7 @@ func (s *SMT) hashSave(in [8]uint64, capacity, h [4]uint64) error {
 	return s.Db.Insert(h, *v)
 }
 
-func (s *SMT) hashSaveByPointers(in *[8]uint64, capacity, h *[4]uint64) error {
+func (s *SMTRaw) hashSaveByPointers(in *[8]uint64, capacity, h *[4]uint64) error {
 	if s.noSaveOnInsert {
 		return nil
 	}
@@ -565,12 +525,12 @@ func (s *SMT) hashSaveByPointers(in *[8]uint64, capacity, h *[4]uint64) error {
 }
 
 // used only by old smt (not by smt batch/create)
-func (s *SMT) hashcalcAndSave(in [8]uint64, capacity [4]uint64) ([4]uint64, error) {
+func (s *SMTRaw) hashcalcAndSave(in [8]uint64, capacity [4]uint64) ([4]uint64, error) {
 	h := utils.Hash(in, capacity)
 	return h, s.hashSave(in, capacity, h)
 }
 
-func (s *RoSMT) getLastRoot() (utils.NodeKey, error) {
+func (s *RoSMTRaw) getLastRoot() (utils.NodeKey, error) {
 	or, err := s.DbRo.GetLastRoot()
 	if err != nil {
 		return utils.NodeKey{}, err
@@ -578,19 +538,19 @@ func (s *RoSMT) getLastRoot() (utils.NodeKey, error) {
 	return utils.ScalarToRoot(or), nil
 }
 
-func (s *SMT) setLastRoot(newRoot utils.NodeKey) error {
+func (s *SMTRaw) setLastRoot(newRoot utils.NodeKey) error {
 	return s.Db.SetLastRoot(newRoot.ToBigInt())
 }
 
 // Utility functions for debugging
 
-func (s *RoSMT) PrintDb() {
+func (s *RoSMTRaw) PrintDb() {
 	if debugDB, ok := s.DbRo.(DebuggableDB); ok {
 		debugDB.PrintDb()
 	}
 }
 
-func (s *RoSMT) PrintTree() {
+func (s *RoSMTRaw) PrintTree() {
 	if debugDB, ok := s.DbRo.(DebuggableDB); ok {
 		data := debugDB.GetDb()
 		str, err := json.Marshal(data)
@@ -601,9 +561,9 @@ func (s *RoSMT) PrintTree() {
 	}
 }
 
-type VisitedNodesMap map[string]bool
+type VisitedNodesMapRaw map[string]bool
 
-func (s *SMT) CheckOrphanedNodes(ctx context.Context) int {
+func (s *SMTRaw) CheckOrphanedNodes(ctx context.Context) int {
 	if _, ok := s.Db.(*db.EriDb); ok {
 		log.Warn("mdbx tx cannot be used in goroutine - periodic check disabled")
 		return 0
@@ -651,7 +611,7 @@ func (s *SMT) CheckOrphanedNodes(ctx context.Context) int {
 	return len(orphanedNodes)
 }
 
-func (s *SMT) updateDepth(newDepth int) error {
+func (s *SMTRaw) updateDepth(newDepth int) error {
 	oldDepth, err := s.Db.GetDepth()
 	if err != nil {
 		oldDepth = 0
@@ -675,7 +635,7 @@ func (s *SMT) updateDepth(newDepth int) error {
 depths are 0 based
 0 means either only root leaf or empty tree
 */
-func (s *RoSMT) GetDepth() int {
+func (s *RoSMTRaw) GetDepth() int {
 	depth, err := s.DbRo.GetDepth()
 	if err != nil {
 		return 0
@@ -683,13 +643,13 @@ func (s *RoSMT) GetDepth() int {
 	return int(depth)
 }
 
-type TraverseAction func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error)
+type TraverseActionRaw func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error)
 
-func (s *RoSMT) Traverse(ctx context.Context, node *big.Int, action TraverseAction) error {
+func (s *RoSMTRaw) Traverse(ctx context.Context, node *big.Int, action TraverseAction) error {
 	return s.traverse(ctx, node, action, []byte{})
 }
 
-func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseAction, prefix []byte) error {
+func (s *RoSMTRaw) traverse(ctx context.Context, node *big.Int, action TraverseAction, prefix []byte) error {
 	if node == nil || node.Cmp(big.NewInt(0)) == 0 {
 		return nil
 	}
@@ -735,7 +695,7 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 	return nil
 }
 
-func (s *RoSMT) traverseAndMark(ctx context.Context, node *big.Int, visited VisitedNodesMap) error {
+func (s *RoSMTRaw) traverseAndMark(ctx context.Context, node *big.Int, visited VisitedNodesMapRaw) error {
 	return s.Traverse(ctx, node, func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error) {
 		if visited[utils.ConvertBigIntToHex(k.ToBigInt())] {
 			return false, nil
@@ -748,7 +708,7 @@ func (s *RoSMT) traverseAndMark(ctx context.Context, node *big.Int, visited Visi
 
 // InsertHashNode inserts a hash node into the SMT. The SMT should not contain any other leaf nodes with the same path prefix. Otherwise, the new root hash will be incorrect.
 // TODO: Support insertion of hash nodes even if there are leaf nodes with the same path prefix in SMT.
-func (s *SMT) InsertHashNode(path []int, hash *big.Int) (*big.Int, error) {
+func (s *SMTRaw) InsertHashNode(path []int, hash *big.Int) (*big.Int, error) {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 
@@ -774,7 +734,7 @@ func (s *SMT) InsertHashNode(path []int, hash *big.Int) (*big.Int, error) {
 	return lastRoot.ToBigInt(), nil
 }
 
-func (s *SMT) insertHashNode(path []int, hash [4]uint64, root utils.NodeKey) (utils.NodeKey, error) {
+func (s *SMTRaw) insertHashNode(path []int, hash [4]uint64, root utils.NodeKey) (utils.NodeKey, error) {
 	if len(path) == 0 {
 		newValHBig := utils.ArrayToScalar(hash[:])
 		v := utils.ScalarToNodeValue8(newValHBig)

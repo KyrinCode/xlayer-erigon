@@ -17,19 +17,24 @@ func TestEriDb(t *testing.T) {
 	err := CreateEriDbBuckets(tx)
 	assert.NoError(t, err)
 
-	// The key and value we're going to test
-	key := utils.NodeKey{1, 2, 3, 4}
-	value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6),
-		big.NewInt(7), big.NewInt(8), big.NewInt(9), big.NewInt(10), big.NewInt(11), big.NewInt(12)}
+	// Rest of your test code remains the same
+	for i := 0; i < 10; i++ {
+		key := utils.NodeKey{uint64(i), uint64(i), uint64(i), uint64(i)}
+		nodeValue := utils.NodeValue8Raw{uint64(i), uint64(i), uint64(i), uint64(i), uint64(i), uint64(i), uint64(i), uint64(i)}
+		val := utils.NodeValue12Raw{
+			Value: nodeValue,
+			Flag:  byte(i % 2),
+		}
+		err = db.InsertRaw(key, val)
+		assert.NoError(t, err)
+		retrievedValue, err := db.GetRaw(key)
+		assert.NoError(t, err)
+		assert.Equal(t, val, retrievedValue)
+	}
 
-	// Testing Insert method
-	err = db.Insert(key, value)
+	// Commit the transaction
+	err = tx.Commit()
 	assert.NoError(t, err)
-
-	// Testing Get method
-	retrievedValue, err := db.Get(key)
-	assert.NoError(t, err)
-	assert.Equal(t, value, retrievedValue)
 }
 
 func TestEriDbBatch(t *testing.T) {
@@ -85,4 +90,81 @@ func TestEriDbBatch(t *testing.T) {
 	val, err := db.Get(altKey)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.NodeValue12{}, val)
+}
+
+func BenchmarkEriDb_Get(b *testing.B) {
+	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), b.TempDir())
+	tx, _ := dbi.BeginRw(context.Background())
+	db := NewEriDb(tx)
+	err := CreateEriDbBuckets(tx)
+	assert.NoError(b, err)
+
+	numKeys := 100000
+
+	keys := make([]utils.NodeKey, numKeys)
+	for i := 0; i < numKeys; i++ {
+		keys[i] = utils.NodeKey{uint64(i), 2, 3, 4}
+		value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(int64(i)), big.NewInt(6),
+			big.NewInt(7), big.NewInt(8), big.NewInt(1), big.NewInt(0), big.NewInt(0), big.NewInt(0)}
+
+		if err := db.Insert(keys[i], value); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.ResetTimer()
+
+	// Run benchmark
+	for i := 0; i < b.N; i++ {
+		key := utils.NodeKey{uint64(i % numKeys), 2, 3, 4}
+		val, err := db.Get(key)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		// Verify to ensure compiler doesn't optimize away
+		if val[4].Uint64() != big.NewInt(int64(i%numKeys)).Uint64() {
+			b.Fatal("unexpected value")
+		}
+	}
+}
+
+func BenchmarkEriDb_RawGet(b *testing.B) {
+	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), b.TempDir())
+	tx, _ := dbi.BeginRw(context.Background())
+	db := NewEriDb(tx)
+	err := CreateEriDbBuckets(tx)
+	assert.NoError(b, err)
+
+	numKeys := 100000
+
+	keys := make([]utils.NodeKey, numKeys)
+	for i := 0; i < numKeys; i++ {
+		keys[i] = utils.NodeKey{uint64(i), 2, 3, 4}
+		value := utils.NodeValue12Raw{
+			Value: utils.NodeValue8Raw{
+				1, 2, 3, 4, uint64(i), 6, 7, 8,
+			},
+			Flag: byte(i % 2),
+		}
+
+		if err := db.InsertRaw(keys[i], value); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.ResetTimer()
+
+	// Run benchmark
+	for i := 0; i < b.N; i++ {
+		key := utils.NodeKey{uint64(i % numKeys), 2, 3, 4}
+		val, err := db.GetRaw(key)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		if val.Value[4] != uint64(i%numKeys) {
+			b.Fatal("unexpected value")
+		}
+	}
 }

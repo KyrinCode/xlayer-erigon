@@ -176,6 +176,23 @@ func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 	return val, nil
 }
 
+func (m *EriRoDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
+	//fmt.Printf("GetRaw Eri %v\n", key)
+	k := utils.NodeKeyToByteArray(&key)
+	// Remark: []byte will convert k to bytes according to ASCII table, not the raw hex bytes
+	data, err := m.kvTxRo.GetOne(TableSmt, k)
+
+	if err != nil {
+		return utils.NodeValue12Raw{}, err
+	}
+
+	if data == nil {
+		return utils.NodeValue12Raw{}, nil
+	}
+	val := utils.NodeValue12RawFromByteArray(data)
+	return val, nil
+}
+
 func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
@@ -187,6 +204,11 @@ func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
 	v := utils.ConvertBigIntToHex(vConc)
 
 	return m.tx.Put(TableSmt, []byte(k), []byte(v))
+}
+
+func (m *EriDb) InsertRaw(key utils.NodeKey, value utils.NodeValue12Raw) error {
+	bytes := utils.NodeValue12RawToByteArray(&value)
+	return m.tx.Put(TableSmt, utils.NodeKeyToByteArray(&key), bytes)
 }
 
 func (m *EriDb) Delete(key string) error {
