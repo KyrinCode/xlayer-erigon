@@ -807,7 +807,7 @@ func sequencingBatchStep(
 					block.Root().Hex(),
 				)
 				log.Error(err.Error())
-				return err
+				os.Exit(1)
 			}
 		}
 
