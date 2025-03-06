@@ -118,6 +118,22 @@ func NoSync() bool {
 }
 
 var (
+	noMetaSync     bool
+	noMetaSyncOnce sync.Once
+)
+
+func NoMetaSync() bool {
+	noMetaSyncOnce.Do(func() {
+		v, _ := os.LookupEnv("MDBX_NOMETASYNC")
+		if v == "true" {
+			noMetaSync = true
+			log.Info("[Experiment]", "MDBX_NOMETASYNC", noMetaSync)
+		}
+	})
+	return noMetaSync
+}
+
+var (
 	mergeTr     int
 	mergeTrOnce sync.Once
 )
