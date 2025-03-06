@@ -82,6 +82,22 @@ func LifoReclaim() bool {
 }
 
 var (
+	noMemInit     bool
+	noMemInitOnce sync.Once
+)
+
+func NoMemInit() bool {
+	noMemInitOnce.Do(func() {
+		v, _ := os.LookupEnv("MDBX_NOMEMINIT")
+		if v == "true" {
+			noMemInit = true
+			log.Info("[Experiment]", "MDBX_NOMEMINIT", noMemInit)
+		}
+	})
+	return noMemInit
+}
+
+var (
 	dirtySace     uint64
 	dirtySaceOnce sync.Once
 )
