@@ -608,8 +608,8 @@ func (s *SMT) fetchNodeDataFromDb(nodeHash *utils.NodeKey, parentNode *smtBatchN
 		return nil, err
 	}
 
-	nodeLeftHashOrRemainingKey := utils.NodeKeyFromBigIntArray(dbNodeValue[0:4])
-	nodeRightHashOrValueHash := utils.NodeKeyFromBigIntArray(dbNodeValue[4:8])
+	nodeLeftHashOrRemainingKey := utils.NodeKey(dbNodeValue.Value[0:4])
+	nodeRightHashOrValueHash := utils.NodeKey(dbNodeValue.Value[4:8])
 	return &smtBatchNode{
 		parentNode:                 parentNode,
 		nodeLeftHashOrRemainingKey: &nodeLeftHashOrRemainingKey,
@@ -766,7 +766,7 @@ func (sdh *smtDfsHelper) startConsumersLoop(s *SMT) error {
 				return fmt.Errorf("calculating and saving hashes dfs: %w", err)
 			}
 			metrics.GetLogStatistics().CumulativeMicroTiming(metrics.ZKHashSMTInsertKeyTiming, time.Since(start))
-		case *utils.NodeValue12:
+		case *utils.NodeValue12Raw:
 			start := time.Now()
 			metrics.GetLogStatistics().CumulativeValue(metrics.ZKHashSMTInsertKey, 1)
 			if err := s.Db.Insert(*dataStruct.key, *castedDataStruct); err != nil {

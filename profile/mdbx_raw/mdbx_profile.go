@@ -13,10 +13,6 @@ import (
 )
 
 func main() {
-	//go func() {
-	//	http.ListenAndServe("localhost:6060", nil)
-	//}()
-
 	// Create CPU profile file
 	f, err := os.Create("cpu.raw.prof")
 	if err != nil {
@@ -60,17 +56,6 @@ func main() {
 		}
 	}
 
-	//keys := make([]utils.NodeKey, numKeys)
-	//for i := 0; i < numKeys; i++ {
-	//	keys[i] = utils.NodeKey{uint64(i), 2, 3, 4}
-	//	value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(int64(i)), big.NewInt(6),
-	//		big.NewInt(7), big.NewInt(8), big.NewInt(1), big.NewInt(0), big.NewInt(0), big.NewInt(0)}
-	//
-	//	if err := db.Insert(keys[i], value); err != nil {
-	//		panic(err)
-	//	}
-	//}
-
 	// Start CPU profiling
 	if err := pprof.StartCPUProfile(f); err != nil {
 		fmt.Println("Could not start CPU profiling:", err)
@@ -89,19 +74,6 @@ func main() {
 			panic("unexpected value")
 		}
 	}
-
-	//for i := 0; i < numKeys; i++ {
-	//	key := utils.NodeKey{uint64(i % numKeys), 2, 3, 4}
-	//	val, err := db.Get(key)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//
-	//	// Verify to ensure compiler doesn't optimize away
-	//	if val[4].Uint64() != big.NewInt(int64(i%numKeys)).Uint64() {
-	//		panic("unexpected value")
-	//	}
-	//}
 
 	time.Sleep(2 * time.Second)
 }

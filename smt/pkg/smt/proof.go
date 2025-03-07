@@ -54,7 +54,7 @@ func BuildProofs(s *RoSMT, rd trie.RetainDecider, ctx context.Context) ([]*SMTPr
 		return nil, err
 	}
 
-	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error) {
+	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12Raw) (bool, error) {
 		retain := rd.Retain(prefix)
 
 		if !retain {
@@ -80,8 +80,8 @@ func BuildProofs(s *RoSMT, rd trie.RetainDecider, ctx context.Context) ([]*SMTPr
 			if err != nil {
 				return false, err
 			}
-
-			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8(v.GetNodeValue8())).Bytes()
+			rawVals := v.GetNodeValue8Raw()
+			vInBytes := utils.ArrayU64ToScalar(rawVals[:]).Bytes()
 
 			proofs = append(proofs, &SMTProofElement{
 				Path:  prefix,

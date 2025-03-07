@@ -21,7 +21,7 @@ func (s *RoSMT) BuildWitness(rd trie.RetainDecider, ctx context.Context) (*trie.
 		return nil, err
 	}
 
-	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error) {
+	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12Raw) (bool, error) {
 		if rd != nil {
 			/*
 				This function is invoked for every node in the tree. We must decide whether to retain it or not in the witness.
@@ -82,7 +82,7 @@ func (s *RoSMT) BuildWitness(rd trie.RetainDecider, ctx context.Context) (*trie.
 				return false, err
 			}
 
-			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8(v.GetNodeValue8())).Bytes()
+			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8Raw(v.GetNodeValue8Raw())).Bytes()
 			if t == utils.SC_CODE {
 				code, err := s.DbRo.GetCode(vInBytes)
 				if err != nil {

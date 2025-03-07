@@ -10,13 +10,13 @@ var (
 	ErrEmptySearchPath = fmt.Errorf("search path is empty")
 )
 
-func (s *SMT) GetNodeAtPath(path []int) (nodeV *utils.NodeValue12, err error) {
+func (s *SMT) GetNodeAtPath(path []int) (nodeV *utils.NodeValue12Raw, err error) {
 	pathLen := len(path)
 	if pathLen == 0 {
 		return nil, ErrEmptySearchPath
 	}
 
-	var sl utils.NodeValue12
+	var sl utils.NodeValue12Raw
 
 	oldRoot, err := s.getLastRoot()
 	if err != nil {
@@ -30,7 +30,7 @@ func (s *SMT) GetNodeAtPath(path []int) (nodeV *utils.NodeValue12, err error) {
 		}
 
 		if sl.IsFinalNode() {
-			foundRKey := utils.NodeKeyFromBigIntArray(sl[0:4])
+			foundRKey := utils.NodeKey(sl.Value[0:4])
 			if level < pathLen-1 ||
 				foundRKey.GetPath()[0] != pathByte {
 				return nil, nil
@@ -38,7 +38,7 @@ func (s *SMT) GetNodeAtPath(path []int) (nodeV *utils.NodeValue12, err error) {
 
 			break
 		} else {
-			oldRoot = utils.NodeKeyFromBigIntArray(sl[pathByte*4 : pathByte*4+4])
+			oldRoot = utils.NodeKey(sl.Value[pathByte*4 : pathByte*4+4])
 			if oldRoot.IsZero() {
 				return nil, nil
 			}
