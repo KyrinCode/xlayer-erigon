@@ -1,7 +1,9 @@
 package smt
 
 import (
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"math/big"
+	"os"
 
 	"context"
 	"encoding/json"
@@ -19,7 +21,7 @@ import (
 
 type DB interface {
 	Insert(key utils.NodeKey, value utils.NodeValue12Raw) error
-	InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error
+	InsertAccountValue(key utils.NodeKey, value utils.NodeValue8Raw) error
 	InsertKeySource(key utils.NodeKey, value []byte) error
 	DeleteKeySource(key utils.NodeKey) error
 	InsertHashKey(key utils.NodeKey, value utils.NodeKey) error
@@ -70,7 +72,15 @@ type SMTResponse struct {
 
 func NewSMT(database DB, noSaveOnInsert bool) *SMT {
 	if database == nil {
-		database = db.NewMemDb()
+		tempDir, err := os.MkdirTemp("", "example")
+		dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), tempDir)
+		tx, _ := dbi.BeginRw(context.Background())
+		mdbxDb := db.NewEriDb(tx)
+		err = db.CreateEriDbBuckets(tx)
+		if err != nil {
+			panic(err)
+		}
+		database = mdbxDb
 	}
 
 	return &SMT{

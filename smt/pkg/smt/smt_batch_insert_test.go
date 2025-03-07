@@ -25,6 +25,14 @@ func TestBatchSimpleInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	dbiBatch, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txBatch, _ := dbiBatch.BeginRw(context.Background())
+	mdbxDbBatch := db.NewEriDb(txBatch)
+	err = db.CreateEriDbBuckets(txBatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	keysRaw := []*big.Int{
 		big.NewInt(8),
 		big.NewInt(8),
@@ -48,7 +56,7 @@ func TestBatchSimpleInsert(t *testing.T) {
 	valuePointers := []*utils.NodeValue8{}
 
 	smtIncremental := smt.NewSMT(mdbxDb, false)
-	//smtBatch := smt.NewSMT(nil, false)
+	smtBatch := smt.NewSMT(mdbxDbBatch, false)
 	//smtBatchNoSave := smt.NewSMT(nil, true)
 
 	for i := range keysRaw {
@@ -63,23 +71,20 @@ func TestBatchSimpleInsert(t *testing.T) {
 	}
 	smtIncremental.DumpTree()
 	fmt.Println("root", smtIncremental.LastRoot())
-	//insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
-	//_, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
-	//assert.NilError(t, err)
-	//
+	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	_, err = smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	assert.NilError(t, err)
+
 	//_, err = smtBatchNoSave.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
 	//assert.NilError(t, err)
 	//
-	//fmt.Println()
-	//smtBatch.DumpTree()
-	//fmt.Println()
-	//fmt.Println()
-	//fmt.Println()
-	//
-	//smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
-	//smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
+	fmt.Println()
+	smtBatch.DumpTree()
+
+	smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
+	smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
 	//smtBatchNoSaveRootHash, _ := smtBatchNoSave.Db.GetLastRoot()
-	//assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
+	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
 	//assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtBatchNoSaveRootHash))
 	//
 	//assertSmtDbStructure(t, smtBatch, false)

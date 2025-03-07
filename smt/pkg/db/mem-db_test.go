@@ -14,8 +14,12 @@ func TestMemDb(t *testing.T) {
 
 	// The key and value we're going to test
 	key := utils.NodeKey{0, 2, 3, 4}
-	value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(0), big.NewInt(6),
-		big.NewInt(7), big.NewInt(8), big.NewInt(1), big.NewInt(0), big.NewInt(0), big.NewInt(0)}
+	value := utils.NodeValue12Raw{
+		Value: utils.NodeValue8Raw{
+			1, 2, 3, 4, 5, 6, 7, 8,
+		},
+		Flag: byte(1),
+	}
 
 	// Testing Insert method
 	err := db.Insert(key, value)
@@ -34,15 +38,19 @@ func BenchmarkMemDb_Insert(b *testing.B) {
 	db := NewMemDb()
 
 	key := utils.NodeKey{1, 2, 3, 4}
-	value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6),
-		big.NewInt(7), big.NewInt(8), big.NewInt(1), big.NewInt(0), big.NewInt(0), big.NewInt(0)}
+	value := utils.NodeValue12Raw{
+		Value: utils.NodeValue8Raw{
+			1, 2, 3, 4, 5, 6, 7, 8,
+		},
+		Flag: byte(1),
+	}
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		// Modify key slightly for each iteration to avoid measuring cache effects
 		key[0] = uint64(i)
-		value[4] = big.NewInt(int64(i))
+		value.Value[4] = uint64(i)
 
 		err := db.Insert(key, value)
 		if err != nil {
@@ -59,9 +67,12 @@ func BenchmarkMemDb_Get(b *testing.B) {
 	keys := make([]utils.NodeKey, numKeys)
 	for i := 0; i < numKeys; i++ {
 		keys[i] = utils.NodeKey{uint64(i), 2, 3, 4}
-		value := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(int64(i)), big.NewInt(6),
-			big.NewInt(7), big.NewInt(8), big.NewInt(1), big.NewInt(0), big.NewInt(0), big.NewInt(0)}
-
+		value := utils.NodeValue12Raw{
+			Value: utils.NodeValue8Raw{
+				1, 2, 3, 4, uint64(i), 6, 7, 8,
+			},
+			Flag: byte(1),
+		}
 		if err := db.Insert(keys[i], value); err != nil {
 			b.Fatal(err)
 		}
@@ -78,7 +89,7 @@ func BenchmarkMemDb_Get(b *testing.B) {
 		}
 
 		// Verify to ensure compiler doesn't optimize away
-		if val[4].Uint64() != big.NewInt(int64(i%numKeys)).Uint64() {
+		if val.Value[4] != big.NewInt(int64(i%numKeys)).Uint64() {
 			b.Fatal("unexpected value")
 		}
 	}
