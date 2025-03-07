@@ -427,6 +427,18 @@ func NodeValue8FromBigIntArray(arr []*big.Int) (*NodeValue8, error) {
 	return &nv, nil
 }
 
+// TODO [cliff]: try rm this
+func NodeValue8RawFromBigIntArray(arr []*big.Int) (*NodeValue8Raw, error) {
+	if len(arr) != 8 {
+		return &NodeValue8Raw{}, fmt.Errorf("invalid array length")
+	}
+	nv := NodeValue8Raw{}
+	for i := 0; i < len(arr); i++ {
+		nv[i] = arr[i].Uint64()
+	}
+	return &nv, nil
+}
+
 func BigIntArrayFromNodeValue8(nv *NodeValue8) []*big.Int {
 	arr := make([]*big.Int, 8)
 

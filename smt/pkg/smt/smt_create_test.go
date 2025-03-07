@@ -64,7 +64,8 @@ func TestSMT_Create_Insert(t *testing.T) {
 			keys := []utils.NodeKey{}
 			for k, v := range scenario.kvMap {
 				if !v.IsZero() {
-					s.Db.InsertAccountValue(k, v)
+					vRaw, _ := utils.NodeValue8RawFromBigIntArray(v[:])
+					s.Db.InsertAccountValue(k, *vRaw)
 					keys = append(keys, k)
 				}
 			}
@@ -117,7 +118,8 @@ func TestSMT_Create_CompareWithRandomData(t *testing.T) {
 	keys := []utils.NodeKey{}
 	for k, v := range kvMap {
 		if !v.IsZero() {
-			s2.Db.InsertAccountValue(k, v)
+			vRaw, _ := utils.NodeValue8RawFromBigIntArray(v[:])
+			s2.Db.InsertAccountValue(k, *vRaw)
 			keys = append(keys, k)
 		}
 	}
@@ -143,7 +145,7 @@ func TestSMT_Create_CompareWithRandomData(t *testing.T) {
 func TestSMT_Create_Benchmark(t *testing.T) {
 	limit := 100000
 	ctx := context.Background()
-
+	
 	kvMap := map[utils.NodeKey]utils.NodeValue8{}
 	for i := 1; i <= limit; i++ {
 		bigInt := big.NewInt(rand.Int63n(int64(i)))
@@ -158,7 +160,8 @@ func TestSMT_Create_Benchmark(t *testing.T) {
 	keys := []utils.NodeKey{}
 	for k, v := range kvMap {
 		if !v.IsZero() {
-			s.Db.InsertAccountValue(k, v)
+			vRaw, _ := utils.NodeValue8RawFromBigIntArray(v[:])
+			s.Db.InsertAccountValue(k, *vRaw)
 			keys = append(keys, k)
 		}
 	}

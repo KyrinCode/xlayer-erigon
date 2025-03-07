@@ -96,7 +96,8 @@ func compareAllTreesInsertTimesAndFinalHashes(t *testing.T, smtIncremental, smtB
 	for i, key := range keyPointers {
 		v := valuePointers[i]
 		if !v.IsZero() {
-			smtBulk.Db.InsertAccountValue(*key, *v)
+			vRaw, _ := utils.NodeValue8RawFromBigIntArray(v[:])
+			smtBulk.Db.InsertAccountValue(*key, *vRaw)
 			keys = append(keys, *key)
 		}
 	}

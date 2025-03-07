@@ -492,13 +492,13 @@ func insertContractBytecodeToKV(db smt.DB, keys []utils.NodeKey, ethAddr string,
 	bytecodeLength := len(parsedBytecode) / 2
 
 	x := utils.ScalarToArrayBig(bi)
-	valueContractCode, err := utils.NodeValue8FromBigIntArray(x)
+	valueContractCode, err := utils.NodeValue8RawFromBigIntArray(x)
 	if err != nil {
 		return []utils.NodeKey{}, err
 	}
 
 	x = utils.ScalarToArrayBig(big.NewInt(int64(bytecodeLength)))
-	valueContractLength, err := utils.NodeValue8FromBigIntArray(x)
+	valueContractLength, err := utils.NodeValue8RawFromBigIntArray(x)
 	if err != nil {
 		return []utils.NodeKey{}, err
 	}
@@ -541,7 +541,7 @@ func insertContractStorageToKV(db smt.DB, keys []utils.NodeKey, ethAddr string, 
 		val, _ := new(big.Int).SetString(v, base)
 
 		x := utils.ScalarToArrayBig(val)
-		parsedValue, err := utils.NodeValue8FromBigIntArray(x)
+		parsedValue, err := utils.NodeValue8RawFromBigIntArray(x)
 		if err != nil {
 			return []utils.NodeKey{}, err
 		}
@@ -564,13 +564,13 @@ func insertAccountStateToKV(db smt.DB, keys []utils.NodeKey, ethAddr string, bal
 	keyNonce := utils.KeyEthAddrNonce(ethAddr)
 
 	x := utils.ScalarToArrayBig(balance)
-	valueBalance, err := utils.NodeValue8FromBigIntArray(x)
+	valueBalance, err := utils.NodeValue8RawFromBigIntArray(x)
 	if err != nil {
 		return []utils.NodeKey{}, err
 	}
 
 	x = utils.ScalarToArrayBig(nonce)
-	valueNonce, err := utils.NodeValue8FromBigIntArray(x)
+	valueNonce, err := utils.NodeValue8RawFromBigIntArray(x)
 	if err != nil {
 		return []utils.NodeKey{}, err
 	}
