@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -15,7 +16,7 @@ var (
 
 type MemDb struct {
 	Db          map[string][]string
-	DbAccVal    map[string][]string
+	DbAccVal    map[[32]byte][]byte
 	DbKeySource map[string][]byte
 	DbHashKey   map[string][]byte
 	DbCode      map[string][]byte
@@ -28,7 +29,7 @@ type MemDb struct {
 func NewMemDb() *MemDb {
 	return &MemDb{
 		Db:          make(map[string][]string),
-		DbAccVal:    make(map[string][]string),
+		DbAccVal:    make(map[[32]byte][]byte),
 		DbKeySource: make(map[string][]byte),
 		DbHashKey:   make(map[string][]byte),
 		DbCode:      make(map[string][]byte),
@@ -176,32 +177,27 @@ func (m *MemDb) DeleteByNodeKey(key utils.NodeKey) error {
 func (m *MemDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {
 	m.lock.RLock()         // Lock for reading
 	defer m.lock.RUnlock() // Make sure to unlock when done
-	// TODO [cliff]: revert this
-	//keyConc := utils.ArrayToScalar(key[:])
-	//
-	//k := utils.ConvertBigIntToHex(keyConc)
-	//
-	//values := utils.NodeValue8Raw{}
-	//for i, v := range m.DbAccVal[k] {
-	//	values[i] = utils.ConvertHexToBigInt(v)
-	//}
+	k := utils.NodeKeyToByteArray(&key)
 
-	return utils.NodeValue8Raw{}, nil
+	data, ok := m.DbAccVal[[32]byte(k)]
+	if !ok {
+		return utils.NodeValue8Raw{}, errors.New("key not found")
+	}
+
+	if data == nil {
+		return utils.NodeValue8Raw{}, nil
+	}
+
+	return utils.NodeValue8RawFromByteArray(data), nil
 }
 
-func (m *MemDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {
+func (m *MemDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8Raw) error {
 	m.lock.Lock()         // Lock for writing
 	defer m.lock.Unlock() // Make sure to unlock when done
 
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	values := make([]string, 8)
-	for i, v := range value {
-		values[i] = utils.ConvertBigIntToHex(v)
-	}
-
-	m.DbAccVal[k] = values
+	k := utils.NodeKeyToByteArray(&key)
+	bytes := utils.NodeValue8RawToByteArray(&value)
+	m.DbAccVal[[32]byte(k)] = bytes
 	return nil
 }
 

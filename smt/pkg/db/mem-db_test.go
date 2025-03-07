@@ -29,9 +29,6 @@ func TestMemDb(t *testing.T) {
 	retrievedValue, err := db.Get(key)
 	assert.NoError(t, err)
 	assert.Equal(t, value, retrievedValue)
-
-	//retrievedRawValue, err := db.GetRaw(key)
-	//fmt.Printf("retrieved raw value: %v\n", retrievedRawValue)
 }
 
 func BenchmarkMemDb_Insert(b *testing.B) {
