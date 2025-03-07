@@ -59,6 +59,13 @@ func TestSMT_SingleInsert(t *testing.T) {
 	}
 }
 
+func TestSmtHash(t *testing.T) {
+	s := NewSMT(nil, false)
+	x := utils.ScalarToArrayBig(big.NewInt(9150))
+	v, _ := utils.NodeValue8FromBigIntArray(x)
+	newValH, _ := s.hashcalcAndSave(v.ToUintArray(), utils.BranchCapacity)
+	fmt.Println(newValH)
+}
 func TestSMT_MultipleInsert(t *testing.T) {
 	s := NewSMT(nil, false)
 	testCases := []struct {

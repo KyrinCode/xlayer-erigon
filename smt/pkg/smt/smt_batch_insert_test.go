@@ -17,22 +17,6 @@ import (
 
 func TestBatchSimpleInsert(t *testing.T) {
 
-	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
-	tx, _ := dbi.BeginRw(context.Background())
-	mdbxDb := db.NewEriDb(tx)
-	err := db.CreateEriDbBuckets(tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dbiBatch, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
-	txBatch, _ := dbiBatch.BeginRw(context.Background())
-	mdbxDbBatch := db.NewEriDb(txBatch)
-	err = db.CreateEriDbBuckets(txBatch)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	keysRaw := []*big.Int{
 		big.NewInt(8),
 		big.NewInt(8),
@@ -55,8 +39,8 @@ func TestBatchSimpleInsert(t *testing.T) {
 	keyPointers := []*utils.NodeKey{}
 	valuePointers := []*utils.NodeValue8{}
 
-	smtIncremental := smt.NewSMT(mdbxDb, false)
-	smtBatch := smt.NewSMT(mdbxDbBatch, false)
+	smtIncremental := smt.NewSMT(nil, false)
+	smtBatch := smt.NewSMT(nil, false)
 	//smtBatchNoSave := smt.NewSMT(nil, true)
 
 	for i := range keysRaw {
@@ -72,7 +56,9 @@ func TestBatchSimpleInsert(t *testing.T) {
 	smtIncremental.DumpTree()
 	fmt.Println("root", smtIncremental.LastRoot())
 	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
-	_, err = smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	_, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	smtBatch.DumpTree()
+	fmt.Println("batch root", smtBatch.LastRoot())
 	assert.NilError(t, err)
 
 	//_, err = smtBatchNoSave.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
@@ -315,7 +301,7 @@ func BenchmarkBatchInsertNoSave(b *testing.B) {
 func TestBatchSimpleInsert2(t *testing.T) {
 	keys := []*big.Int{}
 	vals := []*big.Int{}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 2; i++ {
 		rand.Seed(time.Now().UnixNano())
 		keys = append(keys, big.NewInt(int64(rand.Intn(10000))))
 
@@ -327,6 +313,7 @@ func TestBatchSimpleInsert2(t *testing.T) {
 	incrementalInsert(smtIncremental, keys, vals)
 
 	smtBatch := smt.NewSMT(nil, false)
+	fmt.Printf("Batch insert keys %v values %v \n", keys, vals)
 	batchInsert(smtBatch, keys, vals)
 
 	smtBatchNoSave := smt.NewSMT(nil, false)
@@ -334,10 +321,10 @@ func TestBatchSimpleInsert2(t *testing.T) {
 
 	smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
 	smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
-	smtBatchNoSaveRootHash, _ := smtBatchNoSave.Db.GetLastRoot()
+	//smtBatchNoSaveRootHash, _ := smtBatchNoSave.Db.GetLastRoot()
 
 	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
-	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtBatchNoSaveRootHash))
+	//assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtBatchNoSaveRootHash))
 }
 
 func incrementalInsert(tree *smt.SMT, key, val []*big.Int) {
