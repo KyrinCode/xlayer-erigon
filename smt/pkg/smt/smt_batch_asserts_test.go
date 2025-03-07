@@ -50,7 +50,7 @@ func assertSmtTreeDbStructure(t *testing.T, s *smt.SMT, nodeHash utils.NodeKey, 
 	usedNodeHashesMap[nodeHashHex] = &nodeHash
 
 	if dbNodeValue.IsFinalNode() {
-		nodeValueHash := utils.NodeKeyFromBigIntArray(dbNodeValue[4:8])
+		nodeValueHash := utils.NodeKey(dbNodeValue.Value[4:8])
 		dbNodeValue, err = s.Db.Get(nodeValueHash)
 		assert.NilError(t, err)
 
@@ -59,8 +59,8 @@ func assertSmtTreeDbStructure(t *testing.T, s *smt.SMT, nodeHash utils.NodeKey, 
 		return
 	}
 
-	assertSmtTreeDbStructure(t, s, utils.NodeKeyFromBigIntArray(dbNodeValue[0:4]), usedNodeHashesMap)
-	assertSmtTreeDbStructure(t, s, utils.NodeKeyFromBigIntArray(dbNodeValue[4:8]), usedNodeHashesMap)
+	assertSmtTreeDbStructure(t, s, utils.NodeKey(dbNodeValue.Value[0:4]), usedNodeHashesMap)
+	assertSmtTreeDbStructure(t, s, utils.NodeKey(dbNodeValue.Value[4:8]), usedNodeHashesMap)
 }
 
 func assertHashToKeyDbStrcture(t *testing.T, smtBatch *smt.SMT, nodeHash utils.NodeKey, testMetadata bool) int {
@@ -91,14 +91,14 @@ func assertHashToKeyDbStrcture(t *testing.T, smtBatch *smt.SMT, nodeHash utils.N
 		return 1
 	}
 
-	return assertHashToKeyDbStrcture(t, smtBatch, utils.NodeKeyFromBigIntArray(dbNodeValue[0:4]), testMetadata) + assertHashToKeyDbStrcture(t, smtBatch, utils.NodeKeyFromBigIntArray(dbNodeValue[4:8]), testMetadata)
+	return assertHashToKeyDbStrcture(t, smtBatch, utils.NodeKey(dbNodeValue.Value[0:4]), testMetadata) + assertHashToKeyDbStrcture(t, smtBatch, utils.NodeKey(dbNodeValue.Value[4:8]), testMetadata)
 }
 
 func assertTraverse(t *testing.T, s *smt.SMT) {
 	smtBatchRootHash, _ := s.Db.GetLastRoot()
 
 	ctx := context.Background()
-	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error) {
+	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12Raw) (bool, error) {
 		if v.IsFinalNode() {
 			valHash := v.Get4to8()
 			v, err := s.Db.Get(*valHash)
@@ -106,11 +106,11 @@ func assertTraverse(t *testing.T, s *smt.SMT) {
 				return false, err
 			}
 
-			if v[0] == nil {
+			if v.Value[0] == 0 {
 				return false, fmt.Errorf("value is missing in the db")
 			}
 
-			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8(v.GetNodeValue8())).Bytes()
+			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8Raw(v.GetNodeValue8Raw())).Bytes()
 			if vInBytes == nil {
 				return false, fmt.Errorf("error in converting to bytes")
 			}

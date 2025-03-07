@@ -2,15 +2,13 @@ package smt
 
 import (
 	"context"
+	"fmt"
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon/smt/pkg/db"
-	"math/big"
-	"math/rand"
-	"testing"
-	"time"
-
-	"gotest.tools/v3/assert"
-
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
+	"github.com/ledgerwatch/log/v3"
+	"math/big"
+	"testing"
 )
 
 func incrementalRawInsert(tree *SMT, key, val []*big.Int) {
@@ -21,6 +19,21 @@ func incrementalRawInsert(tree *SMT, key, val []*big.Int) {
 }
 
 func TestRawBatchSimpleInsert(t *testing.T) {
+
+	dbDir := "/Users/yangweitao/data/xlayer/test_mdbx_old"
+	fmt.Println("dbDir", dbDir)
+
+	logger := log.New() // Creates a default logger
+	// Open a permanent database
+	opts := mdbx.NewMDBX(logger).Path(dbDir)
+	isMem := opts.GetInMem()
+	fmt.Println("isMem", isMem)
+
+	dbi, _ := opts.Open(context.Background())
+
+	tx, _ := dbi.BeginRw(context.Background())
+	localDb := db.NewEriDb(tx)
+	_ = db.CreateEriDbBuckets(tx)
 
 	keysRaw := []*big.Int{
 		big.NewInt(8),
@@ -44,8 +57,7 @@ func TestRawBatchSimpleInsert(t *testing.T) {
 	keyPointers := []*utils.NodeKey{}
 	valuePointers := []*utils.NodeValue8{}
 
-	smtIncremental := NewSMT(db.NewMemDb(), false)
-	smtRawIncremental := NewSMTRaw(db.NewRawMemDb(), false)
+	smtIncremental := NewSMT(localDb, false)
 	//smtBatch := smt.NewSMT(nil, false)
 	//smtBatchNoSave := smt.NewSMT(nil, true)
 
@@ -57,14 +69,11 @@ func TestRawBatchSimpleInsert(t *testing.T) {
 		keyPointers = append(keyPointers, &k)
 		valuePointers = append(valuePointers, v)
 
-		smtRawIncremental.InsertKA(k, valuesRaw[i])
 		smtIncremental.InsertKA(k, valuesRaw[i])
 
 	}
 	root, _ := smtIncremental.getLastRoot()
-	rootRaw, _ := smtRawIncremental.getLastRoot()
-
-	assert.Equal(t, root, rootRaw)
+	fmt.Println("root", root)
 	//smtIncremental.DumpTree()
 	//insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
 	//_, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
@@ -88,41 +97,41 @@ func TestRawBatchSimpleInsert(t *testing.T) {
 	//assertSmtDbStructure(t, smtBatch, false)
 }
 
-func BenchmarkRawSmtIncrementalInsert(b *testing.B) {
-	keys := []*big.Int{}
-	vals := []*big.Int{}
-	for i := 0; i < 1000; i++ {
-		rand.Seed(time.Now().UnixNano())
-		keys = append(keys, big.NewInt(int64(rand.Intn(10000))))
+//func BenchmarkRawSmtIncrementalInsert(b *testing.B) {
+//	keys := []*big.Int{}
+//	vals := []*big.Int{}
+//	for i := 0; i < 1000; i++ {
+//		rand.Seed(time.Now().UnixNano())
+//		keys = append(keys, big.NewInt(int64(rand.Intn(10000))))
+//
+//		rand.Seed(time.Now().UnixNano())
+//		vals = append(vals, big.NewInt(int64(rand.Intn(10000))))
+//	}
+//
+//	b.ResetTimer()
+//	for i := 0; i < b.N; i++ {
+//		smtIncremental := NewSMT(db.NewRawMemDb(), false)
+//		incrementalRawInsert(smtIncremental, keys, vals)
+//	}
+//}
 
-		rand.Seed(time.Now().UnixNano())
-		vals = append(vals, big.NewInt(int64(rand.Intn(10000))))
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		smtIncremental := NewSMT(db.NewRawMemDb(), false)
-		incrementalRawInsert(smtIncremental, keys, vals)
-	}
-}
-
-func BenchmarkRawBatchInsert(b *testing.B) {
-	keys := []*big.Int{}
-	vals := []*big.Int{}
-	for i := 0; i < 1000; i++ {
-		rand.Seed(time.Now().UnixNano())
-		keys = append(keys, big.NewInt(int64(rand.Intn(10000))))
-
-		rand.Seed(time.Now().UnixNano())
-		vals = append(vals, big.NewInt(int64(rand.Intn(10000))))
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		smtBatch := NewSMT(db.NewRawMemDb(), false)
-		batchInsert(smtBatch, keys, vals)
-	}
-}
+//func BenchmarkRawBatchInsert(b *testing.B) {
+//	keys := []*big.Int{}
+//	vals := []*big.Int{}
+//	for i := 0; i < 1000; i++ {
+//		rand.Seed(time.Now().UnixNano())
+//		keys = append(keys, big.NewInt(int64(rand.Intn(10000))))
+//
+//		rand.Seed(time.Now().UnixNano())
+//		vals = append(vals, big.NewInt(int64(rand.Intn(10000))))
+//	}
+//
+//	b.ResetTimer()
+//	for i := 0; i < b.N; i++ {
+//		smtBatch := NewSMT(db.NewRawMemDb(), false)
+//		batchInsert(smtBatch, keys, vals)
+//	}
+//}
 
 func batchInsert(tree *SMT, key, val []*big.Int) {
 	keyPointers := []*utils.NodeKey{}

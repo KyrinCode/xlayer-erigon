@@ -77,22 +77,22 @@ func (m *MemDb) SetDepth(depth uint8) error {
 	return nil
 }
 
-func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-	m.lock.RLock()         // Lock for reading
-	defer m.lock.RUnlock() // Make sure to unlock when done
-	keyConc := utils.ArrayToScalar(key[:])
+//func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
+//	m.lock.RLock()         // Lock for reading
+//	defer m.lock.RUnlock() // Make sure to unlock when done
+//	keyConc := utils.ArrayToScalar(key[:])
+//
+//	k := utils.ConvertBigIntToHex(keyConc)
+//
+//	values := utils.NodeValue12{}
+//	for i, v := range m.Db[k] {
+//		values[i] = utils.ConvertHexToBigInt(v)
+//	}
+//
+//	return values, nil
+//}
 
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	values := utils.NodeValue12{}
-	for i, v := range m.Db[k] {
-		values[i] = utils.ConvertHexToBigInt(v)
-	}
-
-	return values, nil
-}
-
-func (m *MemDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
+func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	m.lock.RLock()         // Lock for reading
 	defer m.lock.RUnlock() // Make sure to unlock when done
 
@@ -118,23 +118,23 @@ func (m *MemDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	return values, nil
 }
 
-func (m *MemDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
-	m.lock.Lock()         // Lock for writing
-	defer m.lock.Unlock() // Make sure to unlock when done
+//func (m *MemDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
+//	m.lock.Lock()         // Lock for writing
+//	defer m.lock.Unlock() // Make sure to unlock when done
+//
+//	keyConc := utils.ArrayToScalar(key[:])
+//	k := utils.ConvertBigIntToHex(keyConc)
+//
+//	values := make([]string, 12)
+//	for i, v := range value {
+//		values[i] = utils.ConvertBigIntToHex(v)
+//	}
+//
+//	m.Db[k] = values
+//	return nil
+//}
 
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	values := make([]string, 12)
-	for i, v := range value {
-		values[i] = utils.ConvertBigIntToHex(v)
-	}
-
-	m.Db[k] = values
-	return nil
-}
-
-func (m *MemDb) InsertRaw(key utils.NodeKey, value utils.NodeValue12Raw) error {
+func (m *MemDb) Insert(key utils.NodeKey, value utils.NodeValue12Raw) error {
 	m.lock.Lock()         // Lock for writing
 	defer m.lock.Unlock() // Make sure to unlock when done
 

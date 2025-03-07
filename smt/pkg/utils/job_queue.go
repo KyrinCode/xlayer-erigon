@@ -7,7 +7,7 @@ import (
 
 type DB interface {
 	InsertHashKey(key NodeKey, value NodeKey) error
-	Insert(key NodeKey, value NodeValue12) error
+	Insert(key NodeKey, value NodeValue12Raw) error
 }
 
 type JobResult interface {
@@ -18,14 +18,14 @@ type JobResult interface {
 type CalcAndPrepareJobResult struct {
 	db         DB
 	Err        error
-	KvMap      map[[4]uint64]NodeValue12
+	KvMap      map[[4]uint64]NodeValue12Raw
 	LeafsKvMap map[[4]uint64][4]uint64
 }
 
 func NewCalcAndPrepareJobResult(db DB) *CalcAndPrepareJobResult {
 	return &CalcAndPrepareJobResult{
 		db:         db,
-		KvMap:      make(map[[4]uint64]NodeValue12),
+		KvMap:      make(map[[4]uint64]NodeValue12Raw),
 		LeafsKvMap: make(map[[4]uint64][4]uint64),
 	}
 }

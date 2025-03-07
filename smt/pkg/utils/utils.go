@@ -163,6 +163,21 @@ func (nv *NodeValue8) ToUintArrayByPointer() *[8]uint64 {
 	return &result
 }
 
+// TODO [cliff]: can we remove this
+func (nv *NodeValue8Raw) ToUintArrayByPointer() *[8]uint64 {
+	var result [8]uint64
+
+	if nv != nil {
+		for i := 0; i < 8; i++ {
+			result[i] = nv[i]
+			// if nv[i] is nil, result[i] will remain as its zero value (0)
+		}
+	}
+	// if nv is nil, result will be an array of 8 zeros
+
+	return &result
+}
+
 func (nv *NodeValue12) ToBigInt() *big.Int {
 	return ArrayToScalarBig(nv[:])
 }
@@ -185,6 +200,20 @@ func (nv *NodeValue12) GetNodeValue8() *NodeValue8 {
 	return &NodeValue8{nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], nv[7]}
 }
 
+func (nv *NodeValue12Raw) GetNodeValue8Raw() [8]uint64 {
+	return [8]uint64{nv.Value[0], nv.Value[1], nv.Value[2], nv.Value[3], nv.Value[4], nv.Value[5], nv.Value[6], nv.Value[7]}
+}
+
+func (nv *NodeValue12Raw) Get4to8() *NodeKey {
+	// slice it 4-8
+	return &NodeKey{nv.Value[4], nv.Value[5], nv.Value[6], nv.Value[7]}
+}
+
+func (nv *NodeValue12Raw) Get0to4() *NodeKey {
+	// slice it 4-8
+	return &NodeKey{nv.Value[0], nv.Value[1], nv.Value[2], nv.Value[3]}
+}
+
 func (nv *NodeValue12) Get0to8() [8]uint64 {
 	// slice it from 0-8
 	return [8]uint64{nv[0].Uint64(), nv[1].Uint64(), nv[2].Uint64(), nv[3].Uint64(), nv[4].Uint64(), nv[5].Uint64(), nv[6].Uint64(), nv[7].Uint64()}
@@ -197,6 +226,24 @@ func (nv *NodeValue12) IsUniqueSibling() (int, error) {
 
 	for i := 0; i < len(a); i += 4 {
 		k := NodeKeyFromBigIntArray(a[i : i+4])
+		if !k.IsZero() {
+			count++
+			fnd = i / 4
+		}
+	}
+	if count == 1 {
+		return fnd, nil
+	}
+	return -1, nil
+}
+
+func (nv *NodeValue12Raw) IsUniqueSibling() (int, error) {
+	count := 0
+	fnd := 0
+	a := nv.Value[:]
+
+	for i := 0; i < len(a); i += 4 {
+		k := NodeKey(a[i : i+4])
 		if !k.IsZero() {
 			count++
 			fnd = i / 4
@@ -372,6 +419,17 @@ func BigIntArrayFromNodeValue8(nv *NodeValue8) []*big.Int {
 	return arr
 }
 
+// TODO [cliff]: we can remove this
+func BigIntArrayFromNodeValue8Raw(nv [8]uint64) []*big.Int {
+	arr := make([]*big.Int, 8)
+
+	for i := 0; i < 8; i++ {
+		arr[i] = arr[i].SetUint64(nv[i])
+	}
+
+	return arr
+}
+
 func (nv *NodeValue12) IsZero() bool {
 	zero := false
 	for _, v := range nv {
@@ -390,6 +448,10 @@ func (nv *NodeValue12) IsFinalNode() bool {
 		return false
 	}
 	return nv[8].Cmp(big.NewInt(1)) == 0
+}
+
+func (nv *NodeValue12Raw) IsFinalNode() bool {
+	return nv.Flag == byte(1)
 }
 
 // 7 times more efficient than sprintf
@@ -636,19 +698,18 @@ func ConcatArrays4ByPointers(a, b *[4]uint64) *[8]uint64 {
 	}
 }
 
-func ConcatArrays8AndCapacityByPointers(in *[8]uint64, capacity *[4]uint64) *NodeValue12 {
-	v := NodeValue12{}
+func ConcatArrays8AndCapacityByPointers(in *[8]uint64, capacity *[4]uint64) *NodeValue12Raw {
+	v := NodeValue12Raw{}
 	for i, val := range in {
-		v[i] = new(big.Int).SetUint64(val)
+		v.Value[i] = val
 	}
-	for i, val := range capacity {
-		v[i+8] = new(big.Int).SetUint64(val)
-	}
+
+	v.Flag = byte(capacity[0])
 
 	return &v
 }
 
-func HashKeyAndValueByPointers(in *[8]uint64, capacity *[4]uint64) (*[4]uint64, *NodeValue12) {
+func HashKeyAndValueByPointers(in *[8]uint64, capacity *[4]uint64) (*[4]uint64, *NodeValue12Raw) {
 	h := HashByPointers(in, capacity)
 	return h, ConcatArrays8AndCapacityByPointers(in, capacity)
 }
@@ -749,6 +810,16 @@ func ArrayBigToScalar(arr []*big.Int) *big.Int {
 	return scalar
 }
 
+// TODO [cliff]: can also remove this
+func ArrayU64ToScalar(arr []uint64) *big.Int {
+	scalar := new(big.Int)
+	for i := len(arr) - 1; i >= 0; i-- {
+		scalar.Lsh(scalar, 32)
+		scalar.Add(scalar, big.NewInt(0).SetUint64(arr[i]))
+	}
+	return scalar
+}
+
 func JoinKey(usedBits []int, remainingKey NodeKey) *NodeKey {
 	n := make([]uint64, 4)
 	accs := make([]uint64, 4)
@@ -768,7 +839,7 @@ func JoinKey(usedBits []int, remainingKey NodeKey) *NodeKey {
 	return &NodeKey{auxk[0], auxk[1], auxk[2], auxk[3]}
 }
 
-func RemoveOver(m map[int]*NodeValue12, level int) {
+func RemoveOver(m map[int]*NodeValue12Raw, level int) {
 	for k := range m {
 		if k >= level {
 			delete(m, k)

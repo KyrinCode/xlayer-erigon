@@ -159,7 +159,7 @@ func (s *SMT) getValueInBytes(nodeKey utils.NodeKey) ([]byte, error) {
 		keyPathBytes[i] = byte(k)
 	}
 
-	action := func(prefix []byte, _ utils.NodeKey, v utils.NodeValue12) (bool, error) {
+	action := func(prefix []byte, _ utils.NodeKey, v utils.NodeValue12Raw) (bool, error) {
 		if !bytes.HasPrefix(keyPathBytes, prefix) {
 			return false, nil
 		}
@@ -170,7 +170,7 @@ func (s *SMT) getValueInBytes(nodeKey utils.NodeKey) ([]byte, error) {
 			if err != nil {
 				return false, err
 			}
-			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8(v.GetNodeValue8())).Bytes()
+			vInBytes := utils.ArrayBigToScalar(utils.BigIntArrayFromNodeValue8Raw(v.GetNodeValue8Raw())).Bytes()
 
 			value = vInBytes
 			return false, nil

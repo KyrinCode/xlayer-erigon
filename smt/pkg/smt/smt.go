@@ -18,7 +18,7 @@ import (
 )
 
 type DB interface {
-	Insert(key utils.NodeKey, value utils.NodeValue12) error
+	Insert(key utils.NodeKey, value utils.NodeValue12Raw) error
 	InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error
 	InsertKeySource(key utils.NodeKey, value []byte) error
 	DeleteKeySource(key utils.NodeKey) error
@@ -41,8 +41,8 @@ type RoDB interface {
 	GetCode(codeHash []byte) ([]byte, error)
 	GetHashKey(key utils.NodeKey) (utils.NodeKey, error)
 	GetKeySource(key utils.NodeKey) ([]byte, error)
-	Get(key utils.NodeKey) (utils.NodeValue12, error)
-	GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error)
+	Get(key utils.NodeKey) (utils.NodeValue12Raw, error)
+	//GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error)
 	GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error)
 }
 
@@ -233,12 +233,12 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 	var usedKey []int
 	var level int
 	var foundKey *utils.NodeKey
-	var foundVal utils.NodeValue8
+	var foundVal utils.NodeValue8Raw
 	var foundRKey utils.NodeKey
 	var proofHashCounter int
 	var foundOldValHash utils.NodeKey
 
-	siblings := map[int]*utils.NodeValue12{}
+	siblings := map[int]*utils.NodeValue12Raw{}
 
 	var err error
 	// JS WHILE
@@ -249,18 +249,18 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 		}
 		siblings[level] = &sl
 		if siblings[level].IsFinalNode() {
-			foundOldValHash = utils.NodeKeyFromBigIntArray(siblings[level][4:8])
+			foundOldValHash = utils.NodeKey(siblings[level].Value[4:8]) // utils.NodeKeyFromBigIntArray()
 			fva, err := s.Db.Get(foundOldValHash)
 			if err != nil {
 				return nil, err
 			}
-			foundValA := utils.Value8FromBigIntArray(fva[0:8])
-			foundRKey = utils.NodeKeyFromBigIntArray(siblings[level][0:4])
+			foundValA := utils.NodeValue8Raw(fva.Value[0:8])
+			foundRKey = utils.NodeKey(siblings[level].Value[0:4])
 			foundVal = foundValA
 
 			foundKey = utils.JoinKey(usedKey, foundRKey)
 		} else {
-			oldRoot = utils.NodeKeyFromBigIntArray(siblings[level][keys[level]*4 : keys[level]*4+4])
+			oldRoot = utils.NodeKey(siblings[level].Value[keys[level]*4 : keys[level]*4+4])
 			usedKey = append(usedKey, keys[level])
 			level++
 		}
@@ -304,7 +304,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 				}
 				if level >= 0 {
 					for j := 0; j < 4; j++ {
-						siblings[level][keys[level]*4+j] = new(big.Int).SetUint64(newLeafHash[j])
+						siblings[level].Value[keys[level]*4+j] = newLeafHash[j]
 					}
 				} else {
 					newRoot = newLeafHash
@@ -393,7 +393,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 
 				if level >= 0 {
 					for j := 0; j < 4; j++ {
-						siblings[level][keys[level]*4+j] = new(big.Int).SetUint64(r2[j])
+						siblings[level].Value[keys[level]*4+j] = r2[j]
 					}
 				} else {
 					newRoot = r2
@@ -427,9 +427,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 
 			if level >= 0 {
 				for j := 0; j < 4; j++ {
-					nlh := big.Int{}
-					nlh.SetUint64(newLeafHash[j])
-					siblings[level][keys[level]*4+j] = &nlh
+					siblings[level].Value[keys[level]*4+j] = newLeafHash[j]
 				}
 			} else {
 				newRoot = newLeafHash
@@ -438,7 +436,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 	} else if foundKey != nil && foundKey.IsEqualTo(k) { // we don't have a value so we're deleting
 		if level >= 0 {
 			for j := 0; j < 4; j++ {
-				siblings[level][keys[level]*4+j] = big.NewInt(0)
+				siblings[level].Value[keys[level]*4+j] = 0
 			}
 
 			uKey, err := siblings[level].IsUniqueSibling()
@@ -449,7 +447,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 			if uKey >= 0 {
 				// DELETE FOUND
 				smtResponse.Mode = "deleteFound"
-				dk := utils.NodeKeyFromBigIntArray(siblings[level][uKey*4 : uKey*4+4])
+				dk := utils.NodeKey(siblings[level].Value[uKey*4 : uKey*4+4])
 				sl, err := s.Db.Get(dk)
 				if err != nil {
 					return nil, err
@@ -489,7 +487,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 
 					if level >= 0 {
 						for j := 0; j < 4; j++ {
-							siblings[level][keys[level]*4+j] = new(big.Int).SetUint64(oldLeafHash[j])
+							siblings[level].Value[keys[level]*4+j] = oldLeafHash[j]
 						}
 					} else {
 						newRoot = oldLeafHash
@@ -518,12 +516,12 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 	}
 
 	for level >= 0 {
-		hashValueIn, err := utils.NodeValue8FromBigIntArray(siblings[level][0:8])
+		hashValueIn := [8]uint64(siblings[level].Value[0:8])
 		if err != nil {
 			return nil, err
 		}
-		hashCapIn := utils.NodeKeyFromBigIntArray(siblings[level][8:12])
-		newRoot, err = s.hashcalcAndSave(hashValueIn.ToUintArray(), hashCapIn)
+		hashCapIn := [4]uint64{uint64(siblings[level].Flag), 0, 0, 0}
+		newRoot, err = s.hashcalcAndSave(hashValueIn, hashCapIn)
 		if err != nil {
 			return nil, err
 		}
@@ -531,9 +529,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 		level -= 1
 		if level >= 0 {
 			for j := 0; j < 4; j++ {
-				nrj := big.Int{}
-				nrj.SetUint64(newRoot[j])
-				siblings[level][keys[level]*4+j] = &nrj
+				siblings[level].Value[keys[level]*4+j] = newRoot[j]
 			}
 		}
 	}
@@ -683,7 +679,7 @@ func (s *RoSMT) GetDepth() int {
 	return int(depth)
 }
 
-type TraverseAction func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error)
+type TraverseAction func(prefix []byte, k utils.NodeKey, v utils.NodeValue12Raw) (bool, error)
 
 func (s *RoSMT) Traverse(ctx context.Context, node *big.Int, action TraverseAction) error {
 	return s.traverse(ctx, node, action, []byte{})
@@ -719,10 +715,10 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 	}
 
 	for i := 0; i < 2; i++ {
-		if len(nodeValue) < i*4+4 {
+		if len(nodeValue.Value) < i*4 {
 			return errors.New("nodeValue has insufficient length")
 		}
-		child := utils.NodeKeyFromBigIntArray(nodeValue[i*4 : i*4+4])
+		child := utils.NodeKey(nodeValue.Value[i*4 : i*4+4])
 		childPrefix := make([]byte, len(prefix)+1)
 		copy(childPrefix, prefix)
 		childPrefix[len(prefix)] = byte(i)
@@ -736,7 +732,7 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 }
 
 func (s *RoSMT) traverseAndMark(ctx context.Context, node *big.Int, visited VisitedNodesMap) error {
-	return s.Traverse(ctx, node, func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error) {
+	return s.Traverse(ctx, node, func(prefix []byte, k utils.NodeKey, v utils.NodeValue12Raw) (bool, error) {
 		if visited[utils.ConvertBigIntToHex(k.ToBigInt())] {
 			return false, nil
 		}
@@ -787,7 +783,7 @@ func (s *SMT) insertHashNode(path []int, hash [4]uint64, root utils.NodeKey) (ut
 		return hash, nil
 	}
 
-	rootVal := utils.NodeValue12{}
+	rootVal := utils.NodeValue12Raw{}
 
 	if !root.IsZero() {
 		v, err := s.Db.Get(root)
@@ -800,9 +796,9 @@ func (s *SMT) insertHashNode(path []int, hash [4]uint64, root utils.NodeKey) (ut
 
 	childIndex := path[0]
 
-	childOldRoot := rootVal[childIndex*4 : childIndex*4+4]
+	childOldRoot := rootVal.Value[childIndex*4 : childIndex*4+4]
 
-	childNewRoot, err := s.insertHashNode(path[1:], hash, utils.NodeKeyFromBigIntArray(childOldRoot))
+	childNewRoot, err := s.insertHashNode(path[1:], hash, utils.NodeKey(childOldRoot))
 
 	if err != nil {
 		return utils.NodeKey{}, err
@@ -810,7 +806,7 @@ func (s *SMT) insertHashNode(path []int, hash [4]uint64, root utils.NodeKey) (ut
 
 	var newIn [8]uint64
 
-	emptyRootVal := utils.NodeValue12{}
+	emptyRootVal := utils.NodeValue12Raw{}
 
 	if childIndex == 0 {
 		var sibling [4]uint64

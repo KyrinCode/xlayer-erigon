@@ -157,26 +157,26 @@ func (m *EriDb) SetDepth(depth uint8) error {
 	return m.tx.Put(TableStats, []byte("lastRoot"), []byte{depth})
 }
 
-func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+//func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
+//	keyConc := utils.ArrayToScalar(key[:])
+//	k := utils.ConvertBigIntToHex(keyConc)
+//
+//	data, err := m.kvTxRo.GetOne(TableSmt, []byte(k))
+//	if err != nil {
+//		return utils.NodeValue12{}, err
+//	}
+//
+//	if data == nil {
+//		return utils.NodeValue12{}, nil
+//	}
+//
+//	vConc := utils.ConvertHexToBigInt(string(data))
+//	val := utils.ScalarToNodeValue(vConc)
+//
+//	return val, nil
+//}
 
-	data, err := m.kvTxRo.GetOne(TableSmt, []byte(k))
-	if err != nil {
-		return utils.NodeValue12{}, err
-	}
-
-	if data == nil {
-		return utils.NodeValue12{}, nil
-	}
-
-	vConc := utils.ConvertHexToBigInt(string(data))
-	val := utils.ScalarToNodeValue(vConc)
-
-	return val, nil
-}
-
-func (m *EriRoDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
+func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	//fmt.Printf("GetRaw Eri %v\n", key)
 	k := utils.NodeKeyToByteArray(&key)
 	// Remark: []byte will convert k to bytes according to ASCII table, not the raw hex bytes
@@ -193,20 +193,20 @@ func (m *EriRoDb) GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	return val, nil
 }
 
-func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+//func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
+//	keyConc := utils.ArrayToScalar(key[:])
+//	k := utils.ConvertBigIntToHex(keyConc)
+//
+//	vals := make([]*big.Int, 12)
+//	copy(vals, value[:])
+//
+//	vConc := utils.ArrayToScalarBig(vals)
+//	v := utils.ConvertBigIntToHex(vConc)
+//
+//	return m.tx.Put(TableSmt, []byte(k), []byte(v))
+//}
 
-	vals := make([]*big.Int, 12)
-	copy(vals, value[:])
-
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
-
-	return m.tx.Put(TableSmt, []byte(k), []byte(v))
-}
-
-func (m *EriDb) InsertRaw(key utils.NodeKey, value utils.NodeValue12Raw) error {
+func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12Raw) error {
 	bytes := utils.NodeValue12RawToByteArray(&value)
 	return m.tx.Put(TableSmt, utils.NodeKeyToByteArray(&key), bytes)
 }

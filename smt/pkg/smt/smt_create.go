@@ -397,7 +397,7 @@ func (n *SmtNode) findLastNode(keys []int) ([]*SmtNode, int) {
 	return siblings, level
 }
 
-func (n *SmtNode) deleteTreeNoSave(keyPath []int, leafValueMap *sync.Map, kvMapOfValuesToSave map[[4]uint64]utils.NodeValue12, kvMapOfLeafValuesToSave map[[4]uint64][4]uint64) ([4]uint64, error) {
+func (n *SmtNode) deleteTreeNoSave(keyPath []int, leafValueMap *sync.Map, kvMapOfValuesToSave map[[4]uint64]utils.NodeValue12Raw, kvMapOfLeafValuesToSave map[[4]uint64][4]uint64) ([4]uint64, error) {
 	if n.isLeaf() {
 		fullKey := append(keyPath, n.rKey...)
 		k, err := utils.NodeKeyFromPath(fullKey)
@@ -409,7 +409,7 @@ func (n *SmtNode) deleteTreeNoSave(keyPath []int, leafValueMap *sync.Map, kvMapO
 		if !ok {
 			return [4]uint64{}, fmt.Errorf("value not found for key %v", k)
 		}
-		accoutnValue := v.(*utils.NodeValue8)
+		accoutnValue := v.(*utils.NodeValue8Raw)
 
 		newKey := utils.RemoveKeyBits(k, len(keyPath))
 		//hash and save leaf
@@ -468,7 +468,7 @@ func (n *SmtNode) deleteTree(keyPath []int, s *SMT, leafValueMap *sync.Map) (new
 	return newRoot, nil
 }
 
-func createNewLeafNoSave(rkey *utils.NodeKey, v *utils.NodeValue8) (newValH *[4]uint64, newValHV *utils.NodeValue12, newLeafHash *[4]uint64, newLeafHashV *utils.NodeValue12) {
+func createNewLeafNoSave(rkey *utils.NodeKey, v *utils.NodeValue8Raw) (newValH *[4]uint64, newValHV *utils.NodeValue12Raw, newLeafHash *[4]uint64, newLeafHashV *utils.NodeValue12Raw) {
 	//hash and save leaf
 	newValH, newValHV = utils.HashKeyAndValueByPointers(v.ToUintArrayByPointer(), &utils.BranchCapacity)
 	newLeafHash, newLeafHashV = utils.HashKeyAndValueByPointers(utils.ConcatArrays4ByPointers(rkey.AsUint64Pointer(), newValH), &utils.LeafCapacity)

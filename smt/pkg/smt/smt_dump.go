@@ -22,13 +22,13 @@ func dumpTree(smt *SMT, nodeKey utils.NodeKey, level int, path []int, printDepth
 
 	nodeValue, _ := smt.Db.Get(nodeKey)
 	if !nodeValue.IsFinalNode() {
-		nodeKeyRight := utils.NodeKeyFromBigIntArray(nodeValue[4:8])
+		nodeKeyRight := utils.NodeKey(nodeValue.Value[4:8])
 		dumpTree(smt, nodeKeyRight, level+1, append(path, 1), printDepth)
 	}
 
 	if nodeValue.IsFinalNode() {
-		rKey := utils.NodeKeyFromBigIntArray(nodeValue[0:4])
-		leafValueHash := utils.NodeKeyFromBigIntArray(nodeValue[4:8])
+		rKey := utils.NodeKey(nodeValue.Value[0:4])
+		leafValueHash := utils.NodeKey(nodeValue.Value[4:8])
 		totalKey := utils.JoinKey(path, rKey)
 		leafPath := totalKey.GetPath()
 		fmt.Printf("|")
@@ -51,12 +51,13 @@ func dumpTree(smt *SMT, nodeKey utils.NodeKey, level int, path []int, printDepth
 		for i := level * 2; i < printDepth; i++ {
 			fmt.Printf("-")
 		}
-		fmt.Printf(" # hashLeft(%s) <-> hashRight(%s)", utils.ConvertBigIntToHex(utils.ArrayBigToScalar(nodeValue[0:4])), utils.ConvertBigIntToHex(utils.ArrayBigToScalar(nodeValue[4:8])))
+		// TODO [cliff]: the log use expensive conversions
+		fmt.Printf(" # hashLeft(%s) <-> hashRight(%s)", utils.ConvertBigIntToHex(utils.ArrayU64ToScalar(nodeValue.Value[0:4])), utils.ConvertBigIntToHex(utils.ArrayU64ToScalar(nodeValue.Value[4:8])))
 		fmt.Println()
 	}
 
 	if !nodeValue.IsFinalNode() {
-		nodeKeyLeft := utils.NodeKeyFromBigIntArray(nodeValue[0:4])
+		nodeKeyLeft := utils.NodeKey(nodeValue.Value[0:4])
 		dumpTree(smt, nodeKeyLeft, level+1, append(path, 0), printDepth)
 	}
 }
