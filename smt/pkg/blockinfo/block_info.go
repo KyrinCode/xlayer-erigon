@@ -37,15 +37,7 @@ func BuildBlockInfoTree(
 	transactionInfos *[]ExecutedTxInfo,
 ) (*common.Hash, error) {
 	infoTree := NewBlockInfoTree()
-	keys, vals, err := infoTree.GenerateBlockHeader(
-		&previousStateRoot,
-		coinbase,
-		blockNumber,
-		blockGasLimit,
-		blockTime,
-		&ger,
-		&l1BlockHash,
-	)
+	keys, vals, err := infoTree.GenerateBlockHeader(&previousStateRoot, coinbase, blockNumber, blockGasLimit, blockTime, &ger, &l1BlockHash)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +147,6 @@ func BuildBlockInfoTree(
 	if err != nil {
 		return nil, err
 	}
-
 	rootHash := common.BigToHash(root.NewRootScalar.ToBigInt())
 
 	log.Trace("info-tree-root", "block", blockNumber, "root", rootHash.String())
