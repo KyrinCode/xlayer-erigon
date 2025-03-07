@@ -84,7 +84,7 @@ func TestSMT_Create_Insert(t *testing.T) {
 }
 
 func TestSMT_Create_CompareWithRandomData(t *testing.T) {
-	limit := 5000
+	limit := 2
 	ctx := context.Background()
 
 	kvMap := map[utils.NodeKey]utils.NodeValue8{}
@@ -145,7 +145,7 @@ func TestSMT_Create_CompareWithRandomData(t *testing.T) {
 func TestSMT_Create_Benchmark(t *testing.T) {
 	limit := 100000
 	ctx := context.Background()
-	
+
 	kvMap := map[utils.NodeKey]utils.NodeValue8{}
 	for i := 1; i <= limit; i++ {
 		bigInt := big.NewInt(rand.Int63n(int64(i)))

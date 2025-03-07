@@ -330,7 +330,7 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 
 				oldLeafHash := oldRoot
 				if oldKey != *foundKey {
-					oldLeafHash, err := s.hashcalcAndSave(utils.ConcatArrays4(oldKey, foundOldValHash), utils.LeafCapacity)
+					oldLeafHash, err = s.hashcalcAndSave(utils.ConcatArrays4(oldKey, foundOldValHash), utils.LeafCapacity)
 					s.Db.InsertHashKey(oldLeafHash, *foundKey)
 					if err != nil {
 						return nil, err
