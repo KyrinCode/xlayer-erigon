@@ -184,6 +184,7 @@ func (a Address) Value() (driver.Value, error) {
 
 // For X Layer
 func CompareAddressess(a, b Address) int {
+	// return bytes.Compare(a[:], b[:])
 	for i := 0; i < len(a); i++ {
 		if a[i] < b[i] {
 			return int(a[i]) - int(b[i])
