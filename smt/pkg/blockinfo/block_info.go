@@ -50,17 +50,6 @@ func BuildBlockInfoTree(
 		return nil, err
 	}
 
-	if len(*transactionInfos) == 0 {
-		// if no transactions, return the root hash of the block header
-		insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "block_info_tree", false)
-		root, err := infoTree.smt.InsertBatch(insertBatchCfg, keys, vals, nil, nil)
-		if err != nil {
-			return nil, fmt.Errorf("insert batch error: %w", err)
-		}
-		rootHash := common.BigToHash(root.NewRootScalar.ToBigInt())
-		return &rootHash, nil
-	}
-
 	// use buffered channels to avoid goroutine leaks
 	type result struct {
 		keys   []*utils.NodeKey
@@ -161,7 +150,6 @@ func BuildBlockInfoTree(
 		vals = append(vals, r.vals...)
 	}
 
-	// insert batch data
 	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "block_info_tree", false)
 	root, err := infoTree.smt.InsertBatch(insertBatchCfg, keys, vals, nil, nil)
 	if err != nil {
@@ -171,6 +159,7 @@ func BuildBlockInfoTree(
 	rootHash := common.BigToHash(root.NewRootScalar.ToBigInt())
 
 	log.Trace("info-tree-root", "block", blockNumber, "root", rootHash.String())
+
 	return &rootHash, nil
 }
 
