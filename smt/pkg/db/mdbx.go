@@ -236,17 +236,11 @@ func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error
 	return utils.NodeValue8RawFromByteArray(data), nil
 }
 
-func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8Raw) error {
+	k := utils.NodeKeyToByteArray(&key)
+	bytes := utils.NodeValue8RawToByteArray(&value)
 
-	vals := make([]*big.Int, 8)
-	copy(vals, value[:]) // Replace the loop with the copy function
-
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
-
-	return m.tx.Put(TableAccountValues, []byte(k), []byte(v))
+	return m.tx.Put(TableAccountValues, k, bytes)
 }
 
 func (m *EriDb) InsertKeySource(key utils.NodeKey, value []byte) error {

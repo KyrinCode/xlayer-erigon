@@ -41,11 +41,11 @@ func TestRawMemDbRawMethod(t *testing.T) {
 	}
 
 	// Testing Insert method
-	err := db.InsertRaw(key, value)
+	err := db.Insert(key, value)
 	assert.NoError(t, err)
 
 	// Testing Get method
-	retrievedValue, err := db.GetRaw(key)
+	retrievedValue, err := db.Get(key)
 	assert.NoError(t, err)
 	assert.Equal(t, value, retrievedValue)
 
