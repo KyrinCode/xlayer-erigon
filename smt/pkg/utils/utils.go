@@ -402,6 +402,22 @@ func NodeValue12RawFromByteArray(input []byte) NodeValue12Raw {
 	return output
 }
 
+func NodeValue8RawFromByteArray(input []byte) NodeValue8Raw {
+
+	var vals [8]uint64
+
+	vals[0] = binary.BigEndian.Uint64(input[:8])
+	vals[1] = binary.BigEndian.Uint64(input[8:16])
+	vals[2] = binary.BigEndian.Uint64(input[16:24])
+	vals[3] = binary.BigEndian.Uint64(input[24:32])
+	vals[4] = binary.BigEndian.Uint64(input[32:40])
+	vals[5] = binary.BigEndian.Uint64(input[40:48])
+	vals[6] = binary.BigEndian.Uint64(input[48:56])
+	vals[7] = binary.BigEndian.Uint64(input[56:64])
+
+	return NodeValue8Raw(vals)
+}
+
 func NodeValue8FromBigIntArray(arr []*big.Int) (*NodeValue8, error) {
 	if len(arr) != 8 {
 		return &NodeValue8{}, fmt.Errorf("invalid array length")
