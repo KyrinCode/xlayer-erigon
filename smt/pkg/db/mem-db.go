@@ -173,20 +173,20 @@ func (m *MemDb) DeleteByNodeKey(key utils.NodeKey) error {
 	return nil
 }
 
-func (m *MemDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
+func (m *MemDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {
 	m.lock.RLock()         // Lock for reading
 	defer m.lock.RUnlock() // Make sure to unlock when done
+	// TODO [cliff]: revert this
+	//keyConc := utils.ArrayToScalar(key[:])
+	//
+	//k := utils.ConvertBigIntToHex(keyConc)
+	//
+	//values := utils.NodeValue8Raw{}
+	//for i, v := range m.DbAccVal[k] {
+	//	values[i] = utils.ConvertHexToBigInt(v)
+	//}
 
-	keyConc := utils.ArrayToScalar(key[:])
-
-	k := utils.ConvertBigIntToHex(keyConc)
-
-	values := utils.NodeValue8{}
-	for i, v := range m.DbAccVal[k] {
-		values[i] = utils.ConvertHexToBigInt(v)
-	}
-
-	return values, nil
+	return utils.NodeValue8Raw{}, nil
 }
 
 func (m *MemDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {

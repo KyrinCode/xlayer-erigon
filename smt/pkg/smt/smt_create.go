@@ -61,7 +61,7 @@ func (s *SMT) GenerateFromKVBulk(ctx context.Context, logPrefix string, nodeKeys
 	var rootNode *SmtNode
 	tempTreeBuildStart := time.Now()
 	leafValueMap := sync.Map{}
-	accountValuesReadChan := make(chan *utils.NodeValue8, 1024)
+	accountValuesReadChan := make(chan *utils.NodeValue8Raw, 1024)
 	go func() {
 		defer wg.Done()
 		defer deletesWorker.Stop()
@@ -121,7 +121,7 @@ func (s *SMT) GenerateFromKVBulk(ctx context.Context, logPrefix string, nodeKeys
 	return finalRoot, nil
 }
 
-func runBuildSmtLoop(s *SMT, logPrefix string, nodeKeys []utils.NodeKey, leafValueMap *sync.Map, deletesWorker *utils.Worker, accountValuesReadChan <-chan *utils.NodeValue8) (*SmtNode, error) {
+func runBuildSmtLoop(s *SMT, logPrefix string, nodeKeys []utils.NodeKey, leafValueMap *sync.Map, deletesWorker *utils.Worker, accountValuesReadChan <-chan *utils.NodeValue8Raw) (*SmtNode, error) {
 	totalKeysCount := len(nodeKeys)
 	insertedKeysCount := uint64(0)
 	maxReachedLevel := 0
@@ -317,7 +317,7 @@ func runBuildSmtLoop(s *SMT, logPrefix string, nodeKeys []utils.NodeKey, leafVal
 	return &rootNode, nil
 }
 
-func startBuildSmtLoopDbCompanionLoop(s *SMT, nodeKeys []utils.NodeKey, jobResultsChannel chan utils.JobResult, accountValuesReadChan chan *utils.NodeValue8) error {
+func startBuildSmtLoopDbCompanionLoop(s *SMT, nodeKeys []utils.NodeKey, jobResultsChannel chan utils.JobResult, accountValuesReadChan chan *utils.NodeValue8Raw) error {
 	lastReadAccountValueIndex := 0
 	totalKeys := len(nodeKeys)
 

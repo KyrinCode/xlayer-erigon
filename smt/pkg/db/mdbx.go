@@ -221,23 +221,19 @@ func (m *EriDb) DeleteByNodeKey(key utils.NodeKey) error {
 	return m.tx.Delete(TableSmt, []byte(k))
 }
 
-func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {
+	k := utils.NodeKeyToByteArray(&key)
 
-	data, err := m.kvTxRo.GetOne(TableAccountValues, []byte(k))
+	data, err := m.kvTxRo.GetOne(TableAccountValues, k)
 	if err != nil {
-		return utils.NodeValue8{}, err
+		return utils.NodeValue8Raw{}, err
 	}
 
 	if data == nil {
-		return utils.NodeValue8{}, nil
+		return utils.NodeValue8Raw{}, nil
 	}
 
-	vConc := utils.ConvertHexToBigInt(string(data))
-	val := utils.ScalarToNodeValue8(vConc)
-
-	return val, nil
+	return utils.NodeValue8RawFromByteArray(data), nil
 }
 
 func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {

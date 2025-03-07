@@ -43,7 +43,7 @@ type RoDB interface {
 	GetKeySource(key utils.NodeKey) ([]byte, error)
 	Get(key utils.NodeKey) (utils.NodeValue12Raw, error)
 	//GetRaw(key utils.NodeKey) (utils.NodeValue12Raw, error)
-	GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error)
+	GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error)
 }
 
 type DebuggableDB interface {
