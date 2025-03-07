@@ -36,10 +36,6 @@ func BuildBlockInfoTree(
 	previousStateRoot common.Hash,
 	transactionInfos *[]ExecutedTxInfo,
 ) (*common.Hash, error) {
-	if transactionInfos == nil {
-		return nil, fmt.Errorf("transactionInfos is nil")
-	}
-
 	infoTree := NewBlockInfoTree()
 	keys, vals, err := infoTree.GenerateBlockHeader(
 		&previousStateRoot,
@@ -51,7 +47,7 @@ func BuildBlockInfoTree(
 		&l1BlockHash,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("generate block header error: %w", err)
+		return nil, err
 	}
 
 	if len(*transactionInfos) == 0 {
@@ -169,10 +165,12 @@ func BuildBlockInfoTree(
 	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "block_info_tree", false)
 	root, err := infoTree.smt.InsertBatch(insertBatchCfg, keys, vals, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("insert batch error: %w", err)
+		return nil, err
 	}
 
 	rootHash := common.BigToHash(root.NewRootScalar.ToBigInt())
+
+	log.Trace("info-tree-root", "block", blockNumber, "root", rootHash.String())
 	return &rootHash, nil
 }
 

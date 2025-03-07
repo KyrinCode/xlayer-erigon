@@ -86,15 +86,7 @@ func TestBlockInfoHeader(t *testing.T) {
 		ger := common.HexToHash(test.FinalGER)
 		l1BlochHash := common.HexToHash(test.L1BlochHash)
 
-		keys, vals, err := infoTree.GenerateBlockHeader(
-			&blockHash,
-			&coinbaseAddress,
-			test.NewBlockNumber,
-			test.BlockGasLimit,
-			test.FinalTimestamp,
-			&ger,
-			&l1BlochHash,
-		)
+		keys, vals, err := infoTree.GenerateBlockHeader(&blockHash, &coinbaseAddress, test.NewBlockNumber, test.BlockGasLimit, test.FinalTimestamp, &ger, &l1BlochHash)
 		if err != nil {
 			t.Fatal(err)
 		}
