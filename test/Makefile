@@ -150,43 +150,96 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 	docker ps -a
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
 
-# Target to add loss data logic
-lossdata: stop
-	# Case 1 loss database
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDBModifyCodeStep1 ./e2e/loss_data_test.go
+# Target to add data loss testing logic
+.PHONY: data-loss
+data-loss: data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5
+
+data-loss-1:
+	@# Case 1
+	@# interrupt before doFinishBlockAndUpdateState (before RemoveMinedTransactions)
+	@# txs are still in txpool, data is lost in chaindata and not written to datastream yet
+	make stop
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_1_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
-	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDBCheckSeqStopStep2 ./e2e/loss_data_test.go
-	sleep 3
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDBRecoverCodeStep3 ./e2e/loss_data_test.go
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
+	docker wait $(DOCKER_SEQ) > /dev/null
+	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_1_Step3_RecoverCode ./e2e/data_loss_test.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
-	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDBCheckVerifyStep4 ./e2e/loss_data_test.go
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
+	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
 
-	# Case 2 loss data stream
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDSModifyCodeStep1 ./e2e/loss_data_test.go
-	$(STOP_DOCKER_SEQ)
+data-loss-2:
+	@# Case 2
+	@# interrupt before 1st CommitAndStart (before RemoveMinedTransactions)
+	@# txs are still in txpool, data is lost in chaindata and not written to datastream yet
+	make stop
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_2_Step1_ModifyCode ./e2e/data_loss_test.go
+	make run
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
+	docker wait $(DOCKER_SEQ) > /dev/null
+	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_2_Step3_RecoverCode ./e2e/data_loss_test.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
-	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDSStressStep2 ./e2e/loss_data_test.go
-	$(STOP_DOCKER_SEQ)
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestLossDSRecoverCodeStep3 ./e2e/loss_data_test.go
-	make build-docker
-	$(RUN_DOCKER_SEQ)
-	sleep 3
-	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestLossDSCheckVerifyStep4 ./e2e/loss_data_test.go
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
+	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
 
-	# Case 3 replace seq form rpc
-	sleep 10
-	$(STOP_DOCKER_SEQ)
-	$(STOP_DOCKER_RPC)
-	rm -rf data/seq/*; cp -r data/rpc/* data/seq/
+data-loss-3:
+	@# Case 3
+	@# before 2nd CommitAndStart (after RemoveMinedTransactions and updateStreamAndCheckRollback)
+	@# txs are removed from txpool, data is lost in chaindata
+	@# assuming current block having been written to ds
+	make stop
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_3_Step1_ModifyCode ./e2e/data_loss_test.go
+	make run
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
+	docker wait $(DOCKER_SEQ) > /dev/null
+	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_3_Step3_RecoverCode ./e2e/data_loss_test.go
+	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
-	$(RUN_DOCKER_RPC)
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
+	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+
+data-loss-4:
+	@# Case 4
+	@# before the last sdb.tx.Commit (after RemoveMinedTransactions and updateStreamAndCheckRollback)
+	@# txs are removed from txpool, data is lost in chaindata
+	@# assuming current block having been written to ds
+	make stop
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_4_Step1_ModifyCode ./e2e/data_loss_test.go
+	make run
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
+	docker wait $(DOCKER_SEQ) > /dev/null
+	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_4_Step3_RecoverCode ./e2e/data_loss_test.go
+	make build-docker
+	$(RUN_DOCKER_SEQ)
 	sleep 3
-	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestReplaceRpcStep1 ./e2e/loss_data_test.go
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
+	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+
+data-loss-5:
+	@# Case 5
+	@# between RemoveMinedTransactions and updateStreamAndCheckRollback
+	@# txs are removed from txpool, data is not written to datastream yet
+	make stop
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_5_Step1_ModifyCode ./e2e/data_loss_test.go
+	make run
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
+	docker wait $(DOCKER_SEQ) > /dev/null
+	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
+	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_5_Step3_RecoverCode ./e2e/data_loss_test.go
+	make build-docker
+	$(RUN_DOCKER_SEQ)
+	sleep 3
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
+	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
 
 mainnet: build-docker
 	# base services
