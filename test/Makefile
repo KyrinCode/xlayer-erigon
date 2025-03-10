@@ -165,8 +165,8 @@ data-loss-1:
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
 	docker wait $(DOCKER_SEQ) > /dev/null
 	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
+	# Step 3
 	git checkout -- ../zk/stages/stage_sequence_execute.go
-	# go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_1_Step3_RecoverCode ./e2e/data_loss_test.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
@@ -181,10 +181,12 @@ data-loss-2:
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_2_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
+	sleep 10
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
 	docker wait $(DOCKER_SEQ) > /dev/null
 	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_2_Step3_RecoverCode ./e2e/data_loss_test.go
+	# Step 3
+	git checkout -- ../zk/stages/stage_sequence_execute.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
@@ -200,10 +202,12 @@ data-loss-3:
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_3_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
+	sleep 10
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
 	docker wait $(DOCKER_SEQ) > /dev/null
 	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_3_Step3_RecoverCode ./e2e/data_loss_test.go
+	# Step 3
+	git checkout -- ../zk/stages/stage_sequence_execute.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
@@ -219,10 +223,12 @@ data-loss-4:
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_4_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
+	sleep 10
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
 	docker wait $(DOCKER_SEQ) > /dev/null
 	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_4_Step3_RecoverCode ./e2e/data_loss_test.go
+	# Step 3
+	git checkout -- ../zk/stages/stage_sequence_execute.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3
@@ -232,15 +238,17 @@ data-loss-4:
 
 data-loss-5:
 	# Case 5
-	@# between RemoveMinedTransactions and updateStreamAndCheckRollback
-	@# txs are removed from txpool, data is not written to datastream yet
+	# between RemoveMinedTransactions and updateStreamAndCheckRollback
+	# txs are removed from txpool, data is not written to datastream yet
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_5_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
+	sleep 10
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step2_CheckSeqStop ./e2e/data_loss_test.go
 	docker wait $(DOCKER_SEQ) > /dev/null
 	docker logs $(DOCKER_SEQ) > data/seq_1.log 2>&1
-	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_5_Step3_RecoverCode ./e2e/data_loss_test.go
+	# Step 3
+	git checkout -- ../zk/stages/stage_sequence_execute.go
 	make build-docker
 	$(RUN_DOCKER_SEQ)
 	sleep 3

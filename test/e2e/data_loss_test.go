@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -78,47 +77,6 @@ log.Info(fmt.Sprintf("doFinishBlockAndUpdateState:%v,%v", batchState.batchNumber
 	}
 }
 
-func TestDataLoss_1_Step3_RecoverCode(t *testing.T) {
-	filePath := "../../zk/stages/stage_sequence_execute.go"
-
-	// Read the file contents
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatal("Error reading file for recovery:", err)
-	}
-	content := string(data)
-
-	blockToInsert := `
-// For data loss
-if batchState.batchNumber == 5 {
-	log.Info(fmt.Sprintf("Stop before doFinishBlockAndUpdateState:%v,%v", batchState.batchNumber, blockNumber))
-	time.Sleep(10 * time.Second)
-	os.Exit(1)
-}
-log.Info(fmt.Sprintf("doFinishBlockAndUpdateState:%v,%v", batchState.batchNumber, blockNumber))`
-
-	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
-	updatedContent := blockRegex.ReplaceAllString(content, "\n")
-
-	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
-	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
-
-	importMultiFixRegex := regexp.MustCompile(`import \(\n?"([^"]+)"`)
-	updatedContent = importMultiFixRegex.ReplaceAllString(updatedContent, "import (\n\t\"$1\"")
-
-	importSpacingFixRegex := regexp.MustCompile(`\n"([^"]+)"`)
-	updatedContent = importSpacingFixRegex.ReplaceAllString(updatedContent, "\n\t\"$1\"")
-
-	importSingleFixRegex := regexp.MustCompile(`import \(\s*\n\t?"([^"]+)"\s*\n\)`)
-	updatedContent = importSingleFixRegex.ReplaceAllString(updatedContent, "import \"$1\"")
-
-	// Write the recovered content back to the file
-	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
-	if err != nil {
-		t.Fatal("Error writing recovered file:", err)
-	}
-}
-
 // before 1st CommitAndStart (before RemoveMinedTransactions)
 // txs are still in txpool, data is lost in chaindata and not written to datastream yet
 func TestDataLoss_2_Step1_ModifyCode(t *testing.T) {
@@ -174,47 +132,6 @@ log.Info(fmt.Sprintf("1st CommitAndStart:%v,%v", batchState.batchNumber, blockNu
 	err = os.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {
 		t.Fatal("Error writing file:", err)
-	}
-}
-
-func TestDataLoss_2_Step3_RecoverCode(t *testing.T) {
-	filePath := "../../zk/stages/stage_sequence_execute.go"
-
-	// Read the file contents
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatal("Error reading file for recovery:", err)
-	}
-	content := string(data)
-
-	blockToInsert := `
-// For data loss
-if batchState.batchNumber == 5 {
-	log.Info(fmt.Sprintf("Stop before the 1st CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))
-	time.Sleep(10 * time.Second)
-	os.Exit(1)
-}
-log.Info(fmt.Sprintf("1st CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))`
-
-	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
-	updatedContent := blockRegex.ReplaceAllString(content, "\n")
-
-	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
-	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
-
-	importMultiFixRegex := regexp.MustCompile(`import \(\n?"([^"]+)"`)
-	updatedContent = importMultiFixRegex.ReplaceAllString(updatedContent, "import (\n\t\"$1\"")
-
-	importSpacingFixRegex := regexp.MustCompile(`\n"([^"]+)"`)
-	updatedContent = importSpacingFixRegex.ReplaceAllString(updatedContent, "\n\t\"$1\"")
-
-	importSingleFixRegex := regexp.MustCompile(`import \(\s*\n\t?"([^"]+)"\s*\n\)`)
-	updatedContent = importSingleFixRegex.ReplaceAllString(updatedContent, "import \"$1\"")
-
-	// Write the recovered content back to the file
-	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
-	if err != nil {
-		t.Fatal("Error writing recovered file:", err)
 	}
 }
 
@@ -277,47 +194,6 @@ log.Info(fmt.Sprintf("2nd CommitAndStart:%v,%v", batchState.batchNumber, blockNu
 	}
 }
 
-func TestDataLoss_3_Step3_RecoverCode(t *testing.T) {
-	filePath := "../../zk/stages/stage_sequence_execute.go"
-
-	// Read the file contents
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatal("Error reading file for recovery:", err)
-	}
-	content := string(data)
-
-	blockToInsert := `
-// For data loss
-if batchState.batchNumber == 5 {
-	log.Info(fmt.Sprintf("Stop before the 2nd CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))
-	time.Sleep(10 * time.Second)
-	os.Exit(1)
-}
-log.Info(fmt.Sprintf("2nd CommitAndStart:%v,%v", batchState.batchNumber, blockNumber))`
-
-	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
-	updatedContent := blockRegex.ReplaceAllString(content, "\n")
-
-	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
-	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
-
-	importMultiFixRegex := regexp.MustCompile(`import \(\n?"([^"]+)"`)
-	updatedContent = importMultiFixRegex.ReplaceAllString(updatedContent, "import (\n\t\"$1\"")
-
-	importSpacingFixRegex := regexp.MustCompile(`\n"([^"]+)"`)
-	updatedContent = importSpacingFixRegex.ReplaceAllString(updatedContent, "\n\t\"$1\"")
-
-	importSingleFixRegex := regexp.MustCompile(`import \(\s*\n\t?"([^"]+)"\s*\n\)`)
-	updatedContent = importSingleFixRegex.ReplaceAllString(updatedContent, "import \"$1\"")
-
-	// Write the recovered content back to the file
-	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
-	if err != nil {
-		t.Fatal("Error writing recovered file:", err)
-	}
-}
-
 // before the last sdb.tx.Commit (after RemoveMinedTransactions and updateStreamAndCheckRollback)
 // txs are removed from txpool, data is lost in chaindata
 // assuming current block having been written to ds
@@ -373,47 +249,6 @@ log.Info(fmt.Sprintf("last sdb.tx.Commit():%v,%v", batchState.batchNumber, block
 	}
 }
 
-func TestDataLoss_4_Step3_RecoverCode(t *testing.T) {
-	filePath := "../../zk/stages/stage_sequence_execute.go"
-
-	// Read the file contents
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatal("Error reading file for recovery:", err)
-	}
-	content := string(data)
-
-	blockToInsert := `
-// For data loss
-if batchState.batchNumber == 5 {
-	log.Info(fmt.Sprintf("Stop before the last sdb.tx.Commit():%v,%v", batchState.batchNumber, block.Number))
-	time.Sleep(10 * time.Second)
-	os.Exit(1)
-}
-log.Info(fmt.Sprintf("last sdb.tx.Commit():%v,%v", batchState.batchNumber, block.Number))`
-
-	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
-	updatedContent := blockRegex.ReplaceAllString(content, "\n")
-
-	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
-	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
-
-	importMultiFixRegex := regexp.MustCompile(`import \(\n?"([^"]+)"`)
-	updatedContent = importMultiFixRegex.ReplaceAllString(updatedContent, "import (\n\t\"$1\"")
-
-	importSpacingFixRegex := regexp.MustCompile(`\n"([^"]+)"`)
-	updatedContent = importSpacingFixRegex.ReplaceAllString(updatedContent, "\n\t\"$1\"")
-
-	importSingleFixRegex := regexp.MustCompile(`import \(\s*\n\t?"([^"]+)"\s*\n\)`)
-	updatedContent = importSingleFixRegex.ReplaceAllString(updatedContent, "import \"$1\"")
-
-	// Write the recovered content back to the file
-	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
-	if err != nil {
-		t.Fatal("Error writing recovered file:", err)
-	}
-}
-
 // between RemoveMinedTransactions and updateStreamAndCheckRollback
 // txs are removed from txpool, data is not written to datastream yet
 func TestDataLoss_5_Step1_ModifyCode(t *testing.T) {
@@ -464,47 +299,6 @@ log.Info(fmt.Sprintf("updateStreamAndCheckRollback:%v,%v", batchState.batchNumbe
 	err = os.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {
 		t.Fatal("Error writing file:", err)
-	}
-}
-
-func TestDataLoss_5_Step3_RecoverCode(t *testing.T) {
-	filePath := "../../zk/stages/stage_sequence_execute.go"
-
-	// Read the file contents
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatal("Error reading file for recovery:", err)
-	}
-	content := string(data)
-
-	blockToInsert := `
-// For data loss
-if batchState.batchNumber == 5 {
-	log.Info(fmt.Sprintf("Stop before updateStreamAndCheckRollback:%v,%v", batchState.batchNumber, block.Number))
-	time.Sleep(10 * time.Second)
-	os.Exit(1)
-}
-log.Info(fmt.Sprintf("updateStreamAndCheckRollback:%v,%v", batchState.batchNumber, block.Number))`
-
-	blockRegex := regexp.MustCompile(`\n?` + regexp.QuoteMeta(blockToInsert) + `\n?`)
-	updatedContent := blockRegex.ReplaceAllString(content, "\n")
-
-	importRegex := regexp.MustCompile(`\s*"os",?\s*\n?`)
-	updatedContent = importRegex.ReplaceAllString(updatedContent, "")
-
-	importMultiFixRegex := regexp.MustCompile(`import \(\n?"([^"]+)"`)
-	updatedContent = importMultiFixRegex.ReplaceAllString(updatedContent, "import (\n\t\"$1\"")
-
-	importSpacingFixRegex := regexp.MustCompile(`\n"([^"]+)"`)
-	updatedContent = importSpacingFixRegex.ReplaceAllString(updatedContent, "\n\t\"$1\"")
-
-	importSingleFixRegex := regexp.MustCompile(`import \(\s*\n\t?"([^"]+)"\s*\n\)`)
-	updatedContent = importSingleFixRegex.ReplaceAllString(updatedContent, "import \"$1\"")
-
-	// Write the recovered content back to the file
-	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
-	if err != nil {
-		t.Fatal("Error writing recovered file:", err)
 	}
 }
 
