@@ -140,7 +140,7 @@ min-run: build-docker ## Runs a minimal node
 	$(RUN_DOCKER_RPC)
 
 .PHONY: test
-test: test-1 ## Runs all e2e tests
+test: test-1 test-2 ## Runs all e2e tests
 	echo "Tests passed"
 	sleep 3
 
@@ -151,8 +151,8 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 	MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
 
 # Target to add data loss testing logic
-.PHONY: data-loss
-data-loss: run data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5
+.PHONY: test-2
+test-2: run data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5
 
 data-loss-1:
 	# Case 1
