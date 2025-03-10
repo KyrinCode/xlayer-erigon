@@ -308,13 +308,13 @@ func (b *BlockInfoTree) GenerateBlockTxKeysVals(
 	keys = append(keys, key)
 	vals = append(vals, val)
 
-	log.Trace("info-tree-tx-inner",
-		"tx-index", txIndex,
-		"log-index", logIndex,
-		"cumulativeGasUsed", cumulativeGasUsed,
-		"effective-percentage", effectivePercentage,
-		"receipt-status", receipt.Status,
-	)
+	//log.Trace("info-tree-tx-inner",
+	//	"tx-index", txIndex,
+	//	"log-index", logIndex,
+	//	"cumulativeGasUsed", cumulativeGasUsed,
+	//	"effective-percentage", effectivePercentage,
+	//	"receipt-status", receipt.Status,
+	//)
 
 	// now encode the logs
 	for _, rLog := range receipt.Logs {
