@@ -520,7 +520,7 @@ func TestDataLoss_Step2_CheckSeqStop(t *testing.T) {
 		from := common.HexToAddress(operations.DefaultL2AdminAddress)
 		to := common.HexToAddress(operations.DefaultL2NewAcc1Address)
 		nonce, err := client.PendingNonceAt(ctx, from)
-		log.Info(fmt.Sprintf("Nonce: %v", nonce))
+		// log.Info(fmt.Sprintf("Nonce: %v", nonce))
 		require.NoError(t, err)
 		var tx types.Transaction = &types.LegacyTx{
 			CommonTx: types.CommonTx{
@@ -539,6 +539,7 @@ func TestDataLoss_Step2_CheckSeqStop(t *testing.T) {
 		err = client.SendTransaction(ctx, signedTx)
 		require.NoError(t, err)
 		batchNum, err := operations.GetBatchNumber()
+		log.Info(fmt.Sprintf("Cur Batch Number: %v, nonce :%v", batchNum, nonce))
 		require.NoError(t, err)
 		if batchNum == uint64(stopBatch-1) {
 			log.Info(fmt.Sprintf("Cur Batch Number: %v, nonce :%v", batchNum, nonce))
