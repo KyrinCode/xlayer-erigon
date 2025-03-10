@@ -49,7 +49,7 @@ RUN_DOCKER_DS := $(DOCKER_COMPOSE) up -d $(DOCKER_DS)
 RUN_DOCKER_PROMETHEUS := $(DOCKER_COMPOSE) up -d $(DOCKER_PROMETHEUS)
 RUN_DOCKER_GRAFANA := $(DOCKER_COMPOSE) up -d $(DOCKER_GRAFANA)
 
-STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; $(if $(filter runner,$(USER)),sudo chown -R $(USER):$(USER) data/; sudo rm -rf data,rm -rf data)
+STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; rm -rf data
 
 STOP_DOCKER_SEQ := $(DOCKER_COMPOSE) down $(DOCKER_SEQ)
 STOP_DOCKER_RPC := $(DOCKER_COMPOSE) down $(DOCKER_RPC)
@@ -148,7 +148,7 @@ test: test-1 ## Runs all e2e tests
 test-1: stop all ## Runs group 1 e2e tests checking race conditions
 	sleep 3
 	docker ps -a
-	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
+	MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
 
 # Target to add data loss testing logic
 .PHONY: data-loss

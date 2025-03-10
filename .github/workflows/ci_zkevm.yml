@@ -226,7 +226,7 @@ jobs:
         run: make build-docker
 
       - name: Test
-        run: make test-${{ matrix.e2e-group }}
+        run: sudo -E make test-${{ matrix.e2e-group }}
         working-directory: test
 
   test-data-loss:
