@@ -19,7 +19,7 @@ services:
 
   xlayer-seqs:
     container_name: xlayer-seqs
-    image: zjg555543/cdk:v0.5.0
+    image: zjg555543/cdk:v0.4.0-beta10
     volumes:
       - ./data/seqs:/tmp/cdk
       - ./keystore/da.permit.keystore:/pk/da.permit.keystore
@@ -33,7 +33,7 @@ services:
 
   xlayer-agg:
     container_name: xlayer-agg
-    image: zjg555543/cdk:v0.5.0
+    image: zjg555543/cdk:v0.4.0-beta10
     ports:
       - 50081:50081
     volumes:
@@ -350,7 +350,7 @@ services:
     ports:
       - 7900:7900
     volumes:
-      - ./data/ds/:/home/dsrelay/
+      # - ./data/ds/:/home/dsrelay/
       - ./config/ds-config.toml:/app/config.toml
     command:
       - "/bin/sh"
