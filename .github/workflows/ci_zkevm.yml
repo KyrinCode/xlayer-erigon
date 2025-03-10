@@ -241,5 +241,5 @@ jobs:
         run: make build-docker
         
       - name: Test
-        run: make data-loss
+        run: sudo -E make data-loss
         working-directory: test
