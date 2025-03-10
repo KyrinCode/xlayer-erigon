@@ -188,8 +188,8 @@ func (cg *changesGetter) setStorageChangesFromKv(sk, sv []byte) error {
 	stkk := fmt.Sprintf("0x%032x", stk)
 	v := fmt.Sprintf("0x%032x", common.BytesToHash(value))
 
-	m := make(map[string]string)
-	m[stkk] = v
+	//m := make(map[string]string)
+	//m[stkk] = v
 
 	if cg.storageChanges[address] == nil {
 		cg.storageChanges[address] = make(map[string]string)
