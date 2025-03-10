@@ -155,9 +155,9 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 data-loss: data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5
 
 data-loss-1:
-	@# Case 1
-	@# interrupt before doFinishBlockAndUpdateState (before RemoveMinedTransactions)
-	@# txs are still in txpool, data is lost in chaindata and not written to datastream yet
+	# Case 1
+	# interrupt before doFinishBlockAndUpdateState (before RemoveMinedTransactions)
+	# txs are still in txpool, data is lost in chaindata and not written to datastream yet
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_1_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
@@ -170,11 +170,12 @@ data-loss-1:
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
 	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+	make data-recovery
 
 data-loss-2:
-	@# Case 2
-	@# interrupt before 1st CommitAndStart (before RemoveMinedTransactions)
-	@# txs are still in txpool, data is lost in chaindata and not written to datastream yet
+	# Case 2
+	# interrupt before 1st CommitAndStart (before RemoveMinedTransactions)
+	# txs are still in txpool, data is lost in chaindata and not written to datastream yet
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_2_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
@@ -187,12 +188,13 @@ data-loss-2:
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
 	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+	make data-recovery
 
 data-loss-3:
-	@# Case 3
-	@# before 2nd CommitAndStart (after RemoveMinedTransactions and updateStreamAndCheckRollback)
-	@# txs are removed from txpool, data is lost in chaindata
-	@# assuming current block having been written to ds
+	# Case 3
+	# before 2nd CommitAndStart (after RemoveMinedTransactions and updateStreamAndCheckRollback)
+	# txs are removed from txpool, data is lost in chaindata
+	# assuming current block having been written to ds
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_3_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
@@ -205,12 +207,13 @@ data-loss-3:
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
 	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+	make data-recovery
 
 data-loss-4:
-	@# Case 4
-	@# before the last sdb.tx.Commit (after RemoveMinedTransactions and updateStreamAndCheckRollback)
-	@# txs are removed from txpool, data is lost in chaindata
-	@# assuming current block having been written to ds
+	# Case 4
+	# before the last sdb.tx.Commit (after RemoveMinedTransactions and updateStreamAndCheckRollback)
+	# txs are removed from txpool, data is lost in chaindata
+	# assuming current block having been written to ds
 	make stop
 	go test -count=1 -failfast -race -v -p 1 -timeout 10s -run TestDataLoss_4_Step1_ModifyCode ./e2e/data_loss_test.go
 	make run
@@ -223,9 +226,10 @@ data-loss-4:
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
 	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+	make data-recovery
 
 data-loss-5:
-	@# Case 5
+	# Case 5
 	@# between RemoveMinedTransactions and updateStreamAndCheckRollback
 	@# txs are removed from txpool, data is not written to datastream yet
 	make stop
@@ -240,6 +244,18 @@ data-loss-5:
 	sleep 3
 	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
 	docker logs $(DOCKER_SEQ) > data/seq_2.log 2>&1
+	make data-recovery
+
+data-recovery:
+	# replace seq data from rpc
+	$(STOP_DOCKER_SEQ)
+	$(STOP_DOCKER_RPC)
+	rm -rf data/seq/*; cp -r data/rpc/* data/seq/
+	$(RUN_DOCKER_SEQ)
+	sleep 10
+	$(RUN_DOCKER_RPC)
+	sleep 3
+	go test -count=1 -failfast -race -v -p 1 -timeout 300s -run TestDataLoss_Step4_CheckVerify ./e2e/data_loss_test.go
 
 mainnet: build-docker
 	# base services
