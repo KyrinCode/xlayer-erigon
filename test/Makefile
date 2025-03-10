@@ -152,7 +152,7 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 
 # Target to add data loss testing logic
 .PHONY: data-loss
-data-loss: run stop data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5
+data-loss: run data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5
 
 data-loss-1:
 	# Case 1
