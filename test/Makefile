@@ -49,7 +49,7 @@ RUN_DOCKER_DS := $(DOCKER_COMPOSE) up -d $(DOCKER_DS)
 RUN_DOCKER_PROMETHEUS := $(DOCKER_COMPOSE) up -d $(DOCKER_PROMETHEUS)
 RUN_DOCKER_GRAFANA := $(DOCKER_COMPOSE) up -d $(DOCKER_GRAFANA)
 
-STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; echo "Cleaning files..."; ls -l data; stat data; sudo chown -R $(USER):$(USER) data/; ls -l data; stat data; sudo rm -rf data
+STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; $(if $(filter runner,$(USER)),sudo chown -R $(USER):$(USER) data/; sudo rm -rf data,rm -rf data)
 
 STOP_DOCKER_SEQ := $(DOCKER_COMPOSE) down $(DOCKER_SEQ)
 STOP_DOCKER_RPC := $(DOCKER_COMPOSE) down $(DOCKER_RPC)
