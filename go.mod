@@ -332,3 +332,5 @@ require (
 )
 
 replace github.com/anacrolix/torrent => github.com/erigontech/torrent v1.54.2-alpha-8
+
+replace github.com/erigontech/mdbx-go => github.com/fatcat22/mdbx-go yz_v0.27.24
