@@ -83,6 +83,7 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 		insertingNodeValue := nodeValues[i]
 		insertingNodeValueHash := nodeValuesHashes[i]
 		insertingNodePath := insertingNodeKey.GetPath()
+		fmt.Printf("rootNodeHash inside: %v\n", rootNodeHash)
 		insertingNodePathLevel, insertingPointerToSmtBatchNode, visitedNodeHashes, err := s.findInsertingPoint(insertingNodePath, rootNodeHash, &smtBatchNodeRoot, insertingNodeValue.IsZero())
 		if err != nil {
 			return nil, err
