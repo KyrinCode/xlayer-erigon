@@ -1092,10 +1092,12 @@ func (tx *MdbxTx) Commit() error {
 	//}
 	tx.CollectMetrics()
 
+	now := time.Now()
 	latency, err := tx.tx.Commit()
 	if err != nil {
 		return fmt.Errorf("label: %s, %w", tx.db.opts.label, err)
 	}
+	log.Info("yangzhe: MdbxTx.Commit latency", "latency", latency, "tx.Commit cost", time.Since(now))
 
 	if tx.db.opts.label == kv.ChainDB {
 		kv.DbCommitPreparation.Observe(latency.Preparation.Seconds())

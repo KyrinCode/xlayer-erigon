@@ -2,6 +2,7 @@ package stages
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon/core/state"
@@ -44,6 +45,7 @@ func (sdb *stageDb) SetTx(tx kv.RwTx) {
 }
 
 func (sdb *stageDb) CommitAndStart() (err error) {
+	fmt.Println("yangzhe: CommitAndStart")
 	if err = sdb.tx.Commit(); err != nil {
 		return err
 	}

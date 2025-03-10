@@ -754,6 +754,7 @@ func sequencingBatchStep(
 		}
 
 		if !batchState.isL1Recovery() {
+			log.Info("yangzhe: before call CommitAndStart at 757")
 			commitTime := time.Now()
 			// commit block data here so it is accessible in other threads
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
@@ -818,6 +819,7 @@ func sequencingBatchStep(
 		// we're in L1 recovery where losing some blocks on restart doesn't matter
 
 		if !batchState.isL1Recovery() {
+			log.Info("yangzhe: before call CommitAndStart at 822")
 			commitTime := time.Now()
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
 				return errCommitAndStart
