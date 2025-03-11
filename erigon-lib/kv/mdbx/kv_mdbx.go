@@ -236,9 +236,9 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 		opts = opts.WriteMap() //nolint
 	}
 	if dbg.NoMemInit() {
-		if dbg.WriteMap() {
-			return nil, errors.New("can't use WriteMap and NoMemInit together")
-		}
+		//if dbg.WriteMap() {
+		//	return nil, errors.New("can't use WriteMap and NoMemInit together")
+		//}
 		opts.flags |= mdbx.NoMemInit
 	}
 	if dbg.LifoReclaim() {
