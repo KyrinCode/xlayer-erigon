@@ -331,4 +331,4 @@ require (
 
 replace github.com/anacrolix/torrent => github.com/erigontech/torrent v1.54.2-alpha-8
 
-replace github.com/erigontech/mdbx-go => github.com/fatcat22/mdbx-go v0.35.2-0.20250310115834-58e3ba2cfa5c
+replace github.com/erigontech/mdbx-go => github.com/fatcat22/mdbx-go v0.35.2-0.20250311020226-a70edf22ec5e
