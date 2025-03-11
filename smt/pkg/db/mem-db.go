@@ -107,13 +107,15 @@ func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	}
 
 	dbVal := m.Db[k]
-	for i := 0; i < 8; i++ {
-		strVal := utils.ConvertHexToBigInt(dbVal[i])
-		values.Value[i] = strVal.Uint64()
-	}
-	strVal8 := utils.ConvertHexToBigInt(dbVal[8])
-	if strVal8.Uint64() == 1 {
-		values.Flag = byte(1)
+	if len(dbVal) >= 9 {
+		for i := 0; i < 8; i++ {
+			strVal := utils.ConvertHexToBigInt(dbVal[i])
+			values.Value[i] = strVal.Uint64()
+		}
+		strVal8 := utils.ConvertHexToBigInt(dbVal[8])
+		if strVal8.Uint64() == 1 {
+			values.Flag = byte(1)
+		}
 	}
 
 	return values, nil

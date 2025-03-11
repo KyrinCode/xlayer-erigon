@@ -450,9 +450,8 @@ func BigIntArrayFromNodeValue8(nv *NodeValue8) []*big.Int {
 // TODO [cliff]: we can remove this
 func BigIntArrayFromNodeValue8Raw(nv [8]uint64) []*big.Int {
 	arr := make([]*big.Int, 8)
-
 	for i := 0; i < 8; i++ {
-		arr[i] = arr[i].SetUint64(nv[i])
+		arr[i] = big.NewInt(0).SetUint64(nv[i])
 	}
 
 	return arr
