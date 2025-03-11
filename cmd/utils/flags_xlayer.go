@@ -228,7 +228,7 @@ var (
 	// Executor
 	ExecutorMock = cli.BoolFlag{
 		Name:  "zkevm.executor-mock",
-		Usage: "Only for fake mainnet testing use. Generate the witness and return the verifierBundle without actually sending payload to executor.",
+		Usage: "Only for testing use. Generate the witness and return the verifierBundle without actually sending payload to executor.",
 		Value: false,
 	}
 )

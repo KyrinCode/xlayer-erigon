@@ -166,7 +166,7 @@ func (v *LegacyExecutorVerifier) StartAsyncVerification(
 	if useRemoteExecutor {
 		promise = v.VerifyAsync(request)
 	} else if useMockExecutor {
-		log.Warn(fmt.Sprintf("[%s] Only for fake mainnet testing use. Generate the witness and return the verifierBundle without actually sending payload to executor.", logPrefix))
+		log.Warn(fmt.Sprintf("[%s] Only for testing use. Generate the witness and return the verifierBundle without actually sending payload to executor.", logPrefix))
 		promise = v.VerifyWithMockExecutor(request)
 	} else {
 		promise = v.VerifyWithoutExecutor(request)
