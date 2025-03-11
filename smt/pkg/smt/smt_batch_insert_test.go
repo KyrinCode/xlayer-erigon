@@ -15,6 +15,113 @@ import (
 	"gotest.tools/v3/assert"
 )
 
+func TestBatchInsertEmptyTree(t *testing.T) {
+	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	tx, _ := dbi.BeginRw(context.Background())
+	database := db.NewEriDb(tx)
+	err := db.CreateEriDbBuckets(tx)
+	assert.NilError(t, err)
+
+	keysRaw := []*big.Int{
+		big.NewInt(8),
+		big.NewInt(1),
+		big.NewInt(31),
+	}
+	valuesRaw := []*big.Int{
+		big.NewInt(18),
+		big.NewInt(19),
+		big.NewInt(20),
+	}
+
+	keyPointers := []*utils.NodeKey{}
+	valuePointers := []*utils.NodeValue8{}
+
+	smtBatch := smt.NewSMT(database, false)
+
+	for i := range keysRaw {
+		k := utils.ScalarToNodeKey(keysRaw[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers = append(keyPointers, &k)
+		valuePointers = append(valuePointers, v)
+
+	}
+	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	_, err = smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	assert.NilError(t, err)
+	smtRoot, _ := smtBatch.Db.GetLastRoot()
+	fmt.Printf("root is: %s \n", utils.ConvertBigIntToHex(smtRoot))
+	assert.Equal(t, utils.ConvertBigIntToHex(smtRoot), "0xcde0f53a0e2e3e6e7a232442c5f01d6910552f9bae25b75a7dda346536f03c80")
+}
+
+func TestBatchInsertNoneEmptyTree(t *testing.T) {
+	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	tx, _ := dbi.BeginRw(context.Background())
+	database := db.NewEriDb(tx)
+	err := db.CreateEriDbBuckets(tx)
+	assert.NilError(t, err)
+
+	keysRaw := []*big.Int{
+		big.NewInt(8),
+		big.NewInt(1),
+		big.NewInt(31),
+	}
+	valuesRaw := []*big.Int{
+		big.NewInt(18),
+		big.NewInt(19),
+		big.NewInt(20),
+	}
+
+	keyPointers := []*utils.NodeKey{}
+	valuePointers := []*utils.NodeValue8{}
+
+	smtBatch := smt.NewSMT(database, false)
+
+	for i := range keysRaw {
+		k := utils.ScalarToNodeKey(keysRaw[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers = append(keyPointers, &k)
+		valuePointers = append(valuePointers, v)
+
+	}
+	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	_, err = smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	assert.NilError(t, err)
+	smtRoot, _ := smtBatch.Db.GetLastRoot()
+	fmt.Printf("root is: %s \n", utils.ConvertBigIntToHex(smtRoot))
+	assert.Equal(t, utils.ConvertBigIntToHex(smtRoot), "0xcde0f53a0e2e3e6e7a232442c5f01d6910552f9bae25b75a7dda346536f03c80")
+
+	keysRaw2 := []*big.Int{
+		big.NewInt(2),
+		big.NewInt(1),
+	}
+	valuesRaw2 := []*big.Int{
+		big.NewInt(21),
+		big.NewInt(0),
+	}
+	keyPointers2 := []*utils.NodeKey{}
+	valuePointers2 := []*utils.NodeValue8{}
+
+	for i := range keysRaw2 {
+		k := utils.ScalarToNodeKey(keysRaw2[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw2[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers2 = append(keyPointers2, &k)
+		valuePointers2 = append(valuePointers2, v)
+
+	}
+	_, err = smtBatch.InsertBatch(insertBatchCfg, keyPointers2, valuePointers2, nil, nil)
+	assert.NilError(t, err)
+	smtRoot2, _ := smtBatch.Db.GetLastRoot()
+	fmt.Printf("root is: %s \n", utils.ConvertBigIntToHex(smtRoot2))
+	assert.Equal(t, utils.ConvertBigIntToHex(smtRoot2), "0xddf60f1805f940c8b6e6dbec357a89ab8ef82378ad46d86e8a62792564f6f4f1")
+
+}
+
 func TestBatchSimpleInsert(t *testing.T) {
 
 	keysRaw := []*big.Int{

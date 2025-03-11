@@ -12,23 +12,26 @@ import (
 func TestMemDb(t *testing.T) {
 	db := NewMemDb()
 
-	// The key and value we're going to test
-	key := utils.NodeKey{0, 2, 3, 4}
-	value := utils.NodeValue12Raw{
-		Value: utils.NodeValue8Raw{
-			1, 2, 3, 4, 5, 6, 7, 8,
-		},
-		Flag: byte(1),
+	for i := 0; i < 10; i++ {
+		key := utils.NodeKey{randomUint64(), randomUint64(), randomUint64(), randomUint64()}
+		nodeValue := utils.NodeValue8Raw{randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64()}
+		val := utils.NodeValue12Raw{
+			Value: nodeValue,
+			Flag:  byte(i % 2),
+		}
+		err := db.Insert(key, val)
+		assert.NoError(t, err)
+		retrievedValue, err := db.Get(key)
+		assert.NoError(t, err)
+		assert.Equal(t, val, retrievedValue)
+
+		err = db.InsertAccountValue(key, nodeValue)
+		assert.NoError(t, err)
+		retrievedAcctVal, err := db.GetAccountValue(key)
+		assert.NoError(t, err)
+		assert.Equal(t, nodeValue, retrievedAcctVal)
 	}
 
-	// Testing Insert method
-	err := db.Insert(key, value)
-	assert.NoError(t, err)
-
-	// Testing Get method
-	retrievedValue, err := db.Get(key)
-	assert.NoError(t, err)
-	assert.Equal(t, value, retrievedValue)
 }
 
 func BenchmarkMemDb_Insert(b *testing.B) {

@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"math/big"
 	"testing"
 
@@ -9,6 +11,12 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
+
+func randomUint64() uint64 {
+	var num uint64
+	binary.Read(rand.Reader, binary.LittleEndian, &num)
+	return num
+}
 
 func TestEriDb(t *testing.T) {
 	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
@@ -19,8 +27,8 @@ func TestEriDb(t *testing.T) {
 
 	// Rest of your test code remains the same
 	for i := 0; i < 10; i++ {
-		key := utils.NodeKey{uint64(i), uint64(i), uint64(i), uint64(i)}
-		nodeValue := utils.NodeValue8Raw{uint64(i), uint64(i), uint64(i), uint64(i), uint64(i), uint64(i), uint64(i), uint64(i)}
+		key := utils.NodeKey{randomUint64(), randomUint64(), randomUint64(), randomUint64()}
+		nodeValue := utils.NodeValue8Raw{randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64(), randomUint64()}
 		val := utils.NodeValue12Raw{
 			Value: nodeValue,
 			Flag:  byte(i % 2),
@@ -30,6 +38,12 @@ func TestEriDb(t *testing.T) {
 		retrievedValue, err := db.Get(key)
 		assert.NoError(t, err)
 		assert.Equal(t, val, retrievedValue)
+
+		err = db.InsertAccountValue(key, nodeValue)
+		assert.NoError(t, err)
+		retrievedAcctVal, err := db.GetAccountValue(key)
+		assert.NoError(t, err)
+		assert.Equal(t, nodeValue, retrievedAcctVal)
 	}
 
 	// Commit the transaction
