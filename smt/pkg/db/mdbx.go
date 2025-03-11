@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"unsafe"
 
 	"fmt"
 	"strings"
@@ -199,7 +200,7 @@ func (m *EriDb) Delete(key string) error {
 func (m *EriDb) DeleteByNodeKey(key utils.NodeKey) error {
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
-	return m.tx.Delete(TableSmt, []byte(k))
+	return m.tx.Delete(TableSmt, unsafe.Slice(unsafe.StringData(k), len(k)))
 }
 
 func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
