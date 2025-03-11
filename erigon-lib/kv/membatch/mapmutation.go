@@ -296,7 +296,8 @@ func (m *Mapmutation) Flush(ctx context.Context, tx kv.RwTx) error {
 		return err
 	}
 
-	m.puts = map[string]map[string][]byte{}
+	//m.puts = map[string]map[string][]byte{}
+	clear(m.puts)
 	m.size = 0
 	m.count = 0
 	return nil
