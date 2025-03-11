@@ -302,7 +302,7 @@ func (o *OperatorBranch) WriteTo(output *OperatorMarshaller) error {
 	if err := output.WriteOpCode(OpBranch); err != nil {
 		return err
 	}
-
+	// TODO: reuse
 	encoder := codec.NewEncoder(output.WithColumn(ColumnStructure), &cbor)
 	return encoder.Encode(o.Mask)
 }
