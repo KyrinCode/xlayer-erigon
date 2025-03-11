@@ -52,7 +52,7 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 		smtBatchNodeRoot          *smtBatchNode
 		nodeHashesForDelete       = make(map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey)
 	)
-
+	fmt.Printf("before process size: %d \n", len(nodeKeys))
 	//BE CAREFUL: modifies the arrays
 	if err := s.preprocessBatchedNodeValues(
 		cfg.logPrefix,
@@ -70,7 +70,7 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 
 	progressChan, stopProgressPrinter := getProgressPrinterPre(cfg.logPrefix, "process", uint64(size), cfg.shouldPrintProgress)
 	defer stopProgressPrinter()
-
+	fmt.Printf("size: %d \n", size)
 	for i := 0; i < size; i++ {
 		select {
 		case <-cfg.ctx.Done():
@@ -83,7 +83,7 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 		insertingNodeValue := nodeValues[i]
 		insertingNodeValueHash := nodeValuesHashes[i]
 		insertingNodePath := insertingNodeKey.GetPath()
-		fmt.Printf("rootNodeHash inside: %v\n", rootNodeHash)
+
 		insertingNodePathLevel, insertingPointerToSmtBatchNode, visitedNodeHashes, err := s.findInsertingPoint(insertingNodePath, rootNodeHash, &smtBatchNodeRoot, insertingNodeValue.IsZero())
 		if err != nil {
 			return nil, err
@@ -121,6 +121,9 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 				if insertingPointerToSmtBatchNode, err = (*insertingPointerToSmtBatchNode).createALeafInEmptyDirection(insertingNodePath, insertingNodePathLevel, insertingNodeKey); err != nil {
 					return nil, err
 				}
+				insertingPointerToSmtBatchNodeStr := fmt.Sprintf("Pointer: %p", insertingPointerToSmtBatchNode)
+				ptrStr := fmt.Sprintf("Pointer: %p", *insertingPointerToSmtBatchNode)
+				fmt.Printf("a :%s, b: %s", insertingPointerToSmtBatchNodeStr, ptrStr)
 				// EXPLAIN THE LINE BELOW: there is no need to update insertingRemainingKey because it is not needed anymore therefore its value is incorrect if used after this line
 				// insertingRemainingKey = *((*insertingPointerToSmtBatchNode).nodeLeftKeyOrRemainingKey)
 				insertingNodePathLevel++
@@ -444,6 +447,9 @@ func (s *SMT) findInsertingPoint(
 	visitedNodeHashes []*utils.NodeKey,
 	err error,
 ) {
+	insertingPointerToSmtBatchNodeStr := fmt.Sprintf("Pointer: %p", insertingPointerToSmtBatchNode)
+	ptrStr := fmt.Sprintf("Pointer: %p", *insertingPointerToSmtBatchNode)
+	fmt.Printf("findInsertingPoint insertingPointerToSmtBatchNode: %s, ptr: %s, batchNodeVal: %v \n", insertingPointerToSmtBatchNodeStr, ptrStr, *insertingPointerToSmtBatchNode)
 	insertingNodePathLevel = -1
 	visitedNodeHashes = make([]*utils.NodeKey, 0, 256)
 
@@ -453,7 +459,11 @@ func (s *SMT) findInsertingPoint(
 	)
 
 	for {
+		insertingPointerToSmtBatchNodeStr = fmt.Sprintf("Pointer: %p", insertingPointerToSmtBatchNode)
+		ptrStr = fmt.Sprintf("Pointer: %p", *insertingPointerToSmtBatchNode)
+		fmt.Printf("findInsertingPoint within loop insertingPointerToSmtBatchNode: %p \n", *insertingPointerToSmtBatchNode)
 		if (*insertingPointerToSmtBatchNode) == nil { // update in-memory structure from db
+			fmt.Println("insertingPointerToSmtBatchNode is null")
 			if !insertingPointerNodeHash.IsZero() {
 				*insertingPointerToSmtBatchNode, err = s.fetchNodeDataFromDb(insertingPointerNodeHash, insertingPointerToSmtBatchNodeParent)
 				if err != nil {
@@ -468,6 +478,7 @@ func (s *SMT) findInsertingPoint(
 		}
 
 		if (*insertingPointerToSmtBatchNode) == nil {
+			fmt.Println("insertingPointerToSmtBatchNode is null")
 			if insertingNodePathLevel != -1 {
 				return -2, insertingPointerToSmtBatchNode, visitedNodeHashes, fmt.Errorf("working smt pointer is nil at non-root level")
 			}

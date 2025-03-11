@@ -16,7 +16,6 @@ import (
 func TestBatchSimpleInsert(t *testing.T) {
 	keysRaw := []*big.Int{
 		big.NewInt(8),
-		big.NewInt(8),
 		big.NewInt(1),
 		big.NewInt(31),
 		// big.NewInt(31),
@@ -24,7 +23,6 @@ func TestBatchSimpleInsert(t *testing.T) {
 		// big.NewInt(8),
 	}
 	valuesRaw := []*big.Int{
-		big.NewInt(17),
 		big.NewInt(18),
 		big.NewInt(19),
 		big.NewInt(20),
@@ -37,7 +35,7 @@ func TestBatchSimpleInsert(t *testing.T) {
 	valuePointers := []*utils.NodeValue8{}
 
 	smtIncremental := smt.NewSMT(nil, false)
-	// smtBatch := smt.NewSMT(nil, false)
+	smtBatch := smt.NewSMT(nil, false)
 	// smtBatchNoSave := smt.NewSMT(nil, true)
 
 	for i := range keysRaw {
@@ -54,13 +52,16 @@ func TestBatchSimpleInsert(t *testing.T) {
 	// smtIncremental.DumpTree()
 	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
 
-	// _, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
-	// assert.NilError(t, err)
+	_, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	assert.NilError(t, err)
 
 	// _, err = smtBatchNoSave.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
 	// assert.NilError(t, err)
 	fmt.Printf("incremetal tree dump \n")
 	smtIncremental.DumpTree()
+	smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
+	smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
+	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
 	// fmt.Println()
 	// smtBatch.DumpTree()
 	// fmt.Println()
@@ -75,8 +76,68 @@ func TestBatchSimpleInsert(t *testing.T) {
 
 	// assertSmtDbStructure(t, smtBatch, false)
 
-	keyPointers2 := []*utils.NodeKey{}
-	valuePointers2 := []*utils.NodeValue8{}
+	//keyPointers2 := []*utils.NodeKey{}
+	//valuePointers2 := []*utils.NodeValue8{}
+	//keysRaw2 := []*big.Int{
+	//	big.NewInt(2),
+	//	big.NewInt(1),
+	//}
+	//valuesRaw2 := []*big.Int{
+	//	big.NewInt(21),
+	//	big.NewInt(0),
+	//}
+	//for i := range keysRaw2 {
+	//	k := utils.ScalarToNodeKey(keysRaw2[i])
+	//	vArray := utils.ScalarToArrayBig(valuesRaw2[i])
+	//	v, _ := utils.NodeValue8FromBigIntArray(vArray)
+	//
+	//	keyPointers2 = append(keyPointers2, &k)
+	//	valuePointers2 = append(valuePointers2, v)
+	//
+	//	// smtIncremental.InsertKA(k, valuesRaw2[i])
+	//}
+	//
+	//// smtIncremental.DumpTree()
+	//// insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	//// rootHash := smtBatch.LastRoot()
+	//// fmt.Printf("rootHash: %v\n", rootHash)
+	//// nodeKey := utils.ScalarToNodeKey(rootHash)
+	//_, _ = smtIncremental.InsertBatch(insertBatchCfg, keyPointers2, valuePointers2, nil, nil)
+	//fmt.Printf("batch tree dump \n")
+	//smtIncremental.DumpTree()
+	//// assert.Equal(t, smtIncremental.LastRoot(), smtBatch.LastRoot())
+	//
+	//// assert.NilError(t, err)
+}
+
+func TestBatchSimpleInsert2(t *testing.T) {
+	keysRaw := []*big.Int{
+		big.NewInt(8),
+		big.NewInt(1),
+		big.NewInt(31),
+	}
+	valuesRaw := []*big.Int{
+		big.NewInt(18),
+		big.NewInt(19),
+		big.NewInt(20),
+	}
+
+	keyPointers := []*utils.NodeKey{}
+	valuePointers := []*utils.NodeValue8{}
+
+	smtIncremental := smt.NewSMT(nil, false)
+
+	for i := range keysRaw {
+		k := utils.ScalarToNodeKey(keysRaw[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers = append(keyPointers, &k)
+		valuePointers = append(valuePointers, v)
+
+		smtIncremental.InsertKA(k, valuesRaw[i])
+	}
+
 	keysRaw2 := []*big.Int{
 		big.NewInt(2),
 		big.NewInt(1),
@@ -85,6 +146,9 @@ func TestBatchSimpleInsert(t *testing.T) {
 		big.NewInt(21),
 		big.NewInt(0),
 	}
+
+	keyPointers2 := []*utils.NodeKey{}
+	valuePointers2 := []*utils.NodeValue8{}
 	for i := range keysRaw2 {
 		k := utils.ScalarToNodeKey(keysRaw2[i])
 		vArray := utils.ScalarToArrayBig(valuesRaw2[i])
@@ -92,21 +156,100 @@ func TestBatchSimpleInsert(t *testing.T) {
 
 		keyPointers2 = append(keyPointers2, &k)
 		valuePointers2 = append(valuePointers2, v)
-
-		// smtIncremental.InsertKA(k, valuesRaw2[i])
 	}
 
 	// smtIncremental.DumpTree()
-	// insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
-	// rootHash := smtBatch.LastRoot()
-	// fmt.Printf("rootHash: %v\n", rootHash)
-	// nodeKey := utils.ScalarToNodeKey(rootHash)
-	_, _ = smtIncremental.InsertBatch(insertBatchCfg, keyPointers2, valuePointers2, nil, nil)
-	fmt.Printf("batch tree dump \n")
-	smtIncremental.DumpTree()
-	// assert.Equal(t, smtIncremental.LastRoot(), smtBatch.LastRoot())
+	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	smtIncremental.InsertBatch(insertBatchCfg, keyPointers2, valuePointers2, nil, nil)
+}
 
-	// assert.NilError(t, err)
+func TestBatchSimpleInsertRandom(t *testing.T) {
+	smtIncremental := smt.NewSMT(nil, false)
+	smtBatch := smt.NewSMT(nil, false)
+	keysRaw0 := []*big.Int{
+		big.NewInt(8),
+		big.NewInt(8),
+		big.NewInt(1),
+		big.NewInt(31),
+		// big.NewInt(31),
+		// big.NewInt(0),
+		big.NewInt(2),
+	}
+	valuesRaw0 := []*big.Int{
+		big.NewInt(17),
+		big.NewInt(18),
+		big.NewInt(19),
+		big.NewInt(20),
+		// big.NewInt(0),
+		// big.NewInt(0),
+		big.NewInt(0),
+	}
+
+	keyPointers0 := []*utils.NodeKey{}
+	valuePointers0 := []*utils.NodeValue8{}
+
+	for i := range keysRaw0 {
+		k := utils.ScalarToNodeKey(keysRaw0[i])
+		vArray := utils.ScalarToArrayBig(valuesRaw0[i])
+		v, _ := utils.NodeValue8FromBigIntArray(vArray)
+
+		keyPointers0 = append(keyPointers0, &k)
+		valuePointers0 = append(valuePointers0, v)
+
+		smtIncremental.InsertKA(k, valuesRaw0[i])
+	}
+
+	// smtIncremental.DumpTree()
+	insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+
+	_, err := smtBatch.InsertBatch(insertBatchCfg, keyPointers0, valuePointers0, nil, nil)
+	assert.NilError(t, err)
+
+	//num := 100
+	//
+	//keysRaw := make([]*big.Int, num)
+	//valuesRaw := make([]*big.Int, num)
+	//for i := 0; i < num; i++ {
+	//	if (i+1)%5 == 0 {
+	//
+	//		keysRaw[i-1] = big.NewInt(0)
+	//		valuesRaw[i-1] = big.NewInt(0)
+	//	} else {
+	//		keysRaw[i] = big.NewInt(0).SetUint64(rand.Uint64())
+	//		valuesRaw[i] = big.NewInt(0).SetUint64(rand.Uint64())
+	//	}
+	//
+	//}
+	//
+	//keyPointers := []*utils.NodeKey{}
+	//valuePointers := []*utils.NodeValue8{}
+	//
+	//// smtBatchNoSave := smt.NewSMT(nil, true)
+	//
+	//for i := range keysRaw {
+	//	k := utils.ScalarToNodeKey(keysRaw[i])
+	//	vArray := utils.ScalarToArrayBig(valuesRaw[i])
+	//	v, _ := utils.NodeValue8FromBigIntArray(vArray)
+	//
+	//	keyPointers = append(keyPointers, &k)
+	//	valuePointers = append(valuePointers, v)
+	//
+	//	smtIncremental.InsertKA(k, valuesRaw[i])
+	//}
+	//
+	//// smtIncremental.DumpTree()
+	////insertBatchCfg := smt.NewInsertBatchConfig(context.Background(), "", false)
+	//
+	//_, err = smtBatch.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	//assert.NilError(t, err)
+	//
+	//// _, err = smtBatchNoSave.InsertBatch(insertBatchCfg, keyPointers, valuePointers, nil, nil)
+	//// assert.NilError(t, err)
+	//fmt.Printf("incremetal tree dump \n")
+	//smtIncremental.DumpTree()
+	smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
+	smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
+	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
 }
 
 func TestBatchRawInsert(t *testing.T) {
@@ -250,7 +393,7 @@ func BenchmarkBatchInsertNoSave(b *testing.B) {
 	}
 }
 
-func TestBatchSimpleInsert2(t *testing.T) {
+func TestBatchSimpleInsert3(t *testing.T) {
 	keys := []*big.Int{}
 	vals := []*big.Int{}
 	for i := 0; i < 1000; i++ {
