@@ -115,9 +115,9 @@ func sequencingBatchStep(
 	//metrics.AddPoolTxCount(pending, basefee, queued)
 
 	// at this point of time the datastream could not be ahead of the executor
-	//if err = validateIfDatastreamIsAheadOfExecution(s, ctx, cfg); err != nil {
-	//	return err
-	//}
+	if err = validateIfDatastreamIsAheadOfExecution(s, ctx, cfg); err != nil {
+		return err
+	}
 
 	sdb, err := newStageDb(ctx, cfg.db)
 	if err != nil {
