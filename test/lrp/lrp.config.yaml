@@ -1,23 +1,10 @@
-<<<<<<< HEAD
-user:
-gitCommit:
-portDiff:
-fromBatchNumber:
-toBatchNumber:
+user: dumi
+gitCommit: d85086a741
+portDiff: 3
+fromBatchNumber: 170701
+toBatchNumber: 170770
 processCount: 1
-useExternalDatastream:
-srcMainnetDataPath: $HOME/Downloads/mainnet-compact-170700-9510470/seq
-externalDatastreamPath:
+useExternalDatastream: true
+srcMainnetDataPath: $HOME/mainnet-compact-170700-9510470/seq
+externalDatastreamPath: ./external_ds/data-stream
 gitRootPath:
-=======
-user: 
-gitCommit: 
-portDiff: 
-fromBatchNumber: 
-toBatchNumber: 
-processCount: 1
-useExternalDatastream: 
-srcMainnetDataPath: $HOME/Downloads/mainnet-compact-170700-9510470/seq
-externalDatastreamPath:
-gitRootPath:
->>>>>>> kyrin/lrp
