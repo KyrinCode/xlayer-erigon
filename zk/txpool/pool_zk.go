@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/holiman/uint256"
@@ -174,9 +176,14 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 	}
 }
 
+var (
+	removeWG sync.WaitGroup
+)
+
 // zk: the implementation of best here is changed only to not take into account block gas limits as we don't care about
 // these in zk.  Instead we do a quick check on the transaction maximum gas in zk
 func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, error) {
+	removeWG.Wait()
 	ok, count, toRemove, err := p.bestRead(n, txs, tx, onTopOf, availableGas, availableBlobGas, toSkip)
 	if err != nil {
 		return ok, count, err
@@ -184,16 +191,20 @@ func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableG
 	if !ok {
 		return false, count, nil
 	}
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	txs.Resize(uint(count))
 	if len(toRemove) > 0 {
-		for _, mt := range toRemove {
-			p.pending.Remove(mt)
-			p.discardLocked(mt, UnsupportedTx)
-			//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
-		}
+		removeWG.Add(1)
+		go func() {
+			p.lock.Lock()
+			defer p.lock.Unlock()
+			removeWG.Done()
+			for _, mt := range toRemove {
+				p.pending.Remove(mt)
+				p.discardLocked(mt, UnsupportedTx)
+				//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
+			}
+		}()
+		time.Sleep(1 * time.Nanosecond)
 	}
 
 	return true, count, nil
