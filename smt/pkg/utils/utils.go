@@ -10,9 +10,9 @@ import (
 
 	"sort"
 
-	poseidon "github.com/okx/poseidongold/go"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/length"
+	poseidon "github.com/okx/poseidongold/go"
 )
 
 const (
@@ -29,6 +29,11 @@ const (
 type NodeValue8 [8]*big.Int
 type NodeValue12 [12]*big.Int
 type NodeKey [4]uint64
+
+type NodeInfo struct {
+	Key    *NodeKey
+	IsLeaf bool
+}
 
 type NodeType int
 

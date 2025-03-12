@@ -50,7 +50,7 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 		maxInsertingNodePathLevel = 0
 		size                      = len(nodeKeys)
 		smtBatchNodeRoot          *smtBatchNode
-		nodeHashesForDelete       = make(map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey)
+		nodeHashesForDelete       = make(map[uint64]map[uint64]map[uint64]map[uint64]utils.NodeInfo)
 	)
 
 	//BE CAREFUL: modifies the arrays
@@ -255,7 +255,7 @@ func (s *SMT) preprocessBatchedNodeValues(
 
 func (s *SMT) deleteBatchedNodeValues(
 	logPrefix string,
-	nodeHashesForDelete map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey,
+	nodeHashesForDelete map[uint64]map[uint64]map[uint64]map[uint64]utils.NodeInfo,
 ) error {
 	progressChanDel, stopProgressPrinterDel := getProgressPrinterPre(logPrefix, "deletes", uint64(len(nodeHashesForDelete)), false)
 	defer stopProgressPrinterDel()
@@ -267,16 +267,20 @@ func (s *SMT) deleteBatchedNodeValues(
 				for _, nodeHash := range mapLevel2 {
 					metrics.GetLogStatistics().CumulativeValue(metrics.ZKHashSMTDeleteByNodeKey, 1)
 					start := time.Now()
-					if err := s.Db.DeleteByNodeKey(*nodeHash); err != nil {
+					if err := s.Db.DeleteByNodeKey(*nodeHash.Key); err != nil {
 						return fmt.Errorf("DeleteByNodeKey: %w", err)
 					}
 					metrics.GetLogStatistics().CumulativeMicroTiming(metrics.ZKHashSMTDeleteByNodeKeyTiming, time.Since(start))
 					metrics.GetLogStatistics().CumulativeValue(metrics.ZKHashSMTDeleteHashKey, 1)
-					start = time.Now()
-					if err := s.Db.DeleteHashKey(*nodeHash); err != nil {
-						return fmt.Errorf("DeleteHashKey: %w", err)
+
+					if nodeHash.IsLeaf {
+						start = time.Now()
+						if err := s.Db.DeleteHashKey(*nodeHash.Key); err != nil {
+							return fmt.Errorf("DeleteHashKey: %w", err)
+						}
+						metrics.GetLogStatistics().CumulativeMicroTiming(metrics.ZKHashSMTDeleteHashKeyTiming, time.Since(start))
 					}
-					metrics.GetLogStatistics().CumulativeMicroTiming(metrics.ZKHashSMTDeleteHashKeyTiming, time.Since(start))
+
 				}
 			}
 		}
@@ -343,7 +347,7 @@ func removeDuplicateEntriesByKeys(
 	resultNodeValuesHashes := make([]*[4]uint64, 0, size)
 
 	for i, nodeKey := range *nodeKeys {
-		setNodeKeyMapValue(storage, nodeKey, i)
+		setNodeKeyMapValue(storage, utils.NodeInfo{Key: nodeKey, IsLeaf: true}, i)
 	}
 
 	for i, nodeKey := range *nodeKeys {
@@ -440,11 +444,11 @@ func (s *SMT) findInsertingPoint(
 ) (
 	insertingNodePathLevel int,
 	nextInsertingPointerToSmtBatchNode **smtBatchNode,
-	visitedNodeHashes []*utils.NodeKey,
+	visitedNodeHashes []utils.NodeInfo,
 	err error,
 ) {
 	insertingNodePathLevel = -1
-	visitedNodeHashes = make([]*utils.NodeKey, 0, 256)
+	visitedNodeHashes = make([]utils.NodeInfo, 0, 256)
 
 	var (
 		insertingPointerToSmtBatchNodeParent *smtBatchNode
@@ -458,7 +462,7 @@ func (s *SMT) findInsertingPoint(
 				if err != nil {
 					return -2, insertingPointerToSmtBatchNode, visitedNodeHashes, err
 				}
-				visitedNodeHashes = append(visitedNodeHashes, insertingPointerNodeHash)
+				visitedNodeHashes = append(visitedNodeHashes, utils.NodeInfo{Key: insertingPointerNodeHash, IsLeaf: (*insertingPointerToSmtBatchNode).isLeaf()})
 			} else {
 				if insertingNodePathLevel != -1 {
 					return -2, insertingPointerToSmtBatchNode, visitedNodeHashes, fmt.Errorf("nodekey is zero at non-root level")
@@ -486,14 +490,20 @@ func (s *SMT) findInsertingPoint(
 				if err != nil {
 					return -2, insertingPointerToSmtBatchNode, visitedNodeHashes, err
 				}
-				visitedNodeHashes = append(visitedNodeHashes, (*insertingPointerToSmtBatchNode).nodeLeftHashOrRemainingKey)
+				if (*insertingPointerToSmtBatchNode).leftNode != nil {
+					visitedNodeHashes = append(visitedNodeHashes, utils.NodeInfo{Key: (*insertingPointerToSmtBatchNode).nodeLeftHashOrRemainingKey, IsLeaf: (*insertingPointerToSmtBatchNode).leftNode.isLeaf()})
+				}
+
 			}
 			if (*insertingPointerToSmtBatchNode).rightNode == nil {
 				(*insertingPointerToSmtBatchNode).rightNode, err = s.fetchNodeDataFromDb((*insertingPointerToSmtBatchNode).nodeRightHashOrValueHash, (*insertingPointerToSmtBatchNode))
 				if err != nil {
 					return -2, insertingPointerToSmtBatchNode, visitedNodeHashes, err
 				}
-				visitedNodeHashes = append(visitedNodeHashes, (*insertingPointerToSmtBatchNode).nodeRightHashOrValueHash)
+				if (*insertingPointerToSmtBatchNode).rightNode != nil {
+					visitedNodeHashes = append(visitedNodeHashes, utils.NodeInfo{Key: (*insertingPointerToSmtBatchNode).nodeRightHashOrValueHash, IsLeaf: (*insertingPointerToSmtBatchNode).rightNode.isLeaf()})
+				}
+
 			}
 		}
 
@@ -513,11 +523,11 @@ func (s *SMT) findInsertingPoint(
 }
 
 func updateNodeHashesForDelete(
-	nodeHashesForDelete map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey,
-	visitedNodeHashes []*utils.NodeKey,
+	nodeHashesForDelete map[uint64]map[uint64]map[uint64]map[uint64]utils.NodeInfo,
+	visitedNodeHashes []utils.NodeInfo,
 ) {
 	for _, visitedNodeHash := range visitedNodeHashes {
-		if visitedNodeHash == nil {
+		if visitedNodeHash.Key == nil {
 			continue
 		}
 
@@ -598,6 +608,7 @@ func newSmtBatchNodeLeaf(
 
 func (s *SMT) fetchNodeDataFromDb(nodeHash *utils.NodeKey, parentNode *smtBatchNode) (*smtBatchNode, error) {
 	if nodeHash.IsZero() {
+		fmt.Println("root is zero")
 		return nil, nil
 	}
 	metrics.GetLogStatistics().CumulativeValue(metrics.ZKHashSMTGetKey, 1)
@@ -777,30 +788,30 @@ func (sdh *smtDfsHelper) startConsumersLoop(s *SMT) error {
 	}
 }
 
-func setNodeKeyMapValue[T int | *utils.NodeKey](
+func setNodeKeyMapValue[T int | utils.NodeInfo](
 	nodeKeyMap map[uint64]map[uint64]map[uint64]map[uint64]T,
-	nodeKey *utils.NodeKey,
+	nodeKey utils.NodeInfo,
 	value T,
 ) {
-	mapLevel0, found := nodeKeyMap[nodeKey[0]]
+	mapLevel0, found := nodeKeyMap[nodeKey.Key[0]]
 	if !found {
 		mapLevel0 = make(map[uint64]map[uint64]map[uint64]T)
-		nodeKeyMap[nodeKey[0]] = mapLevel0
+		nodeKeyMap[nodeKey.Key[0]] = mapLevel0
 	}
 
-	mapLevel1, found := mapLevel0[nodeKey[1]]
+	mapLevel1, found := mapLevel0[nodeKey.Key[1]]
 	if !found {
 		mapLevel1 = make(map[uint64]map[uint64]T)
-		mapLevel0[nodeKey[1]] = mapLevel1
+		mapLevel0[nodeKey.Key[1]] = mapLevel1
 	}
 
-	mapLevel2, found := mapLevel1[nodeKey[2]]
+	mapLevel2, found := mapLevel1[nodeKey.Key[2]]
 	if !found {
 		mapLevel2 = make(map[uint64]T)
-		mapLevel1[nodeKey[2]] = mapLevel2
+		mapLevel1[nodeKey.Key[2]] = mapLevel2
 	}
 
-	mapLevel2[nodeKey[3]] = value
+	mapLevel2[nodeKey.Key[3]] = value
 }
 
 func getNodeKeyMapValue[T int | *utils.NodeKey](
