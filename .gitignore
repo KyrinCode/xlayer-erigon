@@ -126,3 +126,5 @@ test/*.tar.gz
 
 datadir
 zk/tests/unwinds/datastream/hermez-dynamic-integration8-datastream
+
+cmd/smt-db-split/smt-db-split
