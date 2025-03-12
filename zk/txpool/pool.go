@@ -995,14 +995,13 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 		return nil, err
 	}
 	defer coreTx.Rollback()
-
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	cacheView, err := p._stateCache.View(ctx, coreTx)
 	if err != nil {
 		return nil, err
 	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	if !p.Started() {
 		if err := p.fromDB(ctx, tx, coreTx); err != nil {
@@ -1056,14 +1055,14 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 }
 
 func (p *TxPool) coreDB() kv.RoDB {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	// p.lock.Lock()
+	// defer p.lock.Unlock()
 	return p._chainDB
 }
 
 func (p *TxPool) cache() kvcache.Cache {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	// p.lock.Lock()
+	// defer p.lock.Unlock()
 	return p._stateCache
 }
 
