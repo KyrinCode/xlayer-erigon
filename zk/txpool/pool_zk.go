@@ -177,41 +177,18 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 // zk: the implementation of best here is changed only to not take into account block gas limits as we don't care about
 // these in zk.  Instead we do a quick check on the transaction maximum gas in zk
 func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, error) {
-	ok, count, toRemove, err := p.bestRead(n, txs, tx, onTopOf, availableGas, availableBlobGas, toSkip)
-	if err != nil {
-		return ok, count, err
-	}
-	if !ok {
-		return false, count, nil
-	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	txs.Resize(uint(count))
-	if len(toRemove) > 0 {
-		for _, mt := range toRemove {
-			p.pending.Remove(mt)
-			p.discardLocked(mt, UnsupportedTx)
-			//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
-		}
-	}
-
-	return true, count, nil
-}
-
-func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, []*metaTx, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
-
 	if p.isDeniedYieldingTransactions() {
 		//log.Trace("Denied yielding transactions, cannot proceed")
-		return false, 0, nil, nil
+		return false, 0, nil
 	}
 
 	// First wait for the corresponding block to arrive
 	if p.lastSeenBlock.Load() < onTopOf {
 		//log.Trace("Block not yet arrived, too early to process", "lastSeenBlock", p.lastSeenBlock.Load(), "requiredBlock", onTopOf)
-		return false, 0, nil, nil
+		return false, 0, nil
 	}
 
 	isShanghai := p.isShanghai()
@@ -256,7 +233,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 		rlpTx, sender, isLocal, err := p.getRlpLocked(tx, mt.Tx.IDHash[:])
 		if err != nil {
 			//log.Trace("Error getting RLP of transaction", "txID", mt.Tx.IDHash, "error", err)
-			return false, count, toRemove, err
+			return false, count, err
 		}
 		if len(rlpTx) == 0 {
 			toRemove = append(toRemove, mt)
@@ -295,7 +272,15 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 		count++
 	}
 
-	return true, count, toRemove, nil
+	txs.Resize(uint(count))
+	if len(toRemove) > 0 {
+		for _, mt := range toRemove {
+			p.pending.Remove(mt)
+			p.discardLocked(mt, UnsupportedTx)
+			//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
+		}
+	}
+	return true, count, nil
 }
 
 func (p *TxPool) ForceUpdateLatestBlock(blockNumber uint64) {
