@@ -996,7 +996,7 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 	}
 	defer coreTx.Rollback()
 
-	cacheView, err := p.cache().View(ctx, coreTx)
+	cacheView, err := p._stateCache.View(ctx, coreTx)
 	if err != nil {
 		return nil, err
 	}
