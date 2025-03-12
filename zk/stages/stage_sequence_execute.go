@@ -123,8 +123,7 @@ func sequencingBatchStep(
 	if err != nil {
 		return err
 	}
-	defer sdb.tx.Rollback()
-	defer sdb.txsmt.Rollback()
+	defer sdb.Rollback()
 
 	if err = cfg.infoTreeUpdater.WarmUp(sdb.tx); err != nil {
 		return err
@@ -760,8 +759,7 @@ func sequencingBatchStep(
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
 				return errCommitAndStart
 			}
-			defer sdb.tx.Rollback()
-			defer sdb.txsmt.Rollback()
+			defer sdb.Rollback()
 			metrics.GetLogStatistics().CumulativeTiming(metrics.BatchCommitDBTiming, time.Since(commitTime))
 		}
 
@@ -824,8 +822,7 @@ func sequencingBatchStep(
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
 				return errCommitAndStart
 			}
-			defer sdb.tx.Rollback()
-			defer sdb.txsmt.Rollback()
+			defer sdb.Rollback()
 			metrics.GetLogStatistics().CumulativeTiming(metrics.BatchCommitDBTiming, time.Since(commitTime))
 		}
 

@@ -31,10 +31,12 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB) (sdb *stageDb, err error
 		return nil, err
 	}
 
-	var txsmt kv.RwTx
-	if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
-		log.Error("failed to start smt tx", "err", err)
-		return nil, err
+	var txsmt kv.RwTx = nil
+	if dbsmt != nil {
+		if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
+			log.Error("failed to start smt tx", "err", err)
+			return nil, err
+		}
 	}
 
 	sdb = &stageDb{
@@ -50,7 +52,11 @@ func (sdb *stageDb) SetTx(tx, txsmt kv.RwTx) {
 	sdb.tx = tx
 	sdb.txsmt = txsmt
 	sdb.hermezDb = hermez_db.NewHermezDb(tx)
-	sdb.eridb = db2.NewEriDb(txsmt, tx)
+	if txsmt == nil {
+		sdb.eridb = db2.NewEriDb(tx, tx)
+	} else {
+		sdb.eridb = db2.NewEriDb(txsmt, tx)
+	}
 	sdb.stateReader = state.NewPlainStateReader(tx)
 	sdb.smt = smtNs.NewSMT(sdb.eridb, false)
 }
@@ -60,28 +66,44 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		sdb.txsmt.Rollback()
 		return err
 	}
-	if err = sdb.txsmt.Commit(); err != nil {
-		return err
-	}
-
 	tx, err := sdb.db.BeginRw(sdb.ctx)
 	if err != nil {
 		return err
 	}
-	txsmt, err := sdb.dbsmt.BeginRw(sdb.ctx)
-	if err != nil {
-		return err
+
+	if sdb.dbsmt != nil {
+		if err = sdb.txsmt.Commit(); err != nil {
+			return err
+		}
+		txsmt, err := sdb.dbsmt.BeginRw(sdb.ctx)
+		if err != nil {
+			return err
+		}
+		sdb.SetTx(tx, txsmt)
+	} else {
+		sdb.SetTx(tx, tx)
 	}
 
-	sdb.SetTx(tx, txsmt)
 	return nil
 }
 
 func (sdb *stageDb) Commit() error {
 	err := sdb.tx.Commit()
 	if err != nil {
-		sdb.txsmt.Rollback()
+		if sdb.txsmt != nil {
+			sdb.txsmt.Rollback()
+		}
 		return err
 	}
-	return sdb.txsmt.Commit()
+	if sdb.txsmt != nil {
+		return sdb.txsmt.Commit()
+	}
+	return nil
+}
+
+func (sdb *stageDb) Rollback() {
+	sdb.tx.Rollback()
+	if sdb.txsmt != nil {
+		sdb.txsmt.Rollback()
+	}
 }

@@ -191,10 +191,14 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 	if err = zkUtils.PopulateMemoryMutationTables(rwtx); err != nil {
 		return nil, err
 	}
-	rwtxsmt := membatchwithdb.NewMemoryBatchNoSequence(txsmt, g.dirs.Tmp, log.New())
-	defer rwtxsmt.Rollback()
-	if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtxsmt); err != nil {
-		return nil, err
+
+	var rwtxsmt kv.RwTx = nil
+	if txsmt != nil {
+		rwtxsmt := membatchwithdb.NewMemoryBatchNoSequence(txsmt, g.dirs.Tmp, log.New())
+		defer rwtxsmt.Rollback()
+		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtxsmt); err != nil {
+			return nil, err
+		}
 	}
 
 	sBlock := blocks[0]

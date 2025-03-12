@@ -611,6 +611,11 @@ var (
 		Usage: "When enabled, the sequencer will only sync the L1 info and exit",
 		Value: false,
 	}
+	StandaloneSMTDatabase = cli.BoolFlag{
+		Name:  "zkevm.standalone-smt-db",
+		Usage: "Use standalone SMT database, not integrated with chaindb",
+		Value: false,
+	}
 	ExecutorUrls = cli.StringFlag{
 		Name:  "zkevm.executor-urls",
 		Usage: "A comma separated list of grpc addresses that host executors",

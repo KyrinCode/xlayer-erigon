@@ -335,6 +335,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.SequencerReplayHaltOnBatchNumber,
 	&utils.SequencerReplayExternalDatastream,
 	&utils.SequencerReplayL1SyncOnly,
+	&utils.StandaloneSMTDatabase,
 
 	&utils.ACLPrintHistory,
 	&utils.InfoTreeUpdateInterval,

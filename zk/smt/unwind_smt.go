@@ -23,7 +23,12 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 		defer log.Info(fmt.Sprintf("[%s] Unwind ended", logPrefix))
 	}
 
-	eridb := db2.NewEriDb(txsmt, tx)
+	var eridb *db2.EriDb = nil
+	if txsmt != nil {
+		eridb = db2.NewEriDb(txsmt, tx)
+	} else {
+		eridb = db2.NewEriDb(tx, tx)
+	}
 	eridb.RollbackBatch()
 
 	dbSmt := smt.NewSMT(eridb, false)
@@ -33,9 +38,11 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 	}
 
 	// only open the batch if tx is not already one
-	if _, ok := txsmt.(*membatchwithdb.MemoryMutation); !ok {
-		quit := make(chan struct{})
-		eridb.OpenBatch(quit)
+	if txsmt != nil {
+		if _, ok := txsmt.(*membatchwithdb.MemoryMutation); !ok {
+			quit := make(chan struct{})
+			eridb.OpenBatch(quit)
+		}
 	}
 
 	cg := NewChangesGetter(tx)

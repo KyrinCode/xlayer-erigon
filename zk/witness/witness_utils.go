@@ -164,6 +164,9 @@ func BuildWitnessFromTrieDbState(ctx context.Context, tx kv.Tx, txsmt kv.Tx, tds
 	}
 
 	eridb := db2.NewRoEriDb(txsmt, tx)
+	if txsmt == nil {
+		eridb = db2.NewRoEriDb(tx, tx)
+	}
 	smtTrie := smt.NewRoSMT(eridb)
 
 	if witness, err = smtTrie.BuildWitness(rl, ctx); err != nil {
