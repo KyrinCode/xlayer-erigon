@@ -3,7 +3,6 @@ package smt
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"github.com/ledgerwatch/erigon/zk"
 	"github.com/ledgerwatch/erigon/zk/metrics"
-
-	"github.com/hashicorp/golang-lru/v2"
 )
 
 type InsertBatchConfig struct {
@@ -599,30 +596,13 @@ func newSmtBatchNodeLeaf(
 	}
 }
 
-var (
-	lruCache *lru.Cache[[4]uint64, [12]*big.Int]
-)
-
-func init() {
-	lruCache, _ = lru.New[[4]uint64, [12]*big.Int](1024 * 200)
-}
-
 func (s *SMT) fetchNodeDataFromDb(nodeHash *utils.NodeKey, parentNode *smtBatchNode) (*smtBatchNode, error) {
 	if nodeHash.IsZero() {
 		return nil, nil
 	}
 	metrics.GetLogStatistics().CumulativeValue(metrics.ZKHashSMTGetKey, 1)
 	start := time.Now()
-	var dbNodeValue utils.NodeValue12
-	var err error
-	if v, ok := lruCache.Get(*nodeHash); ok {
-		dbNodeValue = v
-	} else {
-		dbNodeValue, err = s.Db.Get(*nodeHash)
-		if err == nil {
-			lruCache.Add(*nodeHash, dbNodeValue)
-		}
-	}
+	dbNodeValue, err := s.Db.Get(*nodeHash)
 	metrics.GetLogStatistics().CumulativeMicroTiming(metrics.ZKHashSMTGetKeyTiming, time.Since(start))
 	if err != nil {
 		return nil, err
