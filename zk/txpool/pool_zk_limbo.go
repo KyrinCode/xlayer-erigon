@@ -209,8 +209,8 @@ func (p *TxPool) GetLimboDetailsForRecovery(blockNumber uint64) (*LimboBlockDeta
 	if !p.limbo.uncheckedLimboBlocksExist.Load() {
 		return nil, nil
 	}
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	limboBlock, limboTx := p.limbo.getFirstTxWithoutRootByBlockNumber(blockNumber)
 	if limboBlock == nil {
@@ -220,8 +220,8 @@ func (p *TxPool) GetLimboDetailsForRecovery(blockNumber uint64) (*LimboBlockDeta
 }
 
 func (p *TxPool) GetLimboTxRplsByHash(tx kv.Tx, txHash *common.Hash) (*types.TxsRlp, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	limboBlock, _, _, txIndex := p.limbo.getTxDetailsByHash(txHash)
 	if limboBlock == nil {
@@ -269,14 +269,14 @@ func (p *TxPool) ProcessUncheckedLimboBlockDetails(limboBlock *LimboBlockDetails
 }
 
 func (p *TxPool) GetInvalidLimboBlocksDetails() []*LimboBlockDetails {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	return p.limbo.invalidLimboBlocks
 }
 
 func (p *TxPool) GetUncheckedLimboBlocksDetailsClonedWeak() []*LimboBlockDetails {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	limboBlocksClone := make([]*LimboBlockDetails, len(p.limbo.uncheckedLimboBlocks))
 	copy(limboBlocksClone, p.limbo.uncheckedLimboBlocks)

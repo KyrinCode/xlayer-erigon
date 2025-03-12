@@ -303,7 +303,7 @@ func SortByNonceLess(a, b *metaTx) bool {
 type TxPool struct {
 	_chainDB               kv.RoDB // remote db - use it wisely
 	_stateCache            kvcache.Cache
-	lock                   *sync.RWMutex
+	lock                   *sync.Mutex
 	recentlyConnectedPeers *recentlyConnectedPeers // all txs will be propagated to this peers eventually, and clear list
 	senders                *sendersBatch
 	// batch processing of remote transactions
@@ -381,7 +381,7 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 	}
 
 	tp := &TxPool{
-		lock:                    &sync.RWMutex{},
+		lock:                    &sync.Mutex{},
 		byHash:                  map[string]*metaTx{},
 		isLocalLRU:              localsHistory,
 		discardReasonsLRU:       discardHistory,
@@ -635,8 +635,8 @@ func (p *TxPool) getRlpLocked(tx kv.Tx, hash []byte) (rlpTxn []byte, sender comm
 	return v[20:], *(*[20]byte)(v[:20]), txn != nil && txn.subPool&IsLocal > 0, nil
 }
 func (p *TxPool) GetRlp(tx kv.Tx, hash []byte) ([]byte, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	rlpTx, _, _, err := p.getRlpLocked(tx, hash)
 	return common.Copy(rlpTx), err
 }
@@ -679,8 +679,8 @@ func (p *TxPool) AppendAllAnnouncements(types []byte, sizes []uint32, hashes []b
 	return types, sizes, hashes
 }
 func (p *TxPool) IdHashKnown(tx kv.Tx, hash []byte) (bool, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	if _, ok := p.discardReasonsLRU.Get(string(hash)); ok {
 		return true, nil
 	}
@@ -693,8 +693,8 @@ func (p *TxPool) IdHashKnown(tx kv.Tx, hash []byte) (bool, error) {
 	return tx.Has(kv.PoolTransaction, hash)
 }
 func (p *TxPool) IsLocal(idHash []byte) bool {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	return p.isLocalLRU.Contains(string(idHash))
 }
 func (p *TxPool) AddNewGoodPeer(peerID types.PeerID) { p.recentlyConnectedPeers.AddPeer(peerID) }
@@ -720,8 +720,8 @@ func (p *TxPool) PeekBest(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 }
 
 func (p *TxPool) CountContent() (int, int, int) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	return p.pending.Len(), p.baseFee.Len(), p.queued.Len()
 }
 func (p *TxPool) AddRemoteTxs(_ context.Context, newTxs types.TxSlots) {
@@ -1307,8 +1307,8 @@ func (p *TxPool) discardLocked(mt *metaTx, reason DiscardReason) {
 }
 
 func (p *TxPool) NonceFromAddress(addr [20]byte) (nonce uint64, inPool bool) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	senderID, found := p.senders.getID(addr)
 	if !found {
 		return 0, false
@@ -1859,8 +1859,8 @@ func (p *TxPool) logStats() {
 		return
 	}
 
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	var m runtime.MemStats
 	dbg.ReadMemStats(&m)
