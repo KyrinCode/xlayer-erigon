@@ -996,13 +996,13 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 	}
 	defer coreTx.Rollback()
 
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	cacheView, err := p._stateCache.View(ctx, coreTx)
 	if err != nil {
 		return nil, err
 	}
-
-	p.lock.Lock()
-	defer p.lock.Unlock()
 
 	if !p.Started() {
 		if err := p.fromDB(ctx, tx, coreTx); err != nil {
