@@ -72,3 +72,4 @@ yieldsize: 35
 zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 1ms
 zkevm.standalone-smt-db: false
+zkevm.executor-mock: true

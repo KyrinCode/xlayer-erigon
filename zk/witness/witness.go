@@ -199,6 +199,11 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtxsmt); err != nil {
 			return nil, err
 		}
+	} else {
+		// if there is no standalone smt db, we PopulateMemoryMutationTablesSmt on main db
+		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtx); err != nil {
+			return nil, err
+		}
 	}
 
 	sBlock := blocks[0]
