@@ -153,8 +153,10 @@ const (
 	Expired                         DiscardReason = 30 // used when a transaction is purged from the pool
 
 	// For X Layer
-	ReceiverDisallowedReceiveTx DiscardReason = 127 // receiver is not allowed to receive transactions
-	NoWhiteListedSender         DiscardReason = 128 // the transaction is sent by a non-whitelisted account
+	ReceiverDisallowedReceiveTx       DiscardReason = 127 // receiver is not allowed to receive transactions
+	NoWhiteListedSender               DiscardReason = 128 // the transaction is sent by a non-whitelisted account
+	FromAddressDisallowedTransferFrom DiscardReason = 129 // from address is not allowed to transferFrom
+
 )
 
 func (r DiscardReason) String() string {
@@ -213,6 +215,8 @@ func (r DiscardReason) String() string {
 		return "sender disallowed to send tx by ACL policy"
 	case ReceiverDisallowedReceiveTx: // XLayer operation
 		return "blocked receiver"
+	case FromAddressDisallowedTransferFrom:
+		return "sender disallowed to send tx by ACL policy"
 	case NoWhiteListedSender:
 		return "You are not allowed to send transactions on the X Layer as we are under the phase 1, X layer will be open to the public soon"
 	case SenderDisallowedDeploy:
@@ -823,6 +827,12 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	if p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, from) {
 		log.Info(fmt.Sprintf("TX TRACING: validateTx sender is blocked idHash=%x, txn.sender=%s", txn.IDHash, from))
 		return SenderDisallowedSendTx
+	}
+
+	// X Layer check if param 'from' is blocked when calling transferFrom
+	if IsTransferFromForBlockedAddress(txn, p.xlayerCfg.BlockedList) {
+		log.Info(fmt.Sprintf("TX TRACING: validateTx transferFrom is blocked idHash=%x, txn.sender=%s", txn.IDHash, from))
+		return FromAddressDisallowedTransferFrom
 	}
 
 	// X Layer check if receiver is blocked
