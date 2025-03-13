@@ -389,6 +389,9 @@ type APIImpl struct {
 	// For X Layer
 	L2GasPricer   gasprice.L2GasPricer
 	EnableInnerTx bool
+
+	txChan chan txRequest
+	wg     sync.WaitGroup
 }
 
 // NewEthAPI returns APIImpl instance
@@ -433,6 +436,8 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 		// For X Layer
 		L2GasPricer:   gasprice.NewL2GasPriceSuggester(context.Background(), ethCfg.GPO),
 		EnableInnerTx: ethCfg.XLayer.EnableInnerTx,
+
+		txChan: make(chan txRequest, 1000),
 	}
 
 	// For X Layer
@@ -443,7 +448,10 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 			apii.runL2GasPricerForXLayer()
 		}
 	})
-
+	apii.wg.Add(4)
+	for i := 0; i < 4; i++ {
+		go apii.worker()
+	}
 	return apii
 }
 
