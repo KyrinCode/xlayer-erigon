@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"unsafe"
 
 	"fmt"
 	"strings"
@@ -37,55 +38,40 @@ const MetaDepth = "depth"
 var HermezSmtTables = []string{TableSmt, TableStats, TableAccountValues, TableMetadata, TableHashKey}
 
 type EriDb struct {
-	kvTx kv.RwTx
-	tx   SmtDbTx
+	kvTx        kv.RwTx
+	tx          SmtDbTx
+	kvTxChainDB kv.RwTx
 	*EriRoDb
 }
 
 type EriRoDb struct {
-	kvTxRo kv.Getter
+	kvTxRo        kv.Getter
+	kvTxRoChainDB kv.Getter
 }
 
 func CreateEriDbBuckets(tx kv.RwTx) error {
-	err := tx.CreateBucket(TableSmt)
-	if err != nil {
-		return err
+	for _, table := range HermezSmtTables {
+		err := tx.CreateBucket(table)
+		if err != nil {
+			return err
+		}
 	}
-
-	err = tx.CreateBucket(TableStats)
-	if err != nil {
-		return err
-	}
-
-	err = tx.CreateBucket(TableAccountValues)
-	if err != nil {
-		return err
-	}
-
-	err = tx.CreateBucket(TableMetadata)
-	if err != nil {
-		return err
-	}
-
-	err = tx.CreateBucket(TableHashKey)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func NewEriDb(tx kv.RwTx) *EriDb {
+func NewEriDb(txsmt, txcdb kv.RwTx) *EriDb {
 	return &EriDb{
-		tx:      tx,
-		kvTx:    tx,
-		EriRoDb: NewRoEriDb(tx),
+		tx:          txsmt,
+		kvTx:        txsmt,
+		kvTxChainDB: txcdb,
+		EriRoDb:     NewRoEriDb(txsmt, txcdb),
 	}
 }
 
-func NewRoEriDb(tx kv.Getter) *EriRoDb {
+func NewRoEriDb(txsmt, txcdb kv.Getter) *EriRoDb {
 	return &EriRoDb{
-		kvTxRo: tx,
+		kvTxRo:        txsmt,
+		kvTxRoChainDB: txcdb,
 	}
 }
 
@@ -96,6 +82,12 @@ func (m *EriDb) OpenBatch(quitCh <-chan struct{}) {
 	}()
 	m.tx = batch
 	m.kvTxRo = batch
+}
+
+func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {}
+
+func (m *EriDb) RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte) {
+	return nil, nil
 }
 
 func (m *EriDb) CommitBatch() error {
@@ -169,7 +161,7 @@ func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 		return utils.NodeValue12{}, err
 	}
 
-	if data == nil {
+	if data == nil || len(data) == 0 {
 		return utils.NodeValue12{}, nil
 	}
 
@@ -199,7 +191,7 @@ func (m *EriDb) Delete(key string) error {
 func (m *EriDb) DeleteByNodeKey(key utils.NodeKey) error {
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
-	return m.tx.Delete(TableSmt, []byte(k))
+	return m.tx.Delete(TableSmt, unsafe.Slice(unsafe.StringData(k), len(k)))
 }
 
 func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
@@ -296,7 +288,7 @@ func (m *EriRoDb) GetHashKey(key utils.NodeKey) (utils.NodeKey, error) {
 func (m *EriRoDb) GetCode(codeHash []byte) ([]byte, error) {
 	codeHash = utils.ResizeHashTo32BytesByPrefixingWithZeroes(codeHash)
 
-	data, err := m.kvTxRo.GetOne(kv.Code, codeHash)
+	data, err := m.kvTxRoChainDB.GetOne(kv.Code, codeHash)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +310,7 @@ func (m *EriDb) AddCode(code []byte) error {
 
 	codeHashBytes = utils.ResizeHashTo32BytesByPrefixingWithZeroes(codeHashBytes)
 
-	return m.tx.Put(kv.Code, codeHashBytes, code)
+	return m.kvTxChainDB.Put(kv.Code, codeHashBytes, code)
 }
 
 func (m *EriRoDb) PrintDb() {
