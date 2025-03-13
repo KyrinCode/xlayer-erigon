@@ -228,3 +228,18 @@ jobs:
       - name: Test
         run: make test-${{ matrix.e2e-group }}
         working-directory: test
+
+  check-chinese-chars:
+    name: Check Chinese Characters
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check for Chinese characters
+        run: |
+          if grep -R -P '[\x{4e00}-\x{9fa5}]' .; then
+            echo "Error: Found Chinese characters in the codebase!"
+            echo "Please remove all Chinese characters from the files listed above."
+            exit 1
+          fi
