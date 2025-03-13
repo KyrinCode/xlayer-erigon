@@ -216,7 +216,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-group: [ 1 ]
+        e2e-group: [ 1, 2 ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -226,5 +226,5 @@ jobs:
         run: make build-docker
 
       - name: Test
-        run: make test-${{ matrix.e2e-group }}
+        run: sudo -E make test-${{ matrix.e2e-group }}
         working-directory: test
