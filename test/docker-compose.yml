@@ -19,7 +19,10 @@ services:
 
   xlayer-seqs:
     container_name: xlayer-seqs
-    image: giskook/cdk:v0.5.0
+    image: giskook/cdk:v0.6.0-00cb4e9
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
     volumes:
       - ./data/seqs:/tmp/cdk
       - ./keystore/da.permit.keystore:/pk/da.permit.keystore
@@ -33,7 +36,10 @@ services:
 
   xlayer-agg:
     container_name: xlayer-agg
-    image: zjg555543/cdk:v0.4.0-beta10
+    image: giskook/cdk:v0.6.0-00cb4e9
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
     ports:
       - 50081:50081
     volumes:
