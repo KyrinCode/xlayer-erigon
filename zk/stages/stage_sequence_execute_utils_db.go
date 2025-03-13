@@ -61,44 +61,54 @@ func (sdb *stageDb) SetTx(tx, txsmt kv.RwTx) {
 	sdb.smt = smtNs.NewSMT(sdb.eridb, false)
 }
 
-func (sdb *stageDb) CommitAndStart() (err error) {
+func (sdb *stageDb) CommitAndStart(supportAC bool) (err error) {
 	if err = sdb.tx.Commit(); err != nil {
-		sdb.txsmt.Rollback()
+		if !supportAC && sdb.dbsmt != nil {
+			sdb.txsmt.Rollback()
+		}
 		return err
 	}
+
 	tx, err := sdb.db.BeginRw(sdb.ctx)
 	if err != nil {
 		return err
 	}
 
-	if sdb.dbsmt != nil {
+	if !supportAC && sdb.dbsmt != nil {
 		if err = sdb.txsmt.Commit(); err != nil {
 			return err
 		}
+
 		txsmt, err := sdb.dbsmt.BeginRw(sdb.ctx)
 		if err != nil {
 			return err
 		}
 		sdb.SetTx(tx, txsmt)
 	} else {
-		sdb.SetTx(tx, tx)
+		if sdb.dbsmt != nil {
+			sdb.SetTx(tx, sdb.txsmt)
+		} else {
+			sdb.SetTx(tx, tx)
+		}
 	}
 
 	return nil
 }
 
-func (sdb *stageDb) Commit() error {
+func (sdb *stageDb) Commit(supportAC bool) error {
 	err := sdb.tx.Commit()
 	if err != nil {
-		if sdb.txsmt != nil {
+		if !supportAC && sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
 		}
 		return err
 	}
-	if sdb.txsmt != nil {
+
+	if !supportAC && sdb.dbsmt != nil {
 		return sdb.txsmt.Commit()
+	} else {
+		return nil
 	}
-	return nil
 }
 
 func (sdb *stageDb) Rollback() {

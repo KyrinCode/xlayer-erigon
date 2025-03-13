@@ -34,6 +34,10 @@ type Sync struct {
 	logPrefixes   []string
 	logger        log.Logger
 	stagesIdsList []string
+
+	SmtCacheCh    chan map[string]map[string][]byte
+	DeltaSmtCache map[string]map[string][]byte
+	SmtCache      map[string]map[string][]byte
 }
 
 type Timing struct {
@@ -41,6 +45,45 @@ type Timing struct {
 	isPrune  bool
 	stage    stages.SyncStage
 	took     time.Duration
+}
+
+func (s *Sync) GetSmtCache() map[string]map[string][]byte { return s.SmtCache }
+
+func (s *Sync) SetSmtCache(cache, deltaCache map[string]map[string][]byte) {
+	if s.SmtCache == nil {
+		s.SmtCache = make(map[string]map[string][]byte)
+	}
+	if s.DeltaSmtCache == nil {
+		s.DeltaSmtCache = make(map[string]map[string][]byte)
+	}
+
+	for table, bucket := range cache {
+		s.SmtCache[table] = bucket
+	}
+
+	for table, bucket := range deltaCache {
+		if existingBucket, exists := s.DeltaSmtCache[table]; exists {
+			if existingBucket == nil {
+				existingBucket = make(map[string][]byte)
+				s.DeltaSmtCache[table] = existingBucket
+			}
+			for k, v := range bucket {
+				existingBucket[k] = v
+			}
+		} else {
+			s.DeltaSmtCache[table] = bucket
+		}
+	}
+}
+
+func (s *Sync) FlushSmtCache() error {
+	select {
+	case s.SmtCacheCh <- s.DeltaSmtCache:
+		s.DeltaSmtCache = make(map[string]map[string][]byte)
+		return nil
+	default:
+		return fmt.Errorf("failed to flush: channel is full or no receiver")
+	}
 }
 
 func (s *Sync) Len() int {
@@ -214,6 +257,9 @@ func New(cfg ethconfig.Sync, stagesList []*Stage, unwindOrder UnwindOrder, prune
 		logPrefixes:   logPrefixes,
 		logger:        logger,
 		stagesIdsList: stagesIdsList,
+		SmtCacheCh:    make(chan map[string]map[string][]byte, 1),
+		SmtCache:      make(map[string]map[string][]byte),
+		DeltaSmtCache: make(map[string]map[string][]byte),
 	}
 }
 
