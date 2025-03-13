@@ -151,7 +151,26 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 
 mainnet: build-docker
 	# base services
+	$(RUN_DOCKER_DATA_AVAILABILITY_DB)
+	$(RUN_DOCKER_POOL_DB)
+	$(RUN_DOCKER_AGGREGATOR_DB)
+	sleep 3
+	$(RUN_DOCKER_DATA_AVAILABILITY)
+	$(RUN_DOCKER_APPROVE)
+	$(RUN_DOCKER_STATELESS_EXECUTOR)
+
+	# app services
+	sleep 3
 	$(RUN_DOCKER_MAINNET_SEQ)
+	$(RUN_DOCKER_PROVER)
+	sleep 10
+	$(RUN_DOCKER_DS)
+	$(RUN_DOCKER_SIGNER)
+	$(RUN_DOCKER_SEQ_SENDER)
+	$(RUN_DOCKER_AGGREGATOR)
+	$(RUN_DOCKER_POOL_MANAGER)
+	$(RUN_DOCKER_RPC)
+
 	# monitoring services
 	$(RUN_DOCKER_PROMETHEUS)
 	$(RUN_DOCKER_GRAFANA)
