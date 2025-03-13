@@ -29,6 +29,7 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		SequencerReplayExternalDatastream: ctx.Bool(utils.SequencerReplayExternalDatastream.Name),
 		SequencerReplayL1SyncOnly:         ctx.Bool(utils.SequencerReplayL1SyncOnly.Name),
 		StandaloneSMTDatabase:             ctx.Bool(utils.StandaloneSMTDatabase.Name),
+		ExecutorMock:                      ctx.Bool(utils.ExecutorMock.Name),
 	}
 
 	if ctx.IsSet(utils.ApolloNamespaceName.Name) {
