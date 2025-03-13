@@ -373,15 +373,6 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 			return verifierBundle, err
 		}
 
-    var txsmt kv.Tx = nil
-    if v.dbsmt != nil {
-		  txsmt, err = v.dbsmt.BeginRo(innerCtx)
-		  if err != nil {
-			  return verifierBundle, err
-		  }
-		  defer txsmt.Rollback()
-    }
-
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull)
 		if err != nil {
 			return verifierBundle, err
