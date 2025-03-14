@@ -12,6 +12,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	txPoolProto "github.com/ledgerwatch/erigon-lib/gointerfaces/txpool"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	utils2 "github.com/ledgerwatch/erigon/cmd/utils"
 
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/params"
@@ -44,7 +45,6 @@ func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility
 		return common.Hash{}, err
 	}
 	defer tx.Rollback()
-
 	cc, err := api.chainConfig(ctx, tx)
 	if err != nil {
 		return common.Hash{}, err
@@ -221,6 +221,19 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 	}
 	if badTxHashCounter >= api.BadTxAllowance {
 		return common.Hash{}, errors.New("transaction uses too many counters to fit into a batch")
+	}
+
+	if len(api.PreRunList) > 0 && utils2.CheckAddressExists(api.PreRunList, sender) {
+		api.preRun(txn, chainId)
+	}
+
+	res, err := api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: [][]byte{encodedTx}})
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	if res.Imported[0] != txPoolProto.ImportResult_SUCCESS {
+		return hash, fmt.Errorf("%s: %s", txPoolProto.ImportResult_name[int32(res.Imported[0])], res.Errors[0])
 	}
 
 	return hash, nil

@@ -6,6 +6,7 @@ import (
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
+	"github.com/ledgerwatch/erigon/smt/pkg/blockinfo"
 	"github.com/urfave/cli/v2"
 )
 
@@ -28,7 +29,14 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		SequencerReplayHaltOnBatchNumber:  ctx.Uint64(utils.SequencerReplayHaltOnBatchNumber.Name),
 		SequencerReplayExternalDatastream: ctx.Bool(utils.SequencerReplayExternalDatastream.Name),
 		SequencerReplayL1SyncOnly:         ctx.Bool(utils.SequencerReplayL1SyncOnly.Name),
+		ExecutorMock:                      ctx.Bool(utils.ExecutorMock.Name),
+		BlockInfoConcurrent:               ctx.Bool(utils.BlockInfoConcurrent.Name),
 	}
+	if cfg.XLayer.BlockInfoConcurrent {
+		blockinfo.InitUseBlockInfoTreeTrue()
+	}
+
+	utils.SetPreRunList(ctx, cfg)
 
 	if ctx.IsSet(utils.ApolloNamespaceName.Name) {
 		ns := strings.Split(ctx.String(utils.ApolloNamespaceName.Name), ",")
