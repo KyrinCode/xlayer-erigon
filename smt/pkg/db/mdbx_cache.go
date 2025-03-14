@@ -133,11 +133,11 @@ func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	k := utils.NodeKeyToByteArray(&key)
 	data, err := m.kvTxRo.GetOne(TableSmt, k)
 
-	if err != nil || len(data) == 0 {
+	if err != nil {
 		return utils.NodeValue12Raw{}, err
 	}
 
-	if data == nil {
+	if data == nil || len(data) == 0 {
 		return utils.NodeValue12Raw{}, nil
 	}
 	val := utils.NodeValue12RawFromByteArray(data)
