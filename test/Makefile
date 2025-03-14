@@ -167,3 +167,5 @@ vmtouch-evict:
 
 vmtouch-check:
 	docker exec -it xlayer-seq sh -c "vmtouch /home/erigon/data/chaindata/mdbx.dat"
+
+# 检测中文！
