@@ -20,7 +20,7 @@ var (
 )
 
 // IsTransferFromForBlockedAddress checks if a transaction is a transferFrom call with a blocked address as the from parameter
-func IsTransferFromForBlockedAddress(txn *types.TxSlot, blockedList common.OrderedList[common.Address]) bool {
+func IsTransferFromForBlockedAddress(blockedList common.OrderedList[common.Address], txn *types.TxSlot) bool {
 	if txn.Creation || txn.To == (common.Address{}) {
 		return false
 	}
@@ -42,8 +42,6 @@ func extractFromParam(rlpData []byte, txType byte) (common.Address, bool) {
 	switch txType {
 	case 0x00: // Legacy Transaction
 		dataField, err = extractDataFieldDirectlyFromLegacyTx(rlpData)
-	case 0x02: // EIP-1559 Transaction
-		dataField, err = extractDataFieldDirectlyFromEIP1559Tx(rlpData[1:])
 	default:
 		return common.Address{}, false
 	}
@@ -107,48 +105,6 @@ func extractDataFieldDirectlyFromLegacyTx(rlpData []byte) ([]byte, error) {
 		return nil, errRLPDataTooShort
 	}
 
-	return decodeRLPString(rlpData, pos)
-}
-
-// extractDataFieldDirectlyFromEIP1559Tx extracts the data field directly from EIP-1559 transaction RLP data
-// EIP-1559 transaction RLP format: [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value, data, accessList, v, r, s]
-func extractDataFieldDirectlyFromEIP1559Tx(rlpData []byte) ([]byte, error) {
-	if len(rlpData) == 0 || rlpData[0] < 0xc0 {
-		return nil, errInvalidRLPFormat
-	}
-
-	// Skip RLP list prefix
-	var pos int
-	if rlpData[0] <= 0xf7 {
-		// Short list
-		pos = 1
-	} else {
-		// Long list
-		lenOfLen := int(rlpData[0] - 0xf7)
-		if 1+lenOfLen > len(rlpData) {
-			return nil, errRLPDataTooShort
-		}
-		pos = 1 + lenOfLen
-	}
-
-	// Skip first 7 fields (chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gasLimit, to, value)
-	for i := 0; i < 7; i++ {
-		if pos >= len(rlpData) {
-			return nil, errRLPDataTooShort
-		}
-
-		pos = skipRLPField(rlpData, pos)
-		if pos < 0 {
-			return nil, errRLPDataTooShort
-		}
-	}
-
-	// Now pos points to the 8th field (data)
-	if pos >= len(rlpData) {
-		return nil, errRLPDataTooShort
-	}
-
-	// Parse data field
 	return decodeRLPString(rlpData, pos)
 }
 

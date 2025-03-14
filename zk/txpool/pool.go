@@ -830,7 +830,7 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	}
 
 	// X Layer check if param 'from' is blocked when calling transferFrom
-	if IsTransferFromForBlockedAddress(txn, p.xlayerCfg.BlockedList) {
+	if p.apolloCfg.CheckTransferFromBlockedAddr(p.xlayerCfg.BlockedList, txn) {
 		log.Info(fmt.Sprintf("TX TRACING: validateTx transferFrom is blocked idHash=%x, txn.sender=%s", txn.IDHash, from))
 		return FromAddressDisallowedTransferFrom
 	}

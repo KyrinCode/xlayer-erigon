@@ -79,6 +79,7 @@ func containsMethod(data string, methods []string) bool {
 // with the apollo package
 type ApolloConfig interface {
 	CheckBlockedAddr(localBlockedList common.OrderedList[common.Address], addr common.Address) bool
+	CheckTransferFromBlockedAddr(localBlockedList common.OrderedList[common.Address], tx *types.TxSlot) bool
 	GetEnableWhitelist(localEnableWhitelist bool) bool
 	CheckWhitelistAddr(localWhitelist common.OrderedList[common.Address], addr common.Address) bool
 	CheckFreeClaimAddr(localFreeClaimGasAddrs common.OrderedList[common.Address], addr common.Address) bool

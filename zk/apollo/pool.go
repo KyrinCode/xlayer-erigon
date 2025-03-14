@@ -5,9 +5,11 @@ import (
 
 	"github.com/apolloconfig/agollo/v4/storage"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/types"
 	"github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
+	txpool "github.com/ledgerwatch/erigon/zk/txpool"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/urfave/cli/v2"
 )
@@ -85,6 +87,16 @@ func (cfg *ApolloConfig) CheckBlockedAddr(localBlockedList libcommon.OrderedList
 		return cfg.EthCfg.DeprecatedTxPool.BlockedList.Contains(addr)
 	}
 	return localBlockedList.Contains(addr)
+}
+
+func (cfg *ApolloConfig) CheckTransferFromBlockedAddr(localBlockedList libcommon.OrderedList[libcommon.Address], tx *types.TxSlot) bool {
+	cfg.RLock()
+	defer cfg.RUnlock()
+
+	if cfg.isPoolEnabled() {
+		return txpool.IsTransferFromForBlockedAddress(cfg.EthCfg.DeprecatedTxPool.BlockedList, tx)
+	}
+	return txpool.IsTransferFromForBlockedAddress(localBlockedList, tx)
 }
 
 func (cfg *ApolloConfig) GetEnableWhitelist(localEnableWhitelist bool) bool {
