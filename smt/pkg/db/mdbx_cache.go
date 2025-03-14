@@ -129,36 +129,27 @@ func (m *EriCacheDb) SetDepth(depth uint8) error {
 	return m.cacheTx.Put(TableStats, []byte(MetaDepth), []byte{depth})
 }
 
-func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
+	k := utils.NodeKeyToByteArray(&key)
+	data, err := m.kvTxRo.GetOne(TableSmt, k)
 
-	data, err := m.kvTxRo.GetOne(TableSmt, []byte(k))
-	if err != nil {
-		return utils.NodeValue12{}, err
+	if err != nil || len(data) == 0 {
+		return utils.NodeValue12Raw{}, err
 	}
 
-	if data == nil || len(data) == 0 {
-		return utils.NodeValue12{}, nil
+	if data == nil {
+		return utils.NodeValue12Raw{}, nil
 	}
-
-	vConc := utils.ConvertHexToBigInt(string(data))
-	val := utils.ScalarToNodeValue(vConc)
-
+	val := utils.NodeValue12RawFromByteArray(data)
 	return val, nil
 }
 
-func (m *EriCacheDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+func (m *EriCacheDb) Insert(key utils.NodeKey, value utils.NodeValue12Raw) error {
 
-	vals := make([]*big.Int, 12)
-	copy(vals, value[:])
+	keyBytes := utils.NodeKeyToByteArray(&key)
+	valBytes := utils.NodeValue12RawToByteArray(&value)
 
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
-
-	return m.cacheTx.Put(TableSmt, []byte(k), []byte(v))
+	return m.cacheTx.Put(TableSmt, keyBytes, valBytes)
 }
 
 func (m *EriCacheDb) Delete(key string) error {
@@ -171,36 +162,26 @@ func (m *EriCacheDb) DeleteByNodeKey(key utils.NodeKey) error {
 	return m.cacheTx.Delete(TableSmt, []byte(k))
 }
 
-func (m *EriCacheDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+func (m *EriCacheDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {
+	k := utils.NodeKeyToByteArray(&key)
 
-	data, err := m.kvTxRo.GetOne(TableAccountValues, []byte(k))
+	data, err := m.kvTxRo.GetOne(TableAccountValues, k)
 	if err != nil {
-		return utils.NodeValue8{}, err
+		return utils.NodeValue8Raw{}, err
 	}
 
 	if data == nil {
-		return utils.NodeValue8{}, nil
+		return utils.NodeValue8Raw{}, nil
 	}
 
-	vConc := utils.ConvertHexToBigInt(string(data))
-	val := utils.ScalarToNodeValue8(vConc)
-
-	return val, nil
+	return utils.NodeValue8RawFromByteArray(data), nil
 }
 
-func (m *EriCacheDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+func (m *EriCacheDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8Raw) error {
+	k := utils.NodeKeyToByteArray(&key)
+	bytes := utils.NodeValue8RawToByteArray(&value)
 
-	vals := make([]*big.Int, 8)
-	copy(vals, value[:]) // Replace the loop with the copy function
-
-	vConc := utils.ArrayToScalarBig(vals)
-	v := utils.ConvertBigIntToHex(vConc)
-
-	return m.cacheTx.Put(TableAccountValues, []byte(k), []byte(v))
+	return m.cacheTx.Put(TableAccountValues, k, bytes)
 }
 
 func (m *EriCacheDb) InsertKeySource(key utils.NodeKey, value []byte) error {
