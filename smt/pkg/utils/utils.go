@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"encoding/hex"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"

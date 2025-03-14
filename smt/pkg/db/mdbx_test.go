@@ -116,7 +116,11 @@ func TestEriDbBatch(t *testing.T) {
 func BenchmarkEriDb_Get(b *testing.B) {
 	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), b.TempDir())
 	tx, _ := dbi.BeginRw(context.Background())
-	db := NewEriDb(tx)
+
+	dbiChain, _ := mdbx.NewTemporaryMdbx(context.Background(), b.TempDir())
+	txChain, _ := dbiChain.BeginRw(context.Background())
+
+	db := NewEriDb(tx, txChain)
 	err := CreateEriDbBuckets(tx)
 	assert.NoError(b, err)
 
@@ -209,20 +213,22 @@ func TestEriRoDb_Get(t *testing.T) {
 	db, dbro := setupTestDB(t)
 
 	key := utils.NodeKey{1, 2, 3, 4}
-	expectedValue := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6), big.NewInt(7), big.NewInt(8), big.NewInt(9), big.NewInt(10), big.NewInt(11), big.NewInt(12)}
+	expectedValue := utils.NodeValue12Raw{
+		Value: utils.NodeValue8Raw{
+			1, 2, 3, 4, 5, 6, 7, 8,
+		},
+		Flag: byte(1),
+	}
 
 	// Test when data is not present
 	value, err := dbro.Get(key)
 	assert.NoError(t, err)
-	assert.Equal(t, utils.NodeValue12{}, value)
+	assert.Equal(t, utils.NodeValue12Raw{}, value)
 
-	// Test when data is present
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-	vConc := utils.ArrayToScalarBig(expectedValue[:])
-	v := utils.ConvertBigIntToHex(vConc)
+	keyBytes := utils.NodeKeyToByteArray(&key)
+	valBytes := utils.NodeValue12RawToByteArray(&expectedValue)
 
-	err = db.tx.Put(TableSmt, []byte(k), []byte(v))
+	err = db.tx.Put(TableSmt, keyBytes, valBytes)
 	assert.NoError(t, err)
 
 	value, err = dbro.Get(key)
@@ -234,12 +240,12 @@ func TestEriRoDb_GetAccountValue(t *testing.T) {
 	db, dbro := setupTestDB(t)
 
 	key := utils.NodeKey{1, 2, 3, 4}
-	expectedValue := utils.NodeValue8{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6), big.NewInt(7), big.NewInt(8)}
+	expectedValue := utils.NodeValue8Raw{1, 2, 3, 4, 5, 6, 7, 8}
 
 	// Test when data is not present
 	value, err := dbro.GetAccountValue(key)
 	assert.NoError(t, err)
-	assert.Equal(t, utils.NodeValue8{}, value)
+	assert.Equal(t, utils.NodeValue8Raw{}, value)
 
 	// Test when data is present
 	err = db.InsertAccountValue(key, expectedValue)

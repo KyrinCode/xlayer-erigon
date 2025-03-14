@@ -16,10 +16,13 @@ import (
 )
 
 func TestBatchInsertEmptyTree(t *testing.T) {
-	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
-	tx, _ := dbi.BeginRw(context.Background())
-	database := db.NewEriDb(tx)
-	err := db.CreateEriDbBuckets(tx)
+	dbiSmt, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txSmt, _ := dbiSmt.BeginRw(context.Background())
+
+	dbiChain, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txChain, _ := dbiChain.BeginRw(context.Background())
+	database := db.NewEriDb(txSmt, txChain)
+	err := db.CreateEriDbBuckets(txSmt)
 	assert.NilError(t, err)
 
 	keysRaw := []*big.Int{
@@ -56,10 +59,13 @@ func TestBatchInsertEmptyTree(t *testing.T) {
 }
 
 func TestBatchInsertNoneEmptyTree(t *testing.T) {
-	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
-	tx, _ := dbi.BeginRw(context.Background())
-	database := db.NewEriDb(tx)
-	err := db.CreateEriDbBuckets(tx)
+	dbiSmt, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txSmt, _ := dbiSmt.BeginRw(context.Background())
+
+	dbiChain, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txChain, _ := dbiChain.BeginRw(context.Background())
+	database := db.NewEriDb(txSmt, txChain)
+	err := db.CreateEriDbBuckets(txSmt)
 	assert.NilError(t, err)
 
 	keysRaw := []*big.Int{
@@ -185,10 +191,13 @@ func TestBatchSimpleInsert(t *testing.T) {
 
 func TestBatchSimpleInsertNoRemove(t *testing.T) {
 
-	dbi, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
-	tx, _ := dbi.BeginRw(context.Background())
-	database := db.NewEriDb(tx)
-	err := db.CreateEriDbBuckets(tx)
+	dbiSmt, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txSmt, _ := dbiSmt.BeginRw(context.Background())
+
+	dbiChain, _ := mdbx.NewTemporaryMdbx(context.Background(), t.TempDir())
+	txChain, _ := dbiChain.BeginRw(context.Background())
+	database := db.NewEriDb(txSmt, txChain)
+	err := db.CreateEriDbBuckets(txSmt)
 	assert.NilError(t, err)
 
 	keysRaw := []*big.Int{

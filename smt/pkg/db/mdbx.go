@@ -156,7 +156,7 @@ func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	k := utils.NodeKeyToByteArray(&key)
 	data, err := m.kvTxRo.GetOne(TableSmt, k)
 
-	if err != nil || len(data) == 0  {
+	if err != nil || len(data) == 0 {
 		return utils.NodeValue12Raw{}, err
 	}
 
@@ -203,7 +203,6 @@ func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8Raw)
 
 	return m.tx.Put(TableAccountValues, k, bytes)
 }
-
 
 func (m *EriDb) InsertKeySource(key utils.NodeKey, value []byte) error {
 	keyConc := utils.ArrayToScalar(key[:])
