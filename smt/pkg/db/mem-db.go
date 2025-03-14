@@ -175,7 +175,6 @@ func (m *MemDb) Delete(key string) error {
 func (m *MemDb) DeleteByNodeKey(key utils.NodeKey) error {
 	m.lock.Lock()         // Lock for writing
 	defer m.lock.Unlock() // Make sure to unlock when done
-
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
 	delete(m.Db, k)

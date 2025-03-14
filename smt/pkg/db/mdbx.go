@@ -3,10 +3,8 @@ package db
 import (
 	"context"
 	"encoding/hex"
-	"math/big"
-	"unsafe"
-
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -177,9 +175,7 @@ func (m *EriDb) Delete(key string) error {
 }
 
 func (m *EriDb) DeleteByNodeKey(key utils.NodeKey) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-	return m.tx.Delete(TableSmt, unsafe.Slice(unsafe.StringData(k), len(k)))
+	return m.tx.Delete(TableSmt, utils.NodeKeyToByteArray(&key))
 }
 
 func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {

@@ -157,9 +157,8 @@ func (m *EriCacheDb) Delete(key string) error {
 }
 
 func (m *EriCacheDb) DeleteByNodeKey(key utils.NodeKey) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
-	return m.cacheTx.Delete(TableSmt, []byte(k))
+	keyBytes := utils.NodeKeyToByteArray(&key)
+	return m.cacheTx.Delete(TableSmt, keyBytes)
 }
 
 func (m *EriCacheDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {
