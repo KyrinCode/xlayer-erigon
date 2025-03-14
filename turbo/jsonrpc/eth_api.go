@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common/hexutil"
+	"github.com/ledgerwatch/erigon/core/vm"
 	"github.com/ledgerwatch/erigon/zk/sequencer"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -360,6 +361,7 @@ type APIImpl struct {
 	mining                        txpool.MiningClient
 	gasCache                      *GasPriceCache
 	db                            kv.RoDB
+	dbsmt                         kv.RoDB
 	GasCap                        uint64
 	FeeCap                        float64
 	ReturnDataLimit               int
@@ -386,12 +388,14 @@ type APIImpl struct {
 	DisableVirtualCounters        bool
 
 	// For X Layer
-	L2GasPricer   gasprice.L2GasPricer
-	EnableInnerTx bool
+	L2GasPricer     gasprice.L2GasPricer
+	EnableInnerTx   bool
+	PreRunList      map[common.Address]struct{}
+	preRunProcessor *PreRunProcessor
 }
 
 // NewEthAPI returns APIImpl instance
-func NewEthAPI(base *BaseAPI, db kv.RoDB, eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient, gascap uint64, feecap float64, returnDataLimit int, ethCfg *ethconfig.Config, allowUnprotectedTxs bool, maxGetProofRewindBlockCount int, subscribeLogsChannelSize int, logger log.Logger, gasTracker RpcL1GasPriceTracker, LogsMaxRange uint64) *APIImpl {
+func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient, gascap uint64, feecap float64, returnDataLimit int, ethCfg *ethconfig.Config, allowUnprotectedTxs bool, maxGetProofRewindBlockCount int, subscribeLogsChannelSize int, logger log.Logger, gasTracker RpcL1GasPriceTracker, LogsMaxRange uint64) *APIImpl {
 	if gascap == 0 {
 		gascap = uint64(math.MaxUint64 / 2)
 	}
@@ -399,6 +403,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, eth rpchelper.ApiBackend, txPool txpoo
 	apii := &APIImpl{
 		BaseAPI:                       base,
 		db:                            db,
+		dbsmt:                         dbsmt,
 		ethBackend:                    eth,
 		txPool:                        txPool,
 		mining:                        mining,
@@ -431,6 +436,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, eth rpchelper.ApiBackend, txPool txpoo
 		// For X Layer
 		L2GasPricer:   gasprice.NewL2GasPriceSuggester(context.Background(), ethCfg.GPO),
 		EnableInnerTx: ethCfg.XLayer.EnableInnerTx,
+		PreRunList:    ethCfg.XLayer.PreRunList,
 	}
 
 	// For X Layer
@@ -439,6 +445,13 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, eth rpchelper.ApiBackend, txPool txpoo
 	GasPricerOnce.Do(func() {
 		if sequencer.IsSequencer() {
 			apii.runL2GasPricerForXLayer()
+			if len(ethCfg.XLayer.PreRunList) > 0 {
+				vm.InitPrecompiledCache(ethCfg.XLayer.PreRunCacheSize, ethCfg.XLayer.PreRunCacheTTL)
+				apii.initPreRunWorkers(ethCfg.XLayer.PreRunChanNum, ethCfg.XLayer.PreRunTaskNum)
+				log.Info(fmt.Sprintf("prerun list:%v, cache size:%v, ttl:%v, chan:%v, task:%v",
+					apii.PreRunList, ethCfg.XLayer.PreRunCacheSize, ethCfg.XLayer.PreRunCacheTTL,
+					ethCfg.XLayer.PreRunChanNum, ethCfg.XLayer.PreRunTaskNum))
+			}
 		}
 	})
 
@@ -602,7 +615,7 @@ func newRPCRawTransactionFromBlockIndex(b *types.Block, index uint64) (hexutilit
 type GasPriceCache struct {
 	latestPrice *big.Int
 	latestHash  common.Hash
-	mtx         sync.Mutex
+	mtx         sync.RWMutex
 	rawGPCache  *RawGPCache
 }
 
@@ -615,11 +628,11 @@ func NewGasPriceCache() *GasPriceCache {
 }
 
 func (c *GasPriceCache) GetLatest() (common.Hash, *big.Int) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	hash := c.latestHash
-	price := new(big.Int).Set(c.latestPrice) // deep copy
-	return hash, price
+	price := new(big.Int)
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	price.Set(c.latestPrice) // deep copy
+	return c.latestHash, price
 }
 
 func (c *GasPriceCache) SetLatest(hash common.Hash, price *big.Int) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"unsafe"
 
 	"fmt"
 	"strings"
@@ -37,55 +38,40 @@ const MetaDepth = "depth"
 var HermezSmtTables = []string{TableSmt, TableStats, TableAccountValues, TableMetadata, TableHashKey}
 
 type EriDb struct {
-	kvTx kv.RwTx
-	tx   SmtDbTx
+	kvTx        kv.RwTx
+	tx          SmtDbTx
+	kvTxChainDB kv.RwTx
 	*EriRoDb
 }
 
 type EriRoDb struct {
-	kvTxRo kv.Getter
+	kvTxRo        kv.Getter
+	kvTxRoChainDB kv.Getter
 }
 
 func CreateEriDbBuckets(tx kv.RwTx) error {
-	err := tx.CreateBucket(TableSmt)
-	if err != nil {
-		return err
+	for _, table := range HermezSmtTables {
+		err := tx.CreateBucket(table)
+		if err != nil {
+			return err
+		}
 	}
-
-	err = tx.CreateBucket(TableStats)
-	if err != nil {
-		return err
-	}
-
-	err = tx.CreateBucket(TableAccountValues)
-	if err != nil {
-		return err
-	}
-
-	err = tx.CreateBucket(TableMetadata)
-	if err != nil {
-		return err
-	}
-
-	err = tx.CreateBucket(TableHashKey)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func NewEriDb(tx kv.RwTx) *EriDb {
+func NewEriDb(txsmt, txcdb kv.RwTx) *EriDb {
 	return &EriDb{
-		tx:      tx,
-		kvTx:    tx,
-		EriRoDb: NewRoEriDb(tx),
+		tx:          txsmt,
+		kvTx:        txsmt,
+		kvTxChainDB: txcdb,
+		EriRoDb:     NewRoEriDb(txsmt, txcdb),
 	}
 }
 
-func NewRoEriDb(tx kv.Getter) *EriRoDb {
+func NewRoEriDb(txsmt, txcdb kv.Getter) *EriRoDb {
 	return &EriRoDb{
-		kvTxRo: tx,
+		kvTxRo:        txsmt,
+		kvTxRoChainDB: txcdb,
 	}
 }
 
@@ -96,6 +82,12 @@ func (m *EriDb) OpenBatch(quitCh <-chan struct{}) {
 	}()
 	m.tx = batch
 	m.kvTxRo = batch
+}
+
+func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {}
+
+func (m *EriDb) RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte) {
+	return nil, nil
 }
 
 func (m *EriDb) CommitBatch() error {
@@ -160,32 +152,11 @@ func (m *EriDb) SetDepth(depth uint8) error {
 	return m.tx.Put(TableStats, []byte(MetaDepth), []byte{depth})
 }
 
-//func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-//	keyConc := utils.ArrayToScalar(key[:])
-//	k := utils.ConvertBigIntToHex(keyConc)
-//
-//	data, err := m.kvTxRo.GetOne(TableSmt, []byte(k))
-//	if err != nil {
-//		return utils.NodeValue12{}, err
-//	}
-//
-//	if data == nil {
-//		return utils.NodeValue12{}, nil
-//	}
-//
-//	vConc := utils.ConvertHexToBigInt(string(data))
-//	val := utils.ScalarToNodeValue(vConc)
-//
-//	return val, nil
-//}
-
 func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
-	//fmt.Printf("GetRaw Eri %v\n", key)
 	k := utils.NodeKeyToByteArray(&key)
-	// Remark: []byte will convert k to bytes according to ASCII table, not the raw hex bytes
 	data, err := m.kvTxRo.GetOne(TableSmt, k)
 
-	if err != nil {
+	if err != nil || len(data) == 0  {
 		return utils.NodeValue12Raw{}, err
 	}
 
@@ -195,19 +166,6 @@ func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12Raw, error) {
 	val := utils.NodeValue12RawFromByteArray(data)
 	return val, nil
 }
-
-//func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
-//	keyConc := utils.ArrayToScalar(key[:])
-//	k := utils.ConvertBigIntToHex(keyConc)
-//
-//	vals := make([]*big.Int, 12)
-//	copy(vals, value[:])
-//
-//	vConc := utils.ArrayToScalarBig(vals)
-//	v := utils.ConvertBigIntToHex(vConc)
-//
-//	return m.tx.Put(TableSmt, []byte(k), []byte(v))
-//}
 
 func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12Raw) error {
 	bytes := utils.NodeValue12RawToByteArray(&value)
@@ -221,7 +179,7 @@ func (m *EriDb) Delete(key string) error {
 func (m *EriDb) DeleteByNodeKey(key utils.NodeKey) error {
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
-	return m.tx.Delete(TableSmt, []byte(k))
+	return m.tx.Delete(TableSmt, unsafe.Slice(unsafe.StringData(k), len(k)))
 }
 
 func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8Raw, error) {
@@ -245,6 +203,7 @@ func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8Raw)
 
 	return m.tx.Put(TableAccountValues, k, bytes)
 }
+
 
 func (m *EriDb) InsertKeySource(key utils.NodeKey, value []byte) error {
 	keyConc := utils.ArrayToScalar(key[:])
@@ -308,7 +267,7 @@ func (m *EriRoDb) GetHashKey(key utils.NodeKey) (utils.NodeKey, error) {
 func (m *EriRoDb) GetCode(codeHash []byte) ([]byte, error) {
 	codeHash = utils.ResizeHashTo32BytesByPrefixingWithZeroes(codeHash)
 
-	data, err := m.kvTxRo.GetOne(kv.Code, codeHash)
+	data, err := m.kvTxRoChainDB.GetOne(kv.Code, codeHash)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +289,7 @@ func (m *EriDb) AddCode(code []byte) error {
 
 	codeHashBytes = utils.ResizeHashTo32BytesByPrefixingWithZeroes(codeHashBytes)
 
-	return m.tx.Put(kv.Code, codeHashBytes, code)
+	return m.kvTxChainDB.Put(kv.Code, codeHashBytes, code)
 }
 
 func (m *EriRoDb) PrintDb() {

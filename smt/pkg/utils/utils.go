@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/hex"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -14,9 +15,9 @@ import (
 
 	"sort"
 
-	poseidon "github.com/okx/poseidongold/go"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/length"
+	poseidon "github.com/okx/poseidongold/go"
 )
 
 const (
@@ -575,6 +576,22 @@ func ScalarToArray(scalar *big.Int) []uint64 {
 }
 
 func ArrayToScalarBig(array []*big.Int) *big.Int {
+	// fast path for 64-bit systems
+	if len(array) != 0 && bits.UintSize == 64 {
+		lastInt := array[len(array)-1]
+		scalarBitsSize := len(lastInt.Bits()) + (len(array) - 1)
+		intBits := make([]big.Word, scalarBitsSize)
+		copy(intBits[len(array)-1:], lastInt.Bits())
+		for i := 0; i < len(array)-1; i++ {
+			if array[i] == nil || len(array[i].Bits()) == 0 {
+				intBits[i] = 0
+			} else {
+				intBits[i] = array[i].Bits()[0]
+			}
+		}
+		return new(big.Int).SetBits(intBits)
+	}
+
 	scalar := new(big.Int)
 	for i := len(array) - 1; i >= 0; i-- {
 		scalar.Lsh(scalar, 64)
@@ -648,9 +665,22 @@ func ScalarToRoot(s *big.Int) NodeKey {
 
 func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
 	out := [12]*big.Int{}
+
+	// fast path for 64-bit systems
+	if bits.UintSize == 64 {
+		words := scalarIn.Bits()
+		for i := 0; i < 12; i++ {
+			if i < len(words) {
+				out[i] = new(big.Int).SetUint64(uint64(words[i]))
+			} else {
+				out[i] = big.NewInt(0)
+			}
+		}
+		return out
+	}
+
 	mask := new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
 	scalar := new(big.Int).Set(scalarIn)
-
 	for i := 0; i < 12; i++ {
 		value := new(big.Int).And(scalar, mask)
 		out[i] = value

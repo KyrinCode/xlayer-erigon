@@ -540,11 +540,6 @@ const (
 	ERIGON_VERSIONS                   = "erigon_versions"                 // erigon version -> timestamp of startup
 	DISCARDED_TRANSACTIONS_BY_BLOCK   = "discarded_transactions_by_block" // mapping blockNum -> [txHash, ...]
 	DISCARDED_TRANSACTIONS_BY_HASH    = "discarded_transactions_by_hash"  // mapping txHash -> blockNum
-	TableSmt                          = "HermezSmt"
-	TableStats                        = "HermezSmtStats"
-	TableAccountValues                = "HermezSmtAccountValues"
-	TableMetadata                     = "HermezSmtMetadata"
-	TableHashKey                      = "HermezSmtHashKey"
 	TablePoolLimbo                    = "PoolLimbo"
 	BATCH_ENDS                        = "batch_ends"
 	WITNESS_CACHE                     = "witness_cache"
@@ -786,11 +781,6 @@ var ChaindataTables = []string{
 	ERIGON_VERSIONS,
 	DISCARDED_TRANSACTIONS_BY_BLOCK,
 	DISCARDED_TRANSACTIONS_BY_HASH,
-	TableSmt,
-	TableStats,
-	TableAccountValues,
-	TableMetadata,
-	TableHashKey,
 	TablePoolLimbo,
 	BATCH_ENDS,
 	WITNESS_CACHE,
@@ -823,9 +813,20 @@ var ReconTables = []string{
 }
 
 // ChaindataDeprecatedTables - list of buckets which can be programmatically deleted - for example after migration
+const tableSmt = "HermezSmt"
+const tableStats = "HermezSmtStats"
+const tableAccountValues = "HermezSmtAccountValues"
+const tableMetadata = "HermezSmtMetadata"
+const tableHashKey = "HermezSmtHashKey"
+
 var ChaindataDeprecatedTables = []string{
 	Clique,
 	TransitionBlockKey,
+	tableSmt,
+	tableStats,
+	tableAccountValues,
+	tableMetadata,
+	tableHashKey,
 }
 
 var DiagnosticsTables = []string{
@@ -960,7 +961,7 @@ func sortBuckets() {
 }
 
 func init() {
-	fmt.Println("[cdk-erigon-lib] timestamp 2024-03-12:16:34")
+	fmt.Println("[cdk-erigon-lib] init() in erigon-lib/kv/tables.go")
 	reinit()
 }
 
