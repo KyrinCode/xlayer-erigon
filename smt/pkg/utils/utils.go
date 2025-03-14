@@ -458,12 +458,13 @@ func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
 
 	// fast path for 64-bit systems
 	if bits.UintSize == 64 {
+		outData := [12]big.Int{}
 		words := scalarIn.Bits()
 		for i := 0; i < 12; i++ {
 			if i < len(words) {
-				out[i] = new(big.Int).SetUint64(uint64(words[i]))
+				out[i] = (&outData[i]).SetUint64(uint64(words[i]))
 			} else {
-				out[i] = big.NewInt(0)
+				out[i] = &outData[i]
 			}
 		}
 		return out
