@@ -161,6 +161,7 @@ type Ethereum struct {
 
 	// DB interfaces
 	chainDB    kv.RwDB
+	smtDB      kv.RwDB
 	privateAPI *grpc.Server
 
 	engine consensus.Engine
@@ -270,6 +271,9 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	}
 
 	// Assemble the Ethereum object
+
+	// call InitStandaloneSMT before openning the DB
+	kv.InitStandaloneSMT(config.XLayer.StandaloneSMTDatabase)
 	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, logger)
 	if err != nil {
 		return nil, err
@@ -295,6 +299,38 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	if config.HistoryV3 {
 		return nil, errors.New("seems you using erigon2 git branch on erigon3 DB")
 	}
+
+	// SMT DB
+	var smtdb kv.RwDB = chainKv
+	if config.XLayer.StandaloneSMTDatabase {
+		log.Info("Opening standalone SMT database (smt folder).")
+		smtdb, err = node.OpenDatabaseSMT(ctx, stack.Config(), logger)
+		if err != nil {
+			log.Error("Failed to OpenDatabaseSMT", "err", err)
+			return nil, err
+		}
+	} else {
+		log.Info("SMT database is part of main chain DB (chaindata folder).")
+	}
+	txsmt, err := smtdb.BeginRw(ctx)
+	if err != nil {
+		log.Error("Failed to smtdb.BeginRw", "err", err)
+		return nil, err
+	}
+	defer txsmt.Rollback()
+	if err := db.CreateEriDbBuckets(txsmt); err != nil {
+		log.Error("Failed to CreateEriDbBuckets", "err", err)
+		return nil, err
+	}
+	if err := txsmt.Commit(); err != nil {
+		log.Error("Failed to commit SMT init transaction", "err", err)
+		return nil, err
+	}
+	if !config.XLayer.StandaloneSMTDatabase {
+		txsmt = nil
+		smtdb = nil
+	}
+
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
 	// kv_remote architecture does blocks on stream.Send - means current architecture require unlimited amount of txs to provide good throughput
@@ -303,6 +339,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		sentryCancel:         ctxCancel,
 		config:               config,
 		chainDB:              chainKv,
+		smtDB:                smtdb,
 		networkID:            config.NetworkID,
 		etherbase:            config.Miner.Etherbase,
 		waitForStageLoopStop: make(chan struct{}),
@@ -1162,6 +1199,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 				*cfg.Zk,
 				legacyExecutors,
 				backend.chainDB,
+				backend.smtDB,
 				witnessGenerator,
 				dataStreamServer,
 			)
@@ -1190,6 +1228,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 			backend.syncStages = stages2.NewSequencerZkStages(
 				backend.sentryCtx,
 				backend.chainDB,
+				smtdb,
 				config,
 				backend.sentriesClient,
 				backend.notifications,
@@ -1230,6 +1269,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 			backend.syncStages = stages2.NewDefaultZkStages(
 				backend.sentryCtx,
 				backend.chainDB,
+				smtdb,
 				config,
 				backend.sentriesClient,
 				backend.notifications,
@@ -1262,15 +1302,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 }
 
 func createBuckets(tx kv.RwTx) error {
-	if err := hermez_db.CreateHermezBuckets(tx); err != nil {
-		return err
-	}
-
-	if err := db.CreateEriDbBuckets(tx); err != nil {
-		return err
-	}
-
-	return nil
+	return hermez_db.CreateHermezBuckets(tx)
 }
 
 func recordStartupVersionInDb(tx kv.RwTx) error {
@@ -1367,7 +1399,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	}
 
 	var gpCache *jsonrpc.GasPriceCache
-	s.apiList, gpCache = jsonrpc.APIList(chainKv, ethRpcClient, txPoolRpcClient, s.txPool2, miningRpcClient, ff, stateCache, blockReader, s.agg, &httpRpcCfg, s.engine, config, s.l1Syncer, s.logger, dataStreamServer, s.gasTracker)
+	s.apiList, gpCache = jsonrpc.APIList(chainKv, s.smtDB, ethRpcClient, txPoolRpcClient, s.txPool2, miningRpcClient, ff, stateCache, blockReader, s.agg, &httpRpcCfg, s.engine, config, s.l1Syncer, s.logger, dataStreamServer, s.gasTracker)
 
 	// For X Layer
 	if s.txPool2 != nil && gpCache != nil {
@@ -1406,7 +1438,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	}
 
 	if chainConfig.Bor == nil {
-		go s.engineBackendRPC.Start(ctx, &httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient, s.gasTracker)
+		go s.engineBackendRPC.Start(ctx, &httpRpcCfg, s.chainDB, s.smtDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient, s.gasTracker)
 	}
 
 	go func() {

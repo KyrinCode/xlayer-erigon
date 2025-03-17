@@ -1,4 +1,4 @@
-DOCKER_COMPOSE := docker compose -f docker-compose.yml
+DOCKER_COMPOSE := docker compose -f docker-compose-debug.yml
 DOCKER_STATELESS_EXECUTOR := xlayer-executor
 DOCKER_SEQ_SENDER := xlayer-seqs
 DOCKER_AGGREGATOR := xlayer-agg
@@ -55,7 +55,7 @@ STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; rm -rf data
 
 .PHONY: build-docker
 build-docker: ## Build cdk-erigoin for sequencer and rpc
-	docker build -t cdk-erigon -f ../Dockerfile.local ../
+	docker build -t cdk-erigon-debug -f ../Dockerfile.debug ../
 
 .PHONY: run
 run: build-docker ## Runs a full node

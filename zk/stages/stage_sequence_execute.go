@@ -119,11 +119,12 @@ func sequencingBatchStep(
 		return err
 	}
 
-	sdb, err := newStageDb(ctx, cfg.db)
+	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt)
 	if err != nil {
 		return err
 	}
-	defer sdb.tx.Rollback()
+	defer sdb.Rollback()
+	
 
 	if err = cfg.infoTreeUpdater.WarmUp(sdb.tx); err != nil {
 		return err
@@ -176,7 +177,7 @@ func sequencingBatchStep(
 			return err
 		}
 
-		return sdb.tx.Commit()
+		return sdb.Commit()
 	}
 
 	if shouldCheckForExecutionAndDataStreamAlignment {
@@ -193,7 +194,7 @@ func sequencingBatchStep(
 				return err
 			}
 			if isUnwinding {
-				err = sdb.tx.Commit()
+				err = sdb.Commit()
 				if err != nil {
 					// do not set shouldCheckForExecutionAndDataStreamAlighment=false because of the error
 					return err
@@ -212,7 +213,7 @@ func sequencingBatchStep(
 	if exitStage {
 		log.Info(fmt.Sprintf("[%s] Exiting stage during halted sequencer", logPrefix))
 		// commit the tx so any updates to the stream etc are persisted
-		return sdb.tx.Commit()
+		return sdb.Commit()
 	}
 
 	if err := utils.UpdateZkEVMBlockCfg(cfg.chainConfig, sdb.hermezDb, logPrefix); err != nil {
@@ -759,7 +760,7 @@ func sequencingBatchStep(
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
 				return errCommitAndStart
 			}
-			defer sdb.tx.Rollback()
+			defer sdb.Rollback()
 			metrics.GetLogStatistics().CumulativeTiming(metrics.BatchCommitDBTiming, time.Since(commitTime))
 		}
 
@@ -822,7 +823,7 @@ func sequencingBatchStep(
 			if errCommitAndStart := sdb.CommitAndStart(); errCommitAndStart != nil {
 				return errCommitAndStart
 			}
-			defer sdb.tx.Rollback()
+			defer sdb.Rollback()
 			metrics.GetLogStatistics().CumulativeTiming(metrics.BatchCommitDBTiming, time.Since(commitTime))
 		}
 
@@ -859,7 +860,7 @@ func sequencingBatchStep(
 	metrics.GetLogStatistics().SetTag(metrics.FinalizeBatchNumber, strconv.Itoa(int(batchState.batchNumber)))
 	tryToSleepSequencer(cfg.zk.XLayer.SequencerBatchSleepDuration, logPrefix)
 	startCommitTime := time.Now()
-	err = sdb.tx.Commit()
+	err = sdb.Commit()
 	metrics.GetLogStatistics().CumulativeTiming(metrics.BatchCommitDBTiming, time.Since(startCommitTime))
 
 	batchTime := time.Since(batchStart)

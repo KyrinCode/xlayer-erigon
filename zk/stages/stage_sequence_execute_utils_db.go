@@ -8,44 +8,67 @@ import (
 	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 	smtNs "github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
+	"github.com/ledgerwatch/log/v3"
 )
 
 type stageDb struct {
-	ctx context.Context
-	db  kv.RwDB
+	ctx   context.Context
+	db    kv.RwDB
+	dbsmt kv.RwDB
 
 	tx          kv.RwTx
+	txsmt       kv.RwTx
 	hermezDb    *hermez_db.HermezDb
 	eridb       *db2.EriDb
 	stateReader *state.PlainStateReader
 	smt         *smtNs.SMT
 }
 
-func newStageDb(ctx context.Context, db kv.RwDB) (sdb *stageDb, err error) {
+func newStageDb(ctx context.Context, db, dbsmt kv.RwDB) (sdb *stageDb, err error) {
 	var tx kv.RwTx
 	if tx, err = db.BeginRw(ctx); err != nil {
+		log.Error("failed to start maindb tx", "err", err)
 		return nil, err
+	}
+	var txsmt kv.RwTx = nil
+	if dbsmt != nil {
+		if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
+			log.Error("failed to start smt tx", "err", err)
+			return nil, err
+		}
 	}
 
 	sdb = &stageDb{
-		ctx: ctx,
-		db:  db,
+		ctx:   ctx,
+		db:    db,
+		dbsmt: dbsmt,
 	}
-	sdb.SetTx(tx)
+	sdb.SetTx(tx, txsmt)
 	return sdb, nil
 }
 
-func (sdb *stageDb) SetTx(tx kv.RwTx) {
+func (sdb *stageDb) SetTx(tx, txsmt kv.RwTx) {
 	sdb.tx = tx
+	sdb.txsmt = txsmt
 	sdb.hermezDb = hermez_db.NewHermezDb(tx)
-	sdb.eridb = db2.NewEriDb(tx)
+	if txsmt == nil {
+		sdb.eridb = db2.NewEriDb(tx, tx)
+	} else {
+		sdb.eridb = db2.NewEriDb(txsmt, tx)
+	}
 	sdb.stateReader = state.NewPlainStateReader(tx)
 	sdb.smt = smtNs.NewSMT(sdb.eridb, false)
 }
 
 func (sdb *stageDb) CommitAndStart() (err error) {
 	if err = sdb.tx.Commit(); err != nil {
+		if sdb.dbsmt != nil {
+			sdb.txsmt.Rollback()
+		}
 		return err
+	}
+	if sdb.dbsmt != nil {
+		sdb.txsmt.Commit()
 	}
 
 	tx, err := sdb.db.BeginRw(sdb.ctx)
@@ -53,6 +76,35 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		return err
 	}
 
-	sdb.SetTx(tx)
+	var txsmt kv.RwTx = nil
+	if sdb.dbsmt != nil {
+		txsmt, err = sdb.dbsmt.BeginRw(sdb.ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	sdb.SetTx(tx, txsmt)
 	return nil
+}
+
+func (sdb *stageDb) Commit() error {
+	err := sdb.tx.Commit()
+	if err != nil {
+		if sdb.dbsmt != nil {
+			sdb.txsmt.Rollback()
+		}
+		return err
+	}
+	if sdb.dbsmt != nil {
+		return sdb.txsmt.Commit()
+	}
+	return nil
+}
+
+func (sdb *stageDb) Rollback() {
+	sdb.tx.Rollback()
+	if sdb.txsmt != nil {
+		sdb.txsmt.Rollback()
+	}
 }

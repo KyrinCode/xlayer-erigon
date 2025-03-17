@@ -29,7 +29,7 @@ zkevm.executor-strict: false
 zkevm.witness-full: false
 zkevm.executor-mock: true
 
-zkevm.sequencer-block-seal-time: "3s"
+zkevm.sequencer-block-seal-time: "1s"
 zkevm.sequencer-batch-seal-time: "10s"
 zkevm.sequencer-batch-sleep-duration: "0s"
 
@@ -100,3 +100,4 @@ txpool.freegaslist : '[{"name":"e2e", "from_list":["0x586cbc95ed16031d9efdaebacf
 # close a block/batch immediately after the 1st zkCounter overflow TX
 zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 5ms
+zkevm.standalone-smt-db: true

@@ -11,6 +11,7 @@ type XLayerConfig struct {
 	EnableInnerTx bool
 	// Sequencer
 	SequencerBatchSleepDuration time.Duration
+	StandaloneSMTDatabase       bool
 
 	// Local Replay
 	SequencerReplay                   bool
