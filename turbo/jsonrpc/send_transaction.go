@@ -13,6 +13,7 @@ import (
 	txPoolProto "github.com/ledgerwatch/erigon-lib/gointerfaces/txpool"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	utils2 "github.com/ledgerwatch/erigon/cmd/utils"
+	"github.com/ledgerwatch/erigon/zkevm/log"
 
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/params"
@@ -20,10 +21,9 @@ import (
 	"github.com/ledgerwatch/erigon/turbo/rpchelper"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
 	"github.com/ledgerwatch/erigon/zk/utils"
-	"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
-const batchSize = 300
+const batchSize = 30
 const batchTimeout = 5 * time.Millisecond
 
 type txRequest struct {
