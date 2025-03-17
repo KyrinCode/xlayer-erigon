@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common/hexutil"
+	"github.com/ledgerwatch/erigon/core/vm"
 	"github.com/ledgerwatch/erigon/zk/sequencer"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -387,8 +388,10 @@ type APIImpl struct {
 	DisableVirtualCounters        bool
 
 	// For X Layer
-	L2GasPricer   gasprice.L2GasPricer
-	EnableInnerTx bool
+	L2GasPricer     gasprice.L2GasPricer
+	EnableInnerTx   bool
+	PreRunList      map[common.Address]struct{}
+	preRunProcessor *PreRunProcessor
 }
 
 // NewEthAPI returns APIImpl instance
@@ -433,6 +436,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 		// For X Layer
 		L2GasPricer:   gasprice.NewL2GasPriceSuggester(context.Background(), ethCfg.GPO),
 		EnableInnerTx: ethCfg.XLayer.EnableInnerTx,
+		PreRunList:    ethCfg.XLayer.PreRunList,
 	}
 
 	// For X Layer
@@ -441,6 +445,13 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 	GasPricerOnce.Do(func() {
 		if sequencer.IsSequencer() {
 			apii.runL2GasPricerForXLayer()
+			if len(ethCfg.XLayer.PreRunList) > 0 {
+				vm.InitPrecompiledCache(ethCfg.XLayer.PreRunCacheSize, ethCfg.XLayer.PreRunCacheTTL)
+				apii.initPreRunWorkers(ethCfg.XLayer.PreRunChanNum, ethCfg.XLayer.PreRunTaskNum)
+				log.Info(fmt.Sprintf("prerun list:%v, cache size:%v, ttl:%v, chan:%v, task:%v",
+					apii.PreRunList, ethCfg.XLayer.PreRunCacheSize, ethCfg.XLayer.PreRunCacheTTL,
+					ethCfg.XLayer.PreRunChanNum, ethCfg.XLayer.PreRunTaskNum))
+			}
 		}
 	})
 
@@ -604,7 +615,7 @@ func newRPCRawTransactionFromBlockIndex(b *types.Block, index uint64) (hexutilit
 type GasPriceCache struct {
 	latestPrice *big.Int
 	latestHash  common.Hash
-	mtx         sync.Mutex
+	mtx         sync.RWMutex
 	rawGPCache  *RawGPCache
 }
 
@@ -617,11 +628,11 @@ func NewGasPriceCache() *GasPriceCache {
 }
 
 func (c *GasPriceCache) GetLatest() (common.Hash, *big.Int) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	hash := c.latestHash
-	price := new(big.Int).Set(c.latestPrice) // deep copy
-	return hash, price
+	price := new(big.Int)
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	price.Set(c.latestPrice) // deep copy
+	return c.latestHash, price
 }
 
 func (c *GasPriceCache) SetLatest(hash common.Hash, price *big.Int) {
