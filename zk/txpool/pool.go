@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
 	"math"
 	"math/big"
 	"runtime"
@@ -57,7 +58,6 @@ import (
 	proto_txpool "github.com/ledgerwatch/erigon-lib/gointerfaces/txpool"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/kvcache"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/types"
 )
 
@@ -1607,7 +1607,7 @@ func (p *TxPool) flush(ctx context.Context, db kv.RwDB) (written uint64, err err
 		if err != nil {
 			return err
 		}
-		written, _, err = tx.(*mdbx.MdbxTx).SpaceDirty()
+		written, _, err = tx.(*rocksdb.RocksDbTx).SpaceDirty()
 		if err != nil {
 			return err
 		}

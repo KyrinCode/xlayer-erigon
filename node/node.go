@@ -365,6 +365,8 @@ func OpenDatabase(ctx context.Context, config *nodecfg.Config, label kv.Label, n
 		}
 
 		return opts.Open(ctx)
+		// todo: yztodo: use a options struct to deliver arguments
+		// return rocksdb.NewRocksDB(dbPath, logger, roTxsLimiter, readonly)
 	}
 	var err error
 	db, err = openFunc(false)

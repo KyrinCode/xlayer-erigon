@@ -1246,6 +1246,7 @@ func (tx *MdbxTx) Append(bucket string, k, v []byte) error {
 	}
 	return c.Append(k, v)
 }
+
 func (tx *MdbxTx) AppendDup(bucket string, k, v []byte) error {
 	c, err := tx.statelessCursor(bucket)
 	if err != nil {

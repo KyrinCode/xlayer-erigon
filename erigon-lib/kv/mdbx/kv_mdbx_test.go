@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/erigontech/mdbx-go/mdbx"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -266,6 +267,19 @@ func TestLastDup(t *testing.T) {
 func TestPutGet(t *testing.T) {
 	_, tx, c := BaseCase(t)
 
+	require.NoError(t, c.Put([]byte(""), []byte("value1.1")))
+
+	var v []byte
+	v, err := tx.GetOne("Table", []byte("key1"))
+	require.Nil(t, err)
+	require.Equal(t, v, []byte("value1.1"))
+
+	v, err = tx.GetOne("RANDOM", []byte("key1"))
+	require.Error(t, err) // Error from non-existent bucket returns error
+	require.Nil(t, v)
+}
+
+func HelperTestPutGet(t *testing.T, tx kv.RwTx, c kv.RwCursorDupSort) {
 	require.NoError(t, c.Put([]byte(""), []byte("value1.1")))
 
 	var v []byte
@@ -1147,4 +1161,563 @@ func TestDeadlock(t *testing.T) {
 	if outerErr != nil {
 		t.Error(outerErr)
 	}
+}
+
+func TestMdbxCursor_putNoOverwrite(t *testing.T) {
+	_, tx, _ := BaseCase(t)
+	ci, err := tx.RwCursor("Table")
+	require.NoError(t, err)
+	c := ci.(*MdbxDupSortCursor)
+
+	// key exist, value exist: return error
+	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1"))
+	require.Error(t, mdbx.KeyExist, err)
+
+	// key exist, value not exist: return error
+	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1xxx"))
+	require.Error(t, mdbx.KeyExist, err)
+
+	// key not exist, value not exist, return success
+	err = c.putNoOverwrite([]byte("key2"), []byte("value2.1"))
+	require.NoError(t, err)
+
+	// key not exist, value exist, return success
+	err = c.putNoOverwrite([]byte("key2.1"), []byte("value2.1"))
+	require.NoError(t, err)
+}
+
+func TestMdbxCursor_putCurrent(t *testing.T) {
+	_, tx, _ := BaseCase(t)
+	ci, err := tx.RwCursor("Table")
+	require.NoError(t, err)
+	c := ci.(*MdbxDupSortCursor)
+
+	k, v, err := c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	require.EqualError(t, c.putCurrent([]byte("new1"), []byte("newvalue1")), "mdbx_cursor_put: MDBX_EKEYMISMATCH: The given key value is mismatched to the current cursor position")
+
+	require.NoError(t, c.putCurrent([]byte("key1"), []byte("newvalue1")))
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("newvalue1"), v)
+
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+}
+
+func TestMdbxCursor_getBothRange(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	v, err := c.getBothRange([]byte("x"), []byte("value1.1"))
+	require.Error(t, err)
+	k, v, err := c.Current()
+	require.Error(t, err)
+
+	v, err = c.getBothRange([]byte("key"), []byte("value1.1"))
+	require.Error(t, err)
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	v, err = c.getBothRange([]byte("key1"), []byte("v"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	v, err = c.getBothRange([]byte("key1"), []byte("u"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value1.1"), v)
+
+	v, err = c.getBothRange([]byte("key1"), []byte("value1.11"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	v, err = c.getBothRange([]byte("key1"), []byte("x"))
+	require.Error(t, err)
+	k, v, err = c.Current()
+	require.Error(t, err)
+}
+
+func TestMdbxCursor_getBoth(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	v, err := c.getBoth([]byte("key"), []byte("value1.1"))
+	require.Error(t, err)
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	_, _, err = c.Seek([]byte("key3"))
+	require.NoError(t, err)
+
+	v, err = c.getBoth([]byte("key3"), []byte("v"))
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+
+	v, err = c.getBoth([]byte("key1"), []byte("u"))
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	v, err = c.getBoth([]byte("key1"), []byte("value1.11"))
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	v, err = c.getBoth([]byte("key1"), []byte("value1.1"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	v, err = c.getBoth([]byte("key3"), []byte("value3.3"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value3.3"), v)
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+}
+
+func TestRocksDBCursor_put(t *testing.T) {
+	t.Run("DupSort", func(t *testing.T) {
+		_, _, ci := BaseCase(t)
+		c := ci.(*MdbxDupSortCursor)
+
+		require.NoError(t, c.put([]byte("key1"), []byte("value0.0")))
+		require.NoError(t, c.put([]byte("key1"), []byte("value0.1")))
+
+		k, v, err := c.Next()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value1.1"), v)
+
+		k, v, err = c.First()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value0.0"), v)
+		k, v, err = c.Next()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value0.1"), v)
+		k, v, err = c.Next()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value1.1"), v)
+		k, v, err = c.Next()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value1.3"), v)
+	})
+	t.Run("NotDupSort", func(t *testing.T) {
+		_, tx, _ := BaseCase(t)
+		ci, err := tx.RwCursor(kv.Sequence)
+		require.NoError(t, err)
+		c := ci.(*MdbxCursor)
+		defer c.Close()
+
+		require.NoError(t, c.put([]byte("key1"), []byte("value1.3")))
+		require.NoError(t, c.put([]byte("key1"), []byte("value1.1")))
+		require.NoError(t, c.put([]byte("key1"), []byte("value1.2")))
+
+		k, v, err := c.Current()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value1.2"), v)
+
+		k, v, err = c.First()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key1"), k)
+		require.Equal(t, []byte("value1.2"), v)
+		k, v, err = c.Next()
+		require.NoError(t, err)
+		require.Nil(t, k)
+		require.Nil(t, v)
+
+	})
+}
+
+func TestMdbxCursor_setRange(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	k, v, err := c.setRange([]byte("key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	k, v, err = c.setRange([]byte("key1"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	k, v, err = c.setRange([]byte("key11"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+}
+
+func TestMdbxCursor_set(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	k, v, err := c.set([]byte("key"))
+	require.Error(t, err)
+
+	k, v, err = c.set([]byte("key1"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	k, v, err = c.set([]byte("key11"))
+	require.Error(t, err)
+}
+
+func TestMdbxCursor_putAppendDup(t *testing.T) {
+	expectErrMsg := "mdbx_cursor_put: MDBX_EKEYMISMATCH: The given key value is mismatched to the current cursor position"
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	err := c.c.Put([]byte("key1"), []byte("value1.1"), mdbx.AppendDup)
+	require.EqualError(t, err, expectErrMsg)
+
+	err = c.c.Put([]byte("key1"), []byte("append1.2"), mdbx.AppendDup)
+	require.EqualError(t, err, expectErrMsg)
+
+	err = c.c.Put([]byte("key2"), []byte("append2.1"), mdbx.AppendDup)
+	require.NoError(t, err)
+
+	err = c.c.Put([]byte("key3"), []byte("append3.1"), mdbx.AppendDup)
+	require.EqualError(t, err, expectErrMsg)
+
+	k, v, err := c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key2"), k)
+	require.Equal(t, []byte("append2.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+}
+
+func TestMdbxCursor_putAppend(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+	expectErrMsg := "mdbx_cursor_put: MDBX_EKEYMISMATCH: The given key value is mismatched to the current cursor position"
+
+	err := c.c.Put([]byte("key1"), []byte("value1.1"), mdbx.Append)
+	require.EqualError(t, err, expectErrMsg)
+
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+
+	err = c.c.Put([]byte("key3"), []byte("value3.4"), mdbx.Append)
+	require.EqualError(t, err, expectErrMsg)
+	err = c.c.Put([]byte("key4"), []byte("value4.4"), mdbx.Append)
+	require.NoError(t, err)
+	err = c.c.Put([]byte("key4"), []byte("value4.5"), mdbx.Append)
+	require.EqualError(t, err, expectErrMsg)
+
+	_, _, err = c.Seek([]byte("key1"))
+	require.NoError(t, err)
+	err = c.c.Put([]byte("key2"), []byte("value2.1"), mdbx.Append)
+	require.EqualError(t, err, expectErrMsg)
+
+	_, _, err = c.Last()
+	require.NoError(t, err)
+	err = c.c.Put([]byte("key5"), []byte("value5.1"), mdbx.Append)
+	require.NoError(t, err)
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key4"), k)
+	require.Equal(t, []byte("value4.4"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key5"), k)
+	require.Equal(t, []byte("value5.1"), v)
+}
+
+func TestMdbxCursor_delAllDupData(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	require.NoError(t, c.delAllDupData())
+
+	k, v, err := c.Current()
+	require.EqualError(t, err, "mdbx_cursor_get: no message available on STREAM")
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+
+	require.NoError(t, c.Put([]byte("key2"), []byte("value2.1")))
+	require.NoError(t, c.Put([]byte("key2"), []byte("value2.2")))
+	k, v, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, err)
+	require.NoError(t, c.delAllDupData())
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key2"), k)
+	require.Equal(t, []byte("value2.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key2"), k)
+	require.Equal(t, []byte("value2.2"), v)
+
+	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
+	require.NoError(t, c.delAllDupData())
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key2"), k)
+	require.Equal(t, []byte("value2.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key2"), k)
+	require.Equal(t, []byte("value2.2"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+}
+
+func TestMdbxCursor_delCurrent(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	require.NoError(t, c.delCurrent())
+	k, v, err := c.Current()
+	require.EqualError(t, err, "mdbx_cursor_get: no message available on STREAM")
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+
+	k, v, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	require.NoError(t, c.delCurrent())
+
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+
+	_, _, err = c.First()
+	require.NoError(t, err)
+	require.NoError(t, c.delCurrent())
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+
+	require.NoError(t, c.Put([]byte("key2"), []byte("value2.1")))
+	require.NoError(t, c.delCurrent())
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+
+	_, _, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+
+	_, _, err = c.First()
+	require.NoError(t, c.delCurrent())
+	k, v, err = c.Current()
+	require.Error(t, err)
+}
+
+func TestMdbxCursor_lastDup(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
+	v, err := c.lastDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("value5.1"), v)
+
+	_, _, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, err)
+	v, err = c.lastDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("value1.3"), v)
+
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+}
+
+func TestMdbxCursor_firstDup(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
+	v, err := c.firstDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("value5.1"), v)
+
+	_, _, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, err)
+	v, err = c.firstDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("value1.1"), v)
+
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+}
+
+func TestMdbxCursor_nextDup(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
+	_, _, err := c.nextDup()
+	require.Error(t, err)
+
+	_, _, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, err)
+	k, v, err := c.nextDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.nextDup()
+	require.Error(t, err)
+}
+
+func TestMdbxCursor_prevDup(t *testing.T) {
+	_, _, ci := BaseCase(t)
+	c := ci.(*MdbxDupSortCursor)
+
+	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
+	_, _, err := c.prevDup()
+	require.Error(t, err)
+
+	_, _, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, err)
+	_, _, err = c.Next()
+	require.NoError(t, err)
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	k, v, err = c.prevDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.prevDup()
+	require.Error(t, err)
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
 }
