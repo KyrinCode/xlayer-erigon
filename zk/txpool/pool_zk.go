@@ -209,8 +209,9 @@ func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableG
 }
 
 func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, []*metaTx, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	// t := time.Now()
+	// p.lock.RLock()
+	// defer p.lock.RUnlock()
 
 	if p.isDeniedYieldingTransactions() {
 		//log.Trace("Denied yielding transactions, cannot proceed")
@@ -227,20 +228,23 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 	isLondon := p.isLondon()
 	_ = isLondon
 	best := p.pending.best
+	newMs := best.ms
 
 	txs.Resize(uint(cmp.Min(int(n), len(best.ms))))
 	var toRemove []*metaTx
 	count := 0
 
+	p.lock.RLock()
 	p.pending.EnforceBestInvariants()
+	p.lock.RUnlock()
 
-	for i := 0; count < int(n) && i < len(best.ms); i++ {
+	for i := 0; count < int(n) && i < len(newMs); i++ {
 		// if we wouldn't have enough gas for a standard transaction then quit out early
 		if availableGas < fixedgas.TxGas {
 			break
 		}
 
-		mt := best.ms[i]
+		mt := newMs[i]
 		//log.Trace("Processing transaction", "txID", mt.Tx.IDHash)
 
 		if toSkip.Contains(mt.Tx.IDHash) {
@@ -388,7 +392,7 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 
 	}
 	ts5 := time.Now()
-	log.Info("onSenderStateChange cost", "time", ts5.Sub(ts3))
+	log.Info("onSenderStateChange cost", "time", ts5.Sub(ts4))
 	return nil
 }
 
