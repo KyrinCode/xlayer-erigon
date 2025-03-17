@@ -327,17 +327,17 @@ func (m *Mapmutation) RetrieveAndCleanSmtCache(smtTables []string) (map[string]m
 		if bucket, ok := m.puts[table]; ok {
 			targetCachedTable[table] = bucket
 
-			total_count := len(bucket)
-			start := time.Now()
-			deleted_count := 0
-			for k, v := range bucket {
-				if v == nil || len(v) == 0 {
-					deleted_count += 1
-					delete(bucket, k)
-				}
-			}
-			elapsed := time.Since(start).Microseconds()
-			fmt.Printf("table: %s, buzket size: %d, deleted: %d, time elapsed :%d us \n", table, total_count, deleted_count, elapsed)
+			//total_count := len(bucket)
+			//start := time.Now()
+			//deleted_count := 0
+			//for k, v := range bucket {
+			//	if v == nil || len(v) == 0 {
+			//		deleted_count += 1
+			//		delete(bucket, k)
+			//	}
+			//}
+			//elapsed := time.Since(start).Microseconds()
+			//fmt.Printf("table: %s, buzket size: %d, deleted: %d, time elapsed :%d us \n", table, total_count, deleted_count, elapsed)
 
 			delete(m.puts, table)
 		}
