@@ -320,19 +320,24 @@ func (m *Mapmutation) SetCache(cache map[string]map[string][]byte) {
 func (m *Mapmutation) RetrieveAndCleanSmtCache(smtTables []string) (map[string]map[string][]byte, map[string]map[string][]byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	fmt.Printf("smtTables size: %d\n", len(smtTables))
 	targetCachedTable := make(map[string]map[string][]byte, len(smtTables))
 	deltaTargetCached := make(map[string]map[string][]byte, len(smtTables))
 
 	for _, table := range smtTables {
 		if bucket, ok := m.puts[table]; ok {
 			targetCachedTable[table] = bucket
-			fmt.Printf("buzket size: %d, table: %s\n", len(bucket), table)
+
+			total_count := len(bucket)
+			start := time.Now()
+			deleted_count := 0
 			for k, v := range bucket {
 				if v == nil || len(v) == 0 {
+					deleted_count += 1
 					delete(bucket, k)
 				}
 			}
+			elapsed := time.Since(start).Microseconds()
+			fmt.Printf("table: %s, buzket size: %d, deleted: %d, time elapsed :%d us \n", table, total_count, deleted_count, elapsed)
 
 			delete(m.puts, table)
 		}
