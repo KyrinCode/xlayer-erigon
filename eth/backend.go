@@ -301,7 +301,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	}
 
 	// SMT DB
-	var smtdb kv.RwDB = nil
+	var smtdb kv.RwDB = chainKv
 	if config.XLayer.StandaloneSMTDatabase {
 		log.Info("Opening standalone SMT database (smt folder).")
 		smtdb, err = node.OpenDatabaseSMT(ctx, stack.Config(), logger)
@@ -309,22 +309,26 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 			log.Error("Failed to OpenDatabaseSMT", "err", err)
 			return nil, err
 		}
-		txsmt, err := smtdb.BeginRw(ctx)
-		if err != nil {
-			log.Error("Failed to smtdb.BeginRw", "err", err)
-			return nil, err
-		}
-		defer txsmt.Rollback()
-		if err := db.CreateEriDbBuckets(txsmt); err != nil {
-			log.Error("Failed to CreateEriDbBuckets", "err", err)
-			return nil, err
-		}
-		if err := txsmt.Commit(); err != nil {
-			log.Error("Failed to commit SMT init transaction", "err", err)
-			return nil, err
-		}
 	} else {
 		log.Info("SMT database is part of main chain DB (chaindata folder).")
+	}
+	txsmt, err := smtdb.BeginRw(ctx)
+	if err != nil {
+		log.Error("Failed to smtdb.BeginRw", "err", err)
+		return nil, err
+	}
+	defer txsmt.Rollback()
+	if err := db.CreateEriDbBuckets(txsmt); err != nil {
+		log.Error("Failed to CreateEriDbBuckets", "err", err)
+		return nil, err
+	}
+	if err := txsmt.Commit(); err != nil {
+		log.Error("Failed to commit SMT init transaction", "err", err)
+		return nil, err
+	}
+	if !config.XLayer.StandaloneSMTDatabase {
+		txsmt = nil
+		smtdb = nil
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
