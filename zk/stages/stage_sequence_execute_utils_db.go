@@ -87,7 +87,7 @@ func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.RwTx, eridb smtNs.DB) {
 
 func (sdb *stageDb) CommitAndStart() (err error) {
 	if err = sdb.tx.Commit(); err != nil {
-		if !supportAC && sdb.dbsmt != nil {
+		if !sdb.supportAC && sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
 		}
 		return err
@@ -98,7 +98,7 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		return err
 	}
 
-	if !supportAC && sdb.dbsmt != nil {
+	if !sdb.supportAC && sdb.dbsmt != nil {
 		if err = sdb.txsmt.Commit(); err != nil {
 			return err
 		}
@@ -129,13 +129,13 @@ func (sdb *stageDb) Commit(s *stagedsync.StageState, flushSmt bool) error {
 
 	err := sdb.tx.Commit()
 	if err != nil {
-		if !supportAC && sdb.dbsmt != nil {
+		if !sdb.supportAC && sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
 		}
 		return err
 	}
 
-	if !supportAC && sdb.dbsmt != nil {
+	if !sdb.supportAC && sdb.dbsmt != nil {
 		return sdb.txsmt.Commit()
 	} else {
 		return nil

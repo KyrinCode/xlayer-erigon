@@ -30,6 +30,8 @@ type XLayerConfig struct {
 	// Executor
 	ExecutorMock        bool
 	BlockInfoConcurrent bool
+
+	EnableAsyncCommit bool
 }
 
 var DefaultXLayerConfig = XLayerConfig{}

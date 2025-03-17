@@ -104,3 +104,4 @@ zkevm.pre-run-address-list: ["0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534"]
 zkevm.block-info-concurrent: true
 zkevm.standalone-smt-db: false
 zkevm.executor-mock: true
+zkevm.enable-async-commit: false
