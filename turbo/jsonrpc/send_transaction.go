@@ -12,7 +12,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	txPoolProto "github.com/ledgerwatch/erigon-lib/gointerfaces/txpool"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	utils2 "github.com/ledgerwatch/erigon/cmd/utils"
 	"github.com/ledgerwatch/erigon/zkevm/log"
 
 	"github.com/ledgerwatch/erigon/core/types"
@@ -23,7 +22,7 @@ import (
 	"github.com/ledgerwatch/erigon/zk/utils"
 )
 
-const batchSize = 30
+const batchSize = 28
 const batchTimeout = 5 * time.Millisecond
 
 type txRequest struct {
@@ -40,11 +39,13 @@ type txResult struct {
 func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
 	t := utils.StartTimer("rpc", "sendrawtransaction")
 	defer t.LogTimer()
+
 	tx, err := api.db.BeginRo(ctx)
 	if err != nil {
 		return common.Hash{}, err
 	}
 	defer tx.Rollback()
+
 	cc, err := api.chainConfig(ctx, tx)
 	if err != nil {
 		return common.Hash{}, err
@@ -53,28 +54,27 @@ func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility
 
 	// [zkevm] - proxy the request if the chainID is ZK and not a sequencer
 	if api.isZkNonSequencer(chainId) {
-		// [zkevm] - proxy the request to the pool manager if the pool manager is set
 		if api.isPoolManagerAddressSet() {
 			return api.sendTxZk(api.PoolManagerUrl, encodedTx, chainId.Uint64())
 		}
-
 		return api.sendTxZk(api.l2RpcUrl, encodedTx, chainId.Uint64())
 	}
 
-	txn, err := types.DecodeWrappedTransaction(encodedTx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	hash := txn.Hash()
-
+	resultChan := make(chan txResult, 1)
 	req := txRequest{
-		ctx:       ctx,
-		encodedTx: encodedTx,
+		ctx:        ctx,
+		encodedTx:  encodedTx,
+		resultChan: resultChan,
 	}
 
 	select {
 	case api.txChan <- req:
-		return hash, nil
+		select {
+		case res := <-resultChan:
+			return res.hash, res.err
+		case <-ctx.Done():
+			return common.Hash{}, ctx.Err()
+		}
 	case <-ctx.Done():
 		return common.Hash{}, ctx.Err()
 	}
@@ -141,22 +141,47 @@ func (api *APIImpl) processBatch(batch []txRequest) error {
 		return err
 	}
 
-	// now get the sender and put a lock in place for them
 	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
 
 	var rlpTxs [][]byte
+	var results []txResult
 	for _, req := range batch {
-		_, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
+		hash, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
 		if err != nil {
 			log.Error("validateTransaction failed", "err", err)
+			if req.resultChan != nil {
+				req.resultChan <- txResult{hash: common.Hash{}, err: err}
+			}
 			continue
 		}
 		rlpTxs = append(rlpTxs, req.encodedTx)
+		results = append(results, txResult{hash: hash, err: nil})
 	}
 
 	if len(rlpTxs) > 0 {
-		api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: rlpTxs})
+		res, err := api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: rlpTxs})
+		if err != nil {
+			for i := range rlpTxs {
+				if results[i].err == nil && results[i].hash != (common.Hash{}) {
+					results[i].err = err
+				}
+				if batch[i].resultChan != nil {
+					batch[i].resultChan <- results[i]
+				}
+			}
+			return err
+		}
+
+		for i, result := range res.Imported {
+			if result != txPoolProto.ImportResult_SUCCESS {
+				results[i].err = fmt.Errorf("%s: %s", txPoolProto.ImportResult_name[int32(result)], res.Errors[i])
+			}
+			if batch[i].resultChan != nil {
+				batch[i].resultChan <- results[i]
+			}
+		}
 	}
+
 	return nil
 }
 
@@ -186,7 +211,6 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 		}
 	}
 
-	// check if the price is too low if we are set to reject low gas price transactions
 	if api.RejectLowGasPriceTransactions &&
 		ShouldRejectLowGasPrice(
 			txn.GetPrice().ToBig(),
@@ -196,8 +220,6 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 		return common.Hash{}, errors.New("transaction price is too low")
 	}
 
-	// If the transaction fee cap is already specified, ensure the
-	// fee of the given transaction is _reasonable_.
 	if err := checkTxFee(txn.GetPrice().ToBig(), txn.GetGas(), api.FeeCap); err != nil {
 		return common.Hash{}, err
 	}
@@ -213,7 +235,6 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 	}
 
 	hash := txn.Hash()
-	// [zkevm] - check if the transaction is a bad one
 	hermezDb := hermez_db.NewHermezDbReader(tx)
 	badTxHashCounter, err := hermezDb.GetBadTxHashCounter(hash)
 	if err != nil {
@@ -221,19 +242,6 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 	}
 	if badTxHashCounter >= api.BadTxAllowance {
 		return common.Hash{}, errors.New("transaction uses too many counters to fit into a batch")
-	}
-
-	if len(api.PreRunList) > 0 && utils2.CheckAddressExists(api.PreRunList, sender) {
-		api.preRun(txn, chainId)
-	}
-
-	res, err := api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: [][]byte{encodedTx}})
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	if res.Imported[0] != txPoolProto.ImportResult_SUCCESS {
-		return hash, fmt.Errorf("%s: %s", txPoolProto.ImportResult_name[int32(res.Imported[0])], res.Errors[0])
 	}
 
 	return hash, nil
