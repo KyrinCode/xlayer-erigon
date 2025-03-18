@@ -348,6 +348,7 @@ type TxPool struct {
 	apolloCfg    ApolloConfig
 	gpCache      GPCache // GPCache will only work in sequencer node, without rpc node
 	freeGasAddrs map[string]bool
+	deleteMtx    sync.Mutex
 
 	// we cannot be in a flushing state whilst getting transactions from the pool, so we have this mutex which is
 	// exposed publicly so anything wanting to get "best" transactions can ensure a flush isn't happening and
@@ -800,36 +801,36 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	if !p.isFreeGasXLayer(txn.SenderID, txn) &&
 		uint256.NewInt(rgp.Uint64()).Cmp(&txn.FeeCap) == 1 {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx underpriced idHash=%x local=%t, feeCap=%d, cfg.MinFeeCap=%d", txn.IDHash, isLocal, txn.FeeCap, p.cfg.MinFeeCap))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx underpriced idHash=%x local=%t, feeCap=%d, cfg.MinFeeCap=%d", txn.IDHash, isLocal, txn.FeeCap, p.cfg.MinFeeCap))
 		}
 		return UnderPriced
 	}
 	gas, reason := CalcIntrinsicGas(uint64(txn.DataLen), uint64(txn.DataNonZeroLen), nil, txn.Creation, true, true, isShanghai)
 	if txn.Traced {
-		log.Info(fmt.Sprintf("TX TRACING: validateTx intrinsic gas idHash=%x gas=%d", txn.IDHash, gas))
+		// log.Info(fmt.Sprintf("TX TRACING: validateTx intrinsic gas idHash=%x gas=%d", txn.IDHash, gas))
 	}
 	if reason != Success {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx intrinsic gas calculated failed idHash=%x reason=%s", txn.IDHash, reason))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx intrinsic gas calculated failed idHash=%x reason=%s", txn.IDHash, reason))
 		}
 		return reason
 	}
 	if gas > txn.Gas {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx intrinsic gas > txn.gas idHash=%x gas=%d, txn.gas=%d", txn.IDHash, gas, txn.Gas))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx intrinsic gas > txn.gas idHash=%x gas=%d, txn.gas=%d", txn.IDHash, gas, txn.Gas))
 		}
 		return IntrinsicGas
 	}
 	if txn.Gas > transactionGasLimit {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx gas limit too high idHash=%x gas=%d, limit=%d", txn.IDHash, txn.Gas, transactionGasLimit))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx gas limit too high idHash=%x gas=%d, limit=%d", txn.IDHash, txn.Gas, transactionGasLimit))
 		}
 		return GasLimitTooHigh
 	}
 
 	if !isLocal && uint64(p.all.count(txn.SenderID)) > p.cfg.AccountSlots {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx marked as spamming idHash=%x slots=%d, limit=%d", txn.IDHash, p.all.count(txn.SenderID), p.cfg.AccountSlots))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx marked as spamming idHash=%x slots=%d, limit=%d", txn.IDHash, p.all.count(txn.SenderID), p.cfg.AccountSlots))
 		}
 		return Spammer
 	}
@@ -838,7 +839,7 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	senderNonce, senderBalance, _ := p.senders.info(stateCache, txn.SenderID)
 	if senderNonce > txn.Nonce {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx nonce too low idHash=%x nonce in state=%d, txn.nonce=%d", txn.IDHash, senderNonce, txn.Nonce))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx nonce too low idHash=%x nonce in state=%d, txn.nonce=%d", txn.IDHash, senderNonce, txn.Nonce))
 		}
 		return NonceTooLow
 	}
@@ -848,28 +849,28 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	total.Add(total, &txn.Value)
 	if senderBalance.Cmp(total) < 0 {
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx insufficient funds idHash=%x balance in state=%d, txn.gas*txn.tip=%d", txn.IDHash, senderBalance, total))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx insufficient funds idHash=%x balance in state=%d, txn.gas*txn.tip=%d", txn.IDHash, senderBalance, total))
 		}
 		return InsufficientFunds
 	}
 
 	// X Layer check if sender is blocked
 	if p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, from) {
-		log.Info(fmt.Sprintf("TX TRACING: validateTx sender is blocked idHash=%x, txn.sender=%s", txn.IDHash, from))
+		// log.Info(fmt.Sprintf("TX TRACING: validateTx sender is blocked idHash=%x, txn.sender=%s", txn.IDHash, from))
 		return SenderDisallowedSendTx
 	}
 
 	// X Layer check if receiver is blocked
 	if !txn.Creation {
 		if p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, txn.To) {
-			log.Info(fmt.Sprintf("TX TRACING: validateTx receiver is blocked idHash=%x, txn.receiver=%s", txn.IDHash, from))
+			// log.Info(fmt.Sprintf("TX TRACING: validateTx receiver is blocked idHash=%x, txn.receiver=%s", txn.IDHash, from))
 			return ReceiverDisallowedReceiveTx
 		}
 	}
 
 	// X Layer check if sender is whitelisted
 	if p.apolloCfg.GetEnableWhitelist(p.xlayerCfg.EnableWhitelist) && !p.apolloCfg.CheckWhitelistAddr(p.xlayerCfg.WhiteList, from) {
-		log.Info(fmt.Sprintf("TX TRACING: validateTx sender is not whitelisted idHash=%x, txn.sender=%s", txn.IDHash, from))
+		// log.Info(fmt.Sprintf("TX TRACING: validateTx sender is not whitelisted idHash=%x, txn.sender=%s", txn.IDHash, from))
 		return NoWhiteListedSender
 	}
 
@@ -1074,7 +1075,7 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 		if reason == Success {
 			txn := newTxs.Txs[i]
 			if txn.Traced {
-				log.Info(fmt.Sprintf("TX TRACING: AddLocalTxs promotes idHash=%x, senderId=%d", txn.IDHash, txn.SenderID))
+				// log.Info(fmt.Sprintf("TX TRACING: AddLocalTxs promotes idHash=%x, senderId=%d", txn.IDHash, txn.SenderID))
 			}
 			p.promoted.Append(txn.Type, txn.Size, txn.IDHash[:])
 		}
@@ -1141,7 +1142,7 @@ func (p *TxPool) addTxs(blockNum uint64, cacheView kvcache.CacheView, senders *s
 		}
 		discardReasons[i] = NotSet
 		if txn.Traced {
-			log.Info(fmt.Sprintf("TX TRACING: schedule sendersWithChangedState idHash=%x senderId=%d", txn.IDHash, mt.Tx.SenderID))
+			// log.Info(fmt.Sprintf("TX TRACING: schedule sendersWithChangedState idHash=%x senderId=%d", txn.IDHash, mt.Tx.SenderID))
 		}
 		sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
 	}
@@ -1288,7 +1289,7 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) Disca
 			if bytes.Equal(found.Tx.IDHash[:], mt.Tx.IDHash[:]) {
 				return NotSet
 			}
-			log.Info(fmt.Sprintf("Transaction %s was attempted to be replaced.", hex.EncodeToString(mt.Tx.IDHash[:])))
+			// log.Info(fmt.Sprintf("Transaction %s was attempted to be replaced.", hex.EncodeToString(mt.Tx.IDHash[:])))
 			return NotReplaced
 		}
 
@@ -1339,7 +1340,9 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) Disca
 func (p *TxPool) discardLocked(mt *metaTx, reason DiscardReason) {
 	p.byHash.Delete(string(mt.Tx.IDHash[:]))
 	// delete(p.byHash, string(mt.Tx.IDHash[:]))
+	p.deleteMtx.Lock()
 	p.deletedTxs = append(p.deletedTxs, mt)
+	p.deleteMtx.Unlock()
 	p.all.delete(mt)
 	p.discardReasonsLRU.Add(string(mt.Tx.IDHash[:]), reason)
 }
@@ -1382,7 +1385,7 @@ func removeMined(byNonce *BySenderAndNonce, minedTxs []*types.TxSlot, pending *P
 				return false
 			}
 			if mt.Tx.Traced {
-				log.Info(fmt.Sprintf("TX TRACING: removeMined idHash=%x senderId=%d, currentSubPool=%s", mt.Tx.IDHash, mt.Tx.SenderID, mt.currentSubPool))
+				// log.Info(fmt.Sprintf("TX TRACING: removeMined idHash=%x senderId=%d, currentSubPool=%s", mt.Tx.IDHash, mt.Tx.SenderID, mt.currentSubPool))
 			}
 			toDel = append(toDel, mt)
 			// del from sub-pool
@@ -1636,6 +1639,8 @@ func MainLoop(ctx context.Context, db kv.RwDB, coreDB kv.RoDB, p *TxPool, newTxs
 func (p *TxPool) flush(ctx context.Context, db kv.RwDB) (written uint64, err error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	// p.deleteMtx.Lock()
+	// defer p.deleteMtx.Unlock()
 
 	defer writeToDBTimer.UpdateDuration(time.Now())
 	//it's important that write db tx is done inside lock, to make last writes visible for all read operations
@@ -2184,7 +2189,7 @@ func (sc *sendersBatch) getOrCreateID(addr common.Address) (uint64, bool) {
 		sc.senderIDs[addr] = id
 		sc.senderID2Addr[id] = addr
 		if traced {
-			log.Info(fmt.Sprintf("TX TRACING: allocated senderID %d to sender %x", id, addr))
+			// log.Info(fmt.Sprintf("TX TRACING: allocated senderID %d to sender %x", id, addr))
 		}
 	}
 	return id, traced
@@ -2247,6 +2252,13 @@ type BySenderAndNonce struct {
 }
 
 func (b *BySenderAndNonce) nonce(senderID uint64) (nonce uint64, ok bool) {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.nonce"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.nonce"))
+		b.mu.RUnlock()
+	}()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = math.MaxUint64
@@ -2267,11 +2279,25 @@ func (b *BySenderAndNonce) nonce(senderID uint64) (nonce uint64, ok bool) {
 	return nonce, ok
 }
 func (b *BySenderAndNonce) ascendAll(f func(*metaTx) bool) {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.ascendAll"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.ascendAll"))
+		b.mu.RUnlock()
+	}()
+
 	b.tree.Ascend(func(mt *metaTx) bool {
 		return f(mt)
 	})
 }
 func (b *BySenderAndNonce) ascend(senderID uint64, f func(*metaTx) bool) {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.ascend"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.ascend"))
+		b.mu.RUnlock()
+	}()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = 0
@@ -2283,6 +2309,13 @@ func (b *BySenderAndNonce) ascend(senderID uint64, f func(*metaTx) bool) {
 	})
 }
 func (b *BySenderAndNonce) descend(senderID uint64, f func(*metaTx) bool) {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.descend"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.descend"))
+		b.mu.RUnlock()
+	}()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = math.MaxUint64
@@ -2294,6 +2327,13 @@ func (b *BySenderAndNonce) descend(senderID uint64, f func(*metaTx) bool) {
 	})
 }
 func (b *BySenderAndNonce) count(senderID uint64) int {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.count"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.count"))
+		b.mu.RUnlock()
+	}()
+
 	return b.senderIDTxnCount[senderID]
 }
 func (b *BySenderAndNonce) hasTxs(senderID uint64) bool {
@@ -2305,6 +2345,13 @@ func (b *BySenderAndNonce) hasTxs(senderID uint64) bool {
 	return has
 }
 func (b *BySenderAndNonce) get(senderID, txNonce uint64) *metaTx {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.get"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.get"))
+		b.mu.RUnlock()
+	}()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = txNonce
@@ -2316,9 +2363,23 @@ func (b *BySenderAndNonce) get(senderID, txNonce uint64) *metaTx {
 
 // nolint
 func (b *BySenderAndNonce) has(mt *metaTx) bool {
+	// log.Info(fmt.Sprintf("acquiring RLock for BySenderAndNonce.has"))
+	b.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing RLock for BySenderAndNonce.has"))
+		b.mu.RUnlock()
+	}()
+
 	return b.tree.Has(mt)
 }
 func (b *BySenderAndNonce) delete(mt *metaTx) {
+	// log.Info(fmt.Sprintf("acquiring Lock for BySenderAndNonce.delete"))
+	b.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing Lock for BySenderAndNonce.delete"))
+		b.mu.Unlock()
+	}()
+
 	if _, ok := b.tree.Delete(mt); ok {
 		senderID := mt.Tx.SenderID
 		count := b.senderIDTxnCount[senderID]
@@ -2330,6 +2391,13 @@ func (b *BySenderAndNonce) delete(mt *metaTx) {
 	}
 }
 func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
+	// log.Info(fmt.Sprintf("acquiring Lock for BySenderAndNonce.replaceOrInsert"))
+	b.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("releasing Lock for BySenderAndNonce.replaceOrInsert"))
+		b.mu.Unlock()
+	}()
+
 	it, ok := b.tree.ReplaceOrInsert(mt)
 	if ok {
 		return it
@@ -2387,20 +2455,20 @@ func (s *bestSlice) UnsafeAdd(i *metaTx) {
 }
 
 func (p *PendingPool) EnforceWorstInvariants() {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for EnforceWorstInvariants", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for EnforceWorstInvariants"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for EnforceWorstInvariants", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for EnforceWorstInvariants"))
 		p.mu.Unlock()
 	}()
 
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for EnforceBestInvariants", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for EnforceBestInvariants"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for EnforceBestInvariants", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for EnforceBestInvariants"))
 		p.mu.Unlock()
 	}()
 
@@ -2411,10 +2479,10 @@ func (p *PendingPool) EnforceBestInvariants() {
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Best", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for Best"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Best", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for Best"))
 		p.mu.RUnlock()
 	}()
 
@@ -2424,10 +2492,10 @@ func (p *PendingPool) Best() *metaTx { //nolint
 	return p.best.ms[0]
 }
 func (p *PendingPool) Worst() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Worst", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for Worst"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Worst", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for Worst"))
 		p.mu.RUnlock()
 	}()
 
@@ -2437,10 +2505,10 @@ func (p *PendingPool) Worst() *metaTx { //nolint
 	return (p.worst.ms)[0]
 }
 func (p *PendingPool) PopWorst() *metaTx {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for PopWorst", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for PopWorst"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for PopWorst", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for PopWorst"))
 		p.mu.Unlock()
 	}()
 
@@ -2455,40 +2523,40 @@ func (p *PendingPool) PopWorst() *metaTx {
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Updated", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for Updated"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Updated", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for Updated"))
 		p.mu.Unlock()
 	}()
 
 	heap.Fix(p.worst, mt.worstIndex)
 }
 func (p *PendingPool) Len() int {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Len", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for Len"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Len", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for Len"))
 		p.mu.RUnlock()
 	}()
 
 	return len(p.best.ms)
 }
 func (p *PendingPool) IsFull() bool {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for IsFull", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for IsFull"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for IsFull", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for IsFull"))
 		p.mu.RUnlock()
 	}()
 
 	return len(p.best.ms) >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Remove", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for Remove"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Remove", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for Remove"))
 		p.mu.Unlock()
 	}()
 
@@ -2505,15 +2573,15 @@ func (p *PendingPool) Remove(i *metaTx) {
 }
 
 func (p *PendingPool) Add(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Add", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for Add"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Add", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for Add"))
 		p.mu.Unlock()
 	}()
 
 	if i.Tx.Traced {
-		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
+		// log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
@@ -2546,10 +2614,10 @@ func NewSubPool(t SubPoolType, limit int) *SubPool {
 }
 
 func (p *SubPool) EnforceInvariants() {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.EnforceInvariants", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for SubPool.EnforceInvariants"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.EnforceInvariants", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for SubPool.EnforceInvariants"))
 		p.mu.Unlock()
 	}()
 
@@ -2557,10 +2625,10 @@ func (p *SubPool) EnforceInvariants() {
 	heap.Init(p.best)
 }
 func (p *SubPool) Best() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Best", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for SubPool.Best"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Best", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for SubPool.Best"))
 		p.mu.RUnlock()
 	}()
 
@@ -2570,10 +2638,10 @@ func (p *SubPool) Best() *metaTx { //nolint
 	return p.best.ms[0]
 }
 func (p *SubPool) Worst() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Worst", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for SubPool.Worst"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Worst", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for SubPool.Worst"))
 		p.mu.RUnlock()
 	}()
 
@@ -2583,10 +2651,10 @@ func (p *SubPool) Worst() *metaTx { //nolint
 	return p.worst.ms[0]
 }
 func (p *SubPool) PopBest() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.PopBest", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for SubPool.PopBest"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.PopBest", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for SubPool.PopBest"))
 		p.mu.Unlock()
 	}()
 
@@ -2595,10 +2663,10 @@ func (p *SubPool) PopBest() *metaTx { //nolint
 	return i
 }
 func (p *SubPool) PopWorst() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.PopWorst", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for SubPool.PopWorst"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.PopWorst", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for SubPool.PopWorst"))
 		p.mu.Unlock()
 	}()
 
@@ -2607,25 +2675,25 @@ func (p *SubPool) PopWorst() *metaTx { //nolint
 	return i
 }
 func (p *SubPool) Len() int {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Len", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring RLock for SubPool.Len"))
 	p.mu.RLock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Len", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing RLock for SubPool.Len"))
 		p.mu.RUnlock()
 	}()
 
 	return p.best.Len()
 }
 func (p *SubPool) Add(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Add", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for SubPool.Add"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Add", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for SubPool.Add"))
 		p.mu.Unlock()
 	}()
 
 	if i.Tx.Traced {
-		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
+		// log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
 	i.currentSubPool = p.t
 	heap.Push(p.best, i)
@@ -2633,10 +2701,10 @@ func (p *SubPool) Add(i *metaTx) {
 }
 
 func (p *SubPool) Remove(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Remove", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for SubPool.Remove"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Remove", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for SubPool.Remove"))
 		p.mu.Unlock()
 	}()
 
@@ -2646,10 +2714,10 @@ func (p *SubPool) Remove(i *metaTx) {
 }
 
 func (p *SubPool) Updated(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Updated", GetGoid()))
+	// log.Info(fmt.Sprintf("acquiring Lock for SubPool.Updated"))
 	p.mu.Lock()
 	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Updated", GetGoid()))
+		// log.Info(fmt.Sprintf("releasing Lock for SubPool.Updated"))
 		p.mu.Unlock()
 	}()
 
