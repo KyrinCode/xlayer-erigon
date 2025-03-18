@@ -30,8 +30,6 @@ var shouldCheckForExecutionAndDataStreamAlignment = true
 // For X Layer, for local replay feature
 var externalDataStreamServerCreated = false
 
-var supportAC = true
-
 func SpawnSequencingStage(
 	s *stagedsync.StageState,
 	u stagedsync.Unwinder,
@@ -92,14 +90,18 @@ func SpawnSequencingStage(
 	}
 
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
-		if !supportAC {
+		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
 
-		if s.BlockNumber%50 == 0 {
+		// enable split smt db
+		if cfg.zk.XLayer.StandaloneSMTDatabase {
+			if s.BlockNumber%50 == 0 {
+				err = s.FlushSmtCache()
+			}
+		} else {
 			err = s.FlushSmtCache()
 		}
-		//err = s.FlushSmtCache()
 	}
 
 	return err
@@ -132,7 +134,7 @@ func sequencingBatchStep(
 		return err
 	}
 
-	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt, supportAC)
+	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt, cfg.zk.XLayer.EnableAsyncCommit)
 	if err != nil {
 		return err
 	}

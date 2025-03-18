@@ -18,7 +18,7 @@ type stageDb struct {
 	dbsmt kv.RwDB
 
 	tx          kv.RwTx
-	txsmt       kv.RwTx
+	txsmt       kv.Tx
 	hermezDb    *hermez_db.HermezDb
 	eridb       smtNs.DB
 	stateReader *state.PlainStateReader
@@ -43,16 +43,20 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 
 	if supportAC {
 		// Support Async IO, only need to create read only transaction
-		var txsmt kv.RwTx = nil
+		var txsmt kv.Tx = nil
 		if dbsmt != nil {
 			if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
 				log.Error("failed to start smt tx", "err", err)
 				return nil, err
 			}
+
+			eridb := db2.NewEriCacheDb(sdb.ctx, txsmt, tx)
+			sdb.SetTx(tx, txsmt, eridb)
+		} else {
+			eridb := db2.NewEriDb(tx, tx)
+			sdb.SetTx(tx, txsmt, eridb)
 		}
 
-		eridb := db2.NewEriCacheDb(sdb.ctx, txsmt, tx)
-		sdb.SetTx(tx, txsmt, eridb)
 	} else {
 		// Support Sync IO，so need to create read write transaction
 		var txsmt kv.RwTx = nil
@@ -61,24 +65,21 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 				log.Error("failed to start smt tx", "err", err)
 				return nil, err
 			}
+			eridb := db2.NewEriDb(txsmt, tx)
+			sdb.SetTx(tx, txsmt, eridb)
+		} else {
+			eridb := db2.NewEriDb(tx, tx)
+			sdb.SetTx(tx, txsmt, eridb)
 		}
-
-		eridb := db2.NewEriDb(txsmt, tx)
-		sdb.SetTx(tx, txsmt, eridb)
 	}
 
 	return sdb, nil
 }
 
-func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.RwTx, eridb smtNs.DB) {
+func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.Tx, eridb smtNs.DB) {
 	sdb.tx = tx
 	sdb.txsmt = txsmt
 	sdb.hermezDb = hermez_db.NewHermezDb(tx)
-	if txsmt == nil {
-		sdb.eridb = db2.NewEriDb(tx, tx)
-	} else {
-		sdb.eridb = db2.NewEriDb(txsmt, tx)
-	}
 	sdb.stateReader = state.NewPlainStateReader(tx)
 
 	sdb.txsmt = txsmt
@@ -88,7 +89,7 @@ func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.RwTx, eridb smtNs.DB) {
 
 func (sdb *stageDb) CommitAndStart() (err error) {
 	if err = sdb.tx.Commit(); err != nil {
-		if !supportAC && sdb.dbsmt != nil {
+		if !sdb.supportAC && sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
 		}
 		return err
@@ -102,23 +103,29 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		return err
 	}
 
-	if !supportAC && sdb.dbsmt != nil {
-		if err = sdb.txsmt.Commit(); err != nil {
-			return err
-		}
+	if !sdb.supportAC {
+		if sdb.dbsmt != nil {
+			if err = sdb.txsmt.Commit(); err != nil {
+				return err
+			}
 
-		txsmt, err := sdb.dbsmt.BeginRw(sdb.ctx)
-		if err != nil {
-			return err
-		}
-		eridb := db2.NewEriDb(txsmt, tx)
+			txsmt, err := sdb.dbsmt.BeginRw(sdb.ctx)
+			if err != nil {
+				return err
+			}
+			eridb := db2.NewEriDb(txsmt, tx)
 
-		sdb.SetTx(tx, txsmt, eridb)
+			sdb.SetTx(tx, txsmt, eridb)
+		} else {
+			eridb := db2.NewEriDb(tx, tx)
+			sdb.SetTx(tx, tx, eridb)
+		}
 	} else {
 		if sdb.dbsmt != nil {
 			sdb.SetTx(tx, sdb.txsmt, sdb.eridb)
 		} else {
-			sdb.SetTx(tx, tx, sdb.eridb)
+			eridb := db2.NewEriDb(tx, tx)
+			sdb.SetTx(tx, tx, eridb)
 		}
 	}
 
@@ -133,13 +140,13 @@ func (sdb *stageDb) Commit(s *stagedsync.StageState, flushSmt bool) error {
 
 	err := sdb.tx.Commit()
 	if err != nil {
-		if !supportAC && sdb.dbsmt != nil {
+		if !sdb.supportAC && sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
 		}
 		return err
 	}
 
-	if !supportAC && sdb.dbsmt != nil {
+	if !sdb.supportAC && sdb.dbsmt != nil {
 		return sdb.txsmt.Commit()
 	} else {
 		return nil

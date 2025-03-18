@@ -32,6 +32,7 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		StandaloneSMTDatabase:             ctx.Bool(utils.StandaloneSMTDatabase.Name),
 		ExecutorMock:                      ctx.Bool(utils.ExecutorMock.Name),
 		BlockInfoConcurrent:               ctx.Bool(utils.BlockInfoConcurrent.Name),
+		EnableAsyncCommit:                 ctx.Bool(utils.EnableAsyncCommit.Name),
 	}
 	if cfg.XLayer.BlockInfoConcurrent {
 		blockinfo.InitUseBlockInfoTreeTrue()

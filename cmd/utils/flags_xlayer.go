@@ -263,6 +263,12 @@ var (
 		Usage: "Enable concurrent block info calculation",
 		Value: false,
 	}
+
+	EnableAsyncCommit = cli.BoolFlag{
+		Name:  "zkevm.enable-async-commit",
+		Usage: "Enable async smt commit feature",
+		Value: false,
+	}
 )
 
 func setGPOXLayer(ctx *cli.Context, cfg *gaspricecfg.Config) {
