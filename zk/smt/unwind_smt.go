@@ -3,7 +3,6 @@ package smt
 import (
 	"context"
 	"fmt"
-	"github.com/ledgerwatch/log/v3"
 	"math"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -14,7 +13,7 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/turbo/trie"
 	"github.com/ledgerwatch/erigon/zk"
-	//"github.com/ledgerwatch/erigon/zkevm/log"
+	"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
 func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.RwTx, txsmt kv.RwTx, checkRoot bool, expectedRootHash *common.Hash, quiet bool, cache map[string]map[string][]byte) (common.Hash, error) {
