@@ -78,6 +78,7 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 
 func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.Tx, eridb smtNs.DB) {
 	sdb.tx = tx
+	sdb.txsmt = txsmt
 	sdb.hermezDb = hermez_db.NewHermezDb(tx)
 	sdb.stateReader = state.NewPlainStateReader(tx)
 
@@ -92,6 +93,9 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 			sdb.txsmt.Rollback()
 		}
 		return err
+	}
+	if sdb.dbsmt != nil {
+		sdb.txsmt.Commit()
 	}
 
 	tx, err := sdb.db.BeginRw(sdb.ctx)

@@ -7,9 +7,8 @@ import (
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
-
 	"github.com/ledgerwatch/erigon-lib/kv/membatchwithdb"
+	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 
 	"github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/turbo/trie"
@@ -29,7 +28,7 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 	} else {
 		eridb = db2.NewEriDb(tx, tx)
 	}
-	eridb.RollbackBatch()
+	defer eridb.RollbackBatch()
 
 	dbSmt := smt.NewSMT(eridb, false)
 
@@ -38,10 +37,12 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 	}
 
 	// only open the batch if tx is not already one
+	isBatchOpen := false
 	if txsmt != nil {
 		if _, ok := txsmt.(*membatchwithdb.MemoryMutation); !ok {
 			quit := make(chan struct{})
 			eridb.OpenBatch(quit)
+			isBatchOpen = true
 		}
 	} else {
 		if _, ok := tx.(*membatchwithdb.MemoryMutation); !ok {
@@ -95,8 +96,10 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 		log.Info(fmt.Sprintf("[%s] Trie root matches", logPrefix), "hash", hash.Hex())
 	}
 
-	if err := eridb.CommitBatch(); err != nil {
-		return trie.EmptyRoot, err
+	if isBatchOpen {
+		if err := eridb.CommitBatch(); err != nil {
+			return trie.EmptyRoot, err
+		}
 	}
 
 	return hash, nil

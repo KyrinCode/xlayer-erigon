@@ -194,7 +194,7 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 
 	var rwtxsmt kv.RwTx = nil
 	if txsmt != nil {
-		rwtxsmt = membatchwithdb.NewMemoryBatchNoSequence(txsmt, g.dirs.Tmp, log.New())
+		rwtxsmt = membatchwithdb.NewMemoryBatchWithSizeNoSequence(txsmt, g.dirs.Tmp, g.zkConfig.WitnessMemdbSize)
 		defer rwtxsmt.Rollback()
 		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtxsmt); err != nil {
 			return nil, err

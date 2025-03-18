@@ -93,7 +93,6 @@ func (m *EriDb) RetriveAndCleanCache() (map[string]map[string][]byte, map[string
 func (m *EriDb) CommitBatch() error {
 	batch, ok := m.tx.(kv.PendingMutations)
 	if !ok {
-
 		return nil // don't roll back a kvRw tx
 	}
 	// err := m.tx.Commit()
