@@ -234,9 +234,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 	var toRemove []*metaTx
 	count := 0
 
-	p.lock.RLock()
 	p.pending.EnforceBestInvariants()
-	p.lock.RUnlock()
 
 	for i := 0; count < int(n) && i < len(newMs); i++ {
 		// if we wouldn't have enough gas for a standard transaction then quit out early

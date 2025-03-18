@@ -2242,6 +2242,7 @@ type BySenderAndNonce struct {
 	tree             *btree.BTreeG[*metaTx]
 	search           *metaTx
 	senderIDTxnCount map[uint64]int // count of sender's txns in the pool - may differ from nonce
+	mu               sync.RWMutex
 }
 
 func (b *BySenderAndNonce) nonce(senderID uint64) (nonce uint64, ok bool) {
@@ -2345,6 +2346,7 @@ type PendingPool struct {
 	worst  *WorstQueue
 	limit  int
 	t      SubPoolType
+	mu     sync.RWMutex
 }
 
 func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
@@ -2361,6 +2363,11 @@ type bestSlice struct {
 
 func (s *bestSlice) Len() int { return len(s.ms) }
 func (s *bestSlice) Swap(i, j int) {
+	if i < 0 || i >= len(s.ms) || j < 0 || j >= len(s.ms) {
+		log.Info("Swap: index out of range", "i", i, "j", j, "len", len(s.ms))
+		return
+	}
+
 	s.ms[i], s.ms[j] = s.ms[j], s.ms[i]
 	s.ms[i].bestIndex, s.ms[j].bestIndex = i, j
 }
@@ -2379,9 +2386,15 @@ func (s *bestSlice) UnsafeAdd(i *metaTx) {
 }
 
 func (p *PendingPool) EnforceWorstInvariants() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if !p.sorted {
 		sort.Sort(p.best)
 		p.sorted = true
@@ -2389,30 +2402,57 @@ func (p *PendingPool) EnforceBestInvariants() {
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	if len(p.best.ms) == 0 {
 		return nil
 	}
 	return p.best.ms[0]
 }
 func (p *PendingPool) Worst() *metaTx { //nolint
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	if len(p.worst.ms) == 0 {
 		return nil
 	}
 	return (p.worst.ms)[0]
 }
-func (p *PendingPool) PopWorst() *metaTx { //nolint
+func (p *PendingPool) PopWorst() *metaTx {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if len(p.worst.ms) == 0 {
+		return nil
+	}
 	i := heap.Pop(p.worst).(*metaTx)
-	if i.bestIndex >= 0 {
+	if i.bestIndex >= 0 && i.bestIndex < len(p.best.ms) {
 		p.best.UnsafeRemove(i)
+		p.sorted = false
 	}
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	heap.Fix(p.worst, mt.worstIndex)
 }
-func (p *PendingPool) Len() int     { return len(p.best.ms) }
-func (p *PendingPool) IsFull() bool { return p.Len() >= p.limit }
+func (p *PendingPool) Len() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.best.ms)
+}
+func (p *PendingPool) IsFull() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.Len() >= p.limit
+}
 func (p *PendingPool) Remove(i *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2426,6 +2466,9 @@ func (p *PendingPool) Remove(i *metaTx) {
 }
 
 func (p *PendingPool) Add(i *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
@@ -2448,6 +2491,7 @@ type SubPool struct {
 	worst *WorstQueue
 	limit int
 	t     SubPoolType
+	mu    sync.RWMutex
 }
 
 func NewSubPool(t SubPoolType, limit int) *SubPool {
@@ -2456,33 +2500,56 @@ func NewSubPool(t SubPoolType, limit int) *SubPool {
 }
 
 func (p *SubPool) EnforceInvariants() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	heap.Init(p.worst)
 	heap.Init(p.best)
 }
 func (p *SubPool) Best() *metaTx { //nolint
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	if len(p.best.ms) == 0 {
 		return nil
 	}
 	return p.best.ms[0]
 }
 func (p *SubPool) Worst() *metaTx { //nolint
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	if len(p.worst.ms) == 0 {
 		return nil
 	}
 	return p.worst.ms[0]
 }
 func (p *SubPool) PopBest() *metaTx { //nolint
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	i := heap.Pop(p.best).(*metaTx)
 	heap.Remove(p.worst, i.worstIndex)
 	return i
 }
 func (p *SubPool) PopWorst() *metaTx { //nolint
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	i := heap.Pop(p.worst).(*metaTx)
 	heap.Remove(p.best, i.bestIndex)
 	return i
 }
-func (p *SubPool) Len() int { return p.best.Len() }
+func (p *SubPool) Len() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.best.Len()
+}
 func (p *SubPool) Add(i *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
@@ -2492,12 +2559,18 @@ func (p *SubPool) Add(i *metaTx) {
 }
 
 func (p *SubPool) Remove(i *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	heap.Remove(p.best, i.bestIndex)
 	heap.Remove(p.worst, i.worstIndex)
 	i.currentSubPool = 0
 }
 
 func (p *SubPool) Updated(i *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	heap.Fix(p.best, i.bestIndex)
 	heap.Fix(p.worst, i.worstIndex)
 }
