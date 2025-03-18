@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
+	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 
 	lru "github.com/hashicorp/golang-lru/arc/v2"
 	"github.com/ledgerwatch/log/v3"
@@ -81,11 +82,11 @@ func AsyncFlushSmtData(ctx context.Context,
 
 func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte) {
 	defer wg.Done()
-
+	logger.Info("zjg, -1")
 	err := db.Batch(func(tx kv.RwTx) error {
 		batch := membatch.NewHashBatchWithCache(tx, ctx.Done(), "", logger, smtCache)
 		defer batch.Close()
-
+		logger.Info("zjg, FlushDataToDB-2")
 		return batch.Flush(ctx, tx)
 	})
 

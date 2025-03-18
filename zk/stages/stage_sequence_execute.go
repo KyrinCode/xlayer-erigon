@@ -198,6 +198,9 @@ func sequencingBatchStep(
 	}
 
 	if shouldCheckForExecutionAndDataStreamAlignment {
+		// TODO: remove this after testing
+		log.Warn("zjg, sleep 10 seconds")
+		time.Sleep(10 * time.Second)
 		// handle cases where the last batch wasn't committed to the data stream.
 		// this could occur because we're migrating from an RPC node to a sequencer
 		// or because the sequencer was restarted and not all processes completed (like waiting from remote executor)
@@ -205,7 +208,31 @@ func sequencingBatchStep(
 		// if we identify any.  During normal operation this function will simply check and move on without performing
 		// any action.
 		if !batchState.isAnyRecovery() {
-			isUnwinding, err := alignExecutionToDatastream(batchContext, executionAt, u)
+			// lastRoot, err := sdb.eridb.GetLastRoot()
+			// if err != nil {
+			// 	log.Error("zjg, Failed to get last root", "error", err)
+			// 	return err
+			// }
+			// log.Info("zjg, lastRoot", "lastRoot", lastRoot)
+			// depth, err := sdb.eridb.GetDepth()
+			// log.Info("zjg, depth", "depth", depth)
+			smtMaxBlock, err := sdb.eridb.GetMaxBlock()
+			if err != nil {
+				log.Error("zjg, Failed to get max block", "error", err)
+				return err
+			}
+			if smtMaxBlock > executionAt {
+				log.Error("zjg, Max block is greater than execution at", "smtMaxBlock", smtMaxBlock, "executionAt", executionAt)
+				return fmt.Errorf("zjg, max block is greater than execution at: %d > %d", smtMaxBlock, executionAt)
+			}
+			// if the smt max block is less than the execution at, we need to unwind to the smt max block
+			var unwindBlock = executionAt
+			if smtMaxBlock < executionAt && smtMaxBlock != 0 {
+				log.Warn("zjg, Max block is less than execution at", "smtMaxBlock", smtMaxBlock, "executionAt", executionAt)
+				unwindBlock = smtMaxBlock
+			}
+			log.Info("zjg, unwindBlock", "block", unwindBlock, "smtMaxBlock", smtMaxBlock, "executionAt", executionAt)
+			isUnwinding, err := alignExecutionToDatastream(batchContext, unwindBlock, u)
 			if err != nil {
 				// do not set shouldCheckForExecutionAndDataStreamAlighment=false because of the error
 				return err

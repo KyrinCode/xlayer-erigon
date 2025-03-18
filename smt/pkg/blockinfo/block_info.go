@@ -165,6 +165,9 @@ func BuildBlockInfoTree(
 		return nil, err
 	}
 	rootHash := common.BigToHash(root.NewRootScalar.ToBigInt())
+	// log.Info("zjg, SetMaxBlock", "block", blockNumber)
+	// panic("zjg, SetMaxBlock")
+	infoTree.smt.SetMaxBlock(blockNumber)
 
 	log.Trace("info-tree-root", "block", blockNumber, "root", rootHash.String())
 

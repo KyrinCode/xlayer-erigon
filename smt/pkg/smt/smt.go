@@ -28,6 +28,7 @@ type DB interface {
 	Delete(string) error
 	DeleteByNodeKey(key utils.NodeKey) error
 	SetLastRoot(lr *big.Int) error
+	SetMaxBlock(b uint64) error
 	SetDepth(uint8) error
 	CommitBatch() error
 	OpenBatch(quitCh <-chan struct{})
@@ -40,6 +41,7 @@ type DB interface {
 type RoDB interface {
 	GetDepth() (uint8, error)
 	GetLastRoot() (*big.Int, error)
+	GetMaxBlock() (uint64, error)
 	GetCode(codeHash []byte) ([]byte, error)
 	GetHashKey(key utils.NodeKey) (utils.NodeKey, error)
 	GetKeySource(key utils.NodeKey) ([]byte, error)
@@ -109,6 +111,16 @@ func (s *SMT) SetLastRoot(lr *big.Int) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (s *SMT) SetMaxBlock(b uint64) {
+	s.clearUpMutex.Lock()
+	defer s.clearUpMutex.Unlock()
+	err := s.Db.SetMaxBlock(b)
+	if err != nil {
+		panic(err)
+	}
+	log.Info("zjg, SetMaxBlock---1", "block", b)
 }
 
 func (s *SMT) StartPeriodicCheck(doneChan chan bool) {

@@ -27,7 +27,7 @@ log.console.verbosity: info
 #zkevm.executor-urls: xlayer-executor:50071
 zkevm.executor-strict: false
 zkevm.witness-full: false
-zkevm.executor-mock: true
+zkevm.executor-mock: false
 
 zkevm.sequencer-block-seal-time: "1s"
 zkevm.sequencer-batch-seal-time: "10s"
@@ -78,7 +78,7 @@ txpool.enablefreegasbynonce : true
 txpool.freegascountperaddr : 100
 
 gpo.type: "follower"
-gpo.update-period: "3s"
+gpo.update-period: "300s"
 gpo.factor: 0.01
 gpo.kafka-url: "0.0.0.0"
 gpo.topic: "explorer"

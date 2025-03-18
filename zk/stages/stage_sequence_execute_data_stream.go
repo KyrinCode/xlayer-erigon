@@ -140,7 +140,7 @@ func alignExecutionToDatastream(batchContext *BatchContext, lastExecutedBlock ui
 	}
 
 	if lastExecutedBlock < lastDatastreamBlock {
-		panic(fmt.Errorf("[%s] Datastream is ahead of sequencer. Re-sequencing should have handled this case before even comming to this point", batchContext.s.LogPrefix()))
+		panic(fmt.Errorf("[%s] Datastream is ahead of sequencer. Re-sequencing should have handled this case before even comming to this point, lastDatastreamBlock: %d, lastExecutedBlock: %d", batchContext.s.LogPrefix(), lastDatastreamBlock, lastExecutedBlock))
 	}
 
 	return false, nil

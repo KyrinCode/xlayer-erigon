@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
+	"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
 var (
@@ -21,6 +22,7 @@ type MemDb struct {
 	DbCode      map[string][]byte
 	LastRoot    *big.Int
 	Depth       uint8
+	MaxBlock    uint64
 
 	lock sync.RWMutex
 }
@@ -34,6 +36,7 @@ func NewMemDb() *MemDb {
 		DbCode:      make(map[string][]byte),
 		LastRoot:    big.NewInt(0),
 		Depth:       0,
+		MaxBlock:    0,
 	}
 }
 
@@ -66,6 +69,23 @@ func (m *MemDb) SetLastRoot(value *big.Int) error {
 
 	m.LastRoot = value
 	return nil
+}
+
+func (m *MemDb) SetMaxBlock(value uint64) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	m.MaxBlock = value
+	// log.Info("zjg, SetMaxBlock", "block", value)
+	return nil
+}
+
+func (m *MemDb) GetMaxBlock() (uint64, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	log.Info("zjg, GetMaxBlock-3", "block", m.MaxBlock)
+	return m.MaxBlock, nil
 }
 
 func (m *MemDb) GetDepth() (uint8, error) {

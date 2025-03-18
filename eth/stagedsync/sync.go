@@ -61,6 +61,9 @@ func (s *Sync) SetSmtCache(cache, deltaCache map[string]map[string][]byte) {
 	// 直接赋值 cache
 	for table, bucket := range cache {
 		s.SmtCache[table] = bucket
+		// if table == "HermezSmtStats" {
+		// 	log.Info("zjg, -----SetSmtCache", "table", table, "bucket", bucket)
+		// }
 	}
 
 	// 合并 deltaCache
@@ -80,6 +83,7 @@ func (s *Sync) SetSmtCache(cache, deltaCache map[string]map[string][]byte) {
 }
 
 func (s *Sync) FlushSmtCache() error {
+	log.Info("zjg, FlushSmtCache-1")
 	// 非阻塞发送
 	select {
 	case s.SmtCacheCh <- s.DeltaSmtCache:

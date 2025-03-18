@@ -112,6 +112,14 @@ func (m *EriCacheDb) SetLastRoot(r *big.Int) error {
 	return m.cacheTx.Put(TableStats, []byte(MetaLastRoot), []byte(v))
 }
 
+func (m *EriCacheDb) SetMaxBlock(b uint64) error {
+	// Convert uint64 to big.Int and then to hex string
+	bigInt := new(big.Int).SetUint64(b)
+	v := utils.ConvertBigIntToHex(bigInt)
+	// log.Info("zjg, SetMaxBlock", "block", b)
+	return m.cacheTx.Put(TableStats, []byte(MetaMaxBlock), []byte(v))
+}
+
 func (m *EriCacheDb) GetDepth() (uint8, error) {
 	data, err := m.kvTxRo.GetOne(TableStats, []byte(MetaDepth))
 	if err != nil {
@@ -127,6 +135,25 @@ func (m *EriCacheDb) GetDepth() (uint8, error) {
 
 func (m *EriCacheDb) SetDepth(depth uint8) error {
 	return m.cacheTx.Put(TableStats, []byte(MetaDepth), []byte{depth})
+}
+
+func (m *EriCacheDb) GetMaxBlock() (uint64, error) {
+	log.Info("zjg, GetMaxBlock-1-1")
+	data, err := m.kvTxRo.GetOne(TableStats, []byte(MetaMaxBlock))
+	if err != nil {
+		log.Info("zjg, GetMaxBlock-1-2", "error", err)
+		return 0, err
+	}
+
+	if data == nil {
+		log.Info("zjg, GetMaxBlock-1-3")
+		return 0, nil
+	}
+
+	// Convert the hex string to a big.Int and then to uint64
+	bigInt := utils.ConvertHexToBigInt(string(data))
+	log.Info("zjg, GetMaxBlock-1", "block", bigInt.Uint64())
+	return bigInt.Uint64(), nil
 }
 
 func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
