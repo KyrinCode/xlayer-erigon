@@ -53,7 +53,7 @@ func UnwindForWitness(ctx context.Context, tx kv.RwTx, txsmt kv.RwTx, startBlock
 		expectedRootHash = syncHeadHeader.Root
 	}
 
-	if _, err := zkSmt.UnwindZkSMT(ctx, "api.generateWitness", stageState.BlockNumber, unwindState.UnwindPoint, tx, txsmt, true, &expectedRootHash, true); err != nil {
+	if _, err := zkSmt.UnwindZkSMT(ctx, "api.generateWitness", stageState.BlockNumber, unwindState.UnwindPoint, tx, txsmt, true, &expectedRootHash, true, nil); err != nil {
 		return fmt.Errorf("UnwindZkSMT: %w", err)
 	}
 

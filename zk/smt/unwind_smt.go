@@ -3,6 +3,7 @@ package smt
 import (
 	"context"
 	"fmt"
+	"github.com/ledgerwatch/log/v3"
 	"math"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -13,10 +14,10 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/turbo/trie"
 	"github.com/ledgerwatch/erigon/zk"
-	"github.com/ledgerwatch/erigon/zkevm/log"
+	//"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
-func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.RwTx, txsmt kv.RwTx, checkRoot bool, expectedRootHash *common.Hash, quiet bool) (common.Hash, error) {
+func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.RwTx, txsmt kv.RwTx, checkRoot bool, expectedRootHash *common.Hash, quiet bool, cache map[string]map[string][]byte) (common.Hash, error) {
 	if !quiet {
 		log.Info(fmt.Sprintf("[%s] Unwind trie hashes started", logPrefix))
 		defer log.Info(fmt.Sprintf("[%s] Unwind ended", logPrefix))
@@ -42,6 +43,9 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 		if _, ok := txsmt.(*membatchwithdb.MemoryMutation); !ok {
 			quit := make(chan struct{})
 			eridb.OpenBatch(quit)
+			if cache != nil {
+				eridb.SetCache(cache)
+			}
 			isBatchOpen = true
 		}
 	} else {

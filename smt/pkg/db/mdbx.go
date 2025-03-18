@@ -84,7 +84,18 @@ func (m *EriDb) OpenBatch(quitCh <-chan struct{}) {
 	m.kvTxRoSMT = batch
 }
 
-func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {}
+func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {
+	if smtCachedMapValue == nil {
+		smtCachedMapValue = make(map[string]map[string][]byte)
+	}
+
+	mapCache, ok := m.tx.(*membatch.Mapmutation)
+	if !ok {
+		return // don't roll back a kvRw tx
+	}
+
+	mapCache.SetCache(smtCachedMapValue)
+}
 
 func (m *EriDb) RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte) {
 	return nil, nil
