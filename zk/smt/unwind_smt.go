@@ -48,6 +48,7 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 		if _, ok := tx.(*membatchwithdb.MemoryMutation); !ok {
 			quit := make(chan struct{})
 			eridb.OpenBatch(quit)
+			isBatchOpen = true
 		}
 	}
 
