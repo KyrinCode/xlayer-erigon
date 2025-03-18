@@ -94,10 +94,14 @@ func SpawnSequencingStage(
 			return err
 		}
 
-		if s.BlockNumber%50 == 0 {
+		// enable split smt db
+		if cfg.zk.XLayer.StandaloneSMTDatabase {
+			if s.BlockNumber%50 == 0 {
+				err = s.FlushSmtCache()
+			}
+		} else {
 			err = s.FlushSmtCache()
 		}
-		//err = s.FlushSmtCache()
 	}
 
 	return err
