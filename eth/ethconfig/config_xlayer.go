@@ -27,6 +27,7 @@ type XLayerConfig struct {
 	PreRunCacheTTL  time.Duration
 	PreRunChanNum   int
 	PreRunTaskNum   int
+
 	// Executor
 	ExecutorMock        bool
 	BlockInfoConcurrent bool
