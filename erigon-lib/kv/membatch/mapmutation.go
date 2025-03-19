@@ -20,15 +20,25 @@ type Mapmutation struct {
 	puts          map[string]map[string][]byte // table -> key -> value ie. blocks -> hash -> blockBod
 	modifiedCache map[string]map[string][]byte
 
-	db     kv.Tx
-	quit   <-chan struct{}
-	clean  func()
-	mu     sync.RWMutex
-	size   int
-	count  uint64
-	tmpdir string
-	logger log.Logger
+	db             kv.Tx
+	quit           <-chan struct{}
+	clean          func()
+	mu             sync.RWMutex
+	size           int
+	count          uint64
+	deleteCountMap map[string]int
+	tmpdir         string
+	logger         log.Logger
 }
+
+const TableSmt = "HermezSmt"
+const TableStats = "HermezSmtStats"
+const TableAccountValues = "HermezSmtAccountValues"
+const TableMetadata = "HermezSmtMetadata"
+const TableHashKey = "HermezSmtHashKey"
+
+// TODO [cliff]: can move to constants
+var HermezSmtTables = []string{TableSmt, TableStats, TableAccountValues, TableMetadata, TableHashKey}
 
 // NewBatch - starts in-mem batch
 //
@@ -46,14 +56,20 @@ func NewHashBatch(tx kv.Tx, quit <-chan struct{}, tmpdir string, logger log.Logg
 		quit = ch
 	}
 
+	deleteCountMap := make(map[string]int)
+	for _, table := range HermezSmtTables {
+		deleteCountMap[table] = 0
+	}
+
 	return &Mapmutation{
-		db:            tx,
-		puts:          make(map[string]map[string][]byte),
-		modifiedCache: make(map[string]map[string][]byte),
-		quit:          quit,
-		clean:         clean,
-		tmpdir:        tmpdir,
-		logger:        logger,
+		db:             tx,
+		puts:           make(map[string]map[string][]byte),
+		modifiedCache:  make(map[string]map[string][]byte),
+		deleteCountMap: deleteCountMap,
+		quit:           quit,
+		clean:          clean,
+		tmpdir:         tmpdir,
+		logger:         logger,
 	}
 }
 
@@ -275,6 +291,7 @@ func (m *Mapmutation) ForAmount(bucket string, prefix []byte, amount uint32, wal
 }
 
 func (m *Mapmutation) Delete(table string, k []byte) error {
+	m.deleteCountMap[table]++
 	return m.Put(table, k, nil)
 }
 
@@ -330,14 +347,17 @@ func (m *Mapmutation) RetrieveAndCleanSmtCache(smtTables []string) (map[string]m
 			total_count := len(bucket)
 			start := time.Now()
 			deleted_count := 0
-			for k, v := range bucket {
-				if v == nil || len(v) == 0 {
-					deleted_count += 1
-					delete(bucket, k)
+			fmt.Printf("table: %s, deleteCount: %d\n", table, m.deleteCountMap[table])
+			if m.deleteCountMap[table] > 50000 {
+				for k, v := range bucket {
+					if v == nil || len(v) == 0 {
+						deleted_count += 1
+						delete(bucket, k)
+					}
 				}
+				elapsed := time.Since(start).Microseconds()
+				fmt.Printf("table: %s, bucket size: %d, deleteCount: %d, deleted: %d, time elapsed :%d us \n", table, total_count, m.deleteCountMap[table], deleted_count, elapsed)
 			}
-			elapsed := time.Since(start).Microseconds()
-			fmt.Printf("table: %s, bucket size: %d, deleted: %d, time elapsed :%d us \n", table, total_count, deleted_count, elapsed)
 
 			delete(m.puts, table)
 		}
