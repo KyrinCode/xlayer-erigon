@@ -455,8 +455,8 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 					apii.PreRunList, ethCfg.XLayer.PreRunCacheSize, ethCfg.XLayer.PreRunCacheTTL,
 					ethCfg.XLayer.PreRunChanNum, ethCfg.XLayer.PreRunTaskNum))
 			}
-			apii.wg.Add(4)
-			for i := 0; i < 4; i++ {
+			apii.wg.Add(1)
+			for i := 0; i < 1; i++ {
 				go apii.worker()
 			}
 		}

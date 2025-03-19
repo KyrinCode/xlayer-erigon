@@ -680,9 +680,6 @@ func (p *TxPool) AppendLocalAnnouncements(types []byte, sizes []uint32, hashes [
 	return types, sizes, hashes
 }
 func (p *TxPool) AppendRemoteAnnouncements(types []byte, sizes []uint32, hashes []byte) ([]byte, []uint32, []byte) {
-	// p.lock.Lock()
-	// defer p.lock.Unlock()
-
 	p.byHash.Range(func(key any, value any) bool {
 		hash := key.(string)
 		txn := value.(*metaTx)
@@ -695,6 +692,8 @@ func (p *TxPool) AppendRemoteAnnouncements(types []byte, sizes []uint32, hashes 
 		return true
 	})
 
+	p.lock.RLock()
+	defer p.lock.RUnlock()
 	p.unprocessedRemoteByHash.Range(func(key any, value any) bool {
 		hash := key.(string)
 		txIdx := value.(int)
@@ -2168,6 +2167,7 @@ type sendersBatch struct {
 	senderID2Addr map[uint64]common.Address
 	tracedSenders map[common.Address]struct{}
 	senderID      uint64
+	mu            sync.RWMutex
 }
 
 func newSendersCache(tracedSenders map[common.Address]struct{}) *sendersBatch {
@@ -2175,10 +2175,25 @@ func newSendersCache(tracedSenders map[common.Address]struct{}) *sendersBatch {
 }
 
 func (sc *sendersBatch) getID(addr common.Address) (uint64, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
 	id, ok := sc.senderIDs[addr]
 	return id, ok
 }
+
+func (sc *sendersBatch) getAddr(senderID uint64) (common.Address, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	addr, ok := sc.senderID2Addr[senderID]
+	return addr, ok
+}
+
 func (sc *sendersBatch) getOrCreateID(addr common.Address) (uint64, bool) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+
 	_, traced := sc.tracedSenders[addr]
 	id, ok := sc.senderIDs[addr]
 	if !ok {
@@ -2193,10 +2208,15 @@ func (sc *sendersBatch) getOrCreateID(addr common.Address) (uint64, bool) {
 	return id, traced
 }
 func (sc *sendersBatch) info(cacheView kvcache.CacheView, id uint64) (nonce uint64, balance uint256.Int, err error) {
+	sc.mu.RLock()
+
 	addr, ok := sc.senderID2Addr[id]
 	if !ok {
+		sc.mu.RUnlock()
 		panic("must not happen")
 	}
+	sc.mu.RUnlock()
+
 	encoded, err := cacheView.Get(addr.Bytes())
 	if err != nil {
 		return 0, emptySender.balance, err
