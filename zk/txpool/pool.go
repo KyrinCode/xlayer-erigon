@@ -28,6 +28,7 @@ import (
 	"math/big"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,7 +37,6 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/go-stack/stack"
 	"github.com/google/btree"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
@@ -59,6 +59,8 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv/kvcache"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/types"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 var (
@@ -311,31 +313,35 @@ type TxPool struct {
 	//   - reduce amount of _chainDB transactions
 	//   - batch notifications about new txs (reduce P2P spam to other nodes about txs propagation)
 	//   - and as a result reducing lock contention
-	unprocessedRemoteTxs    *types.TxSlots
-	unprocessedRemoteByHash map[string]int                        // to reject duplicates
-	byHash                  map[string]*metaTx                    // tx_hash => tx : only not committed to db yet records
-	discardReasonsLRU       *simplelru.LRU[string, DiscardReason] // tx_hash => discard_reason : non-persisted
-	pending                 *PendingPool
-	baseFee                 *SubPool
-	queued                  *SubPool
-	isLocalLRU              *simplelru.LRU[string, struct{}] // tx_hash => is_local : to restore isLocal flag of unwinded transactions
-	newPendingTxs           chan types.Announcements         // notifications about new txs in Pending sub-pool
-	all                     *BySenderAndNonce                // senderID => (sorted map of tx nonce => *metaTx)
-	deletedTxs              []*metaTx                        // list of discarded txs since last db commit
-	overflowZkCounters      []*metaTx
-	promoted                types.Announcements
-	cfg                     txpoolcfg.Config
-	chainID                 uint256.Int
-	lastSeenBlock           atomic.Uint64
-	started                 atomic.Bool
-	pendingBaseFee          atomic.Uint64
-	blockGasLimit           atomic.Uint64
-	londonBlock             *big.Int
-	isPostLondon            atomic.Bool
-	shanghaiTime            *big.Int
-	isPostShanghai          atomic.Bool
-	ethCfg                  *ethconfig.Config
-	aclDB                   kv.RwDB
+	unprocessedRemoteTxs *types.TxSlots
+	// unprocessedRemoteByHash map[string]int // to reject duplicates
+	// byHash                  map[string]*metaTx                    // tx_hash => tx : only not committed to db yet records
+	unprocessedRemoteByHash *sync.Map
+	byHash                  *sync.Map
+	// discardReasonsLRU       *simplelru.LRU[string, DiscardReason] // tx_hash => discard_reason : non-persisted
+	discardReasonsLRU *lru.Cache[string, DiscardReason]
+	pending           *PendingPool
+	baseFee           *SubPool
+	queued            *SubPool
+	// isLocalLRU         *simplelru.LRU[string, struct{}] // tx_hash => is_local : to restore isLocal flag of unwinded transactions
+	isLocalLRU         *lru.Cache[string, struct{}]
+	newPendingTxs      chan types.Announcements // notifications about new txs in Pending sub-pool
+	all                *BySenderAndNonce        // senderID => (sorted map of tx nonce => *metaTx)
+	deletedTxs         []*metaTx                // list of discarded txs since last db commit
+	overflowZkCounters []*metaTx
+	promoted           types.Announcements
+	cfg                txpoolcfg.Config
+	chainID            uint256.Int
+	lastSeenBlock      atomic.Uint64
+	started            atomic.Bool
+	pendingBaseFee     atomic.Uint64
+	blockGasLimit      atomic.Uint64
+	londonBlock        *big.Int
+	isPostLondon       atomic.Bool
+	shanghaiTime       *big.Int
+	isPostShanghai     atomic.Bool
+	ethCfg             *ethconfig.Config
+	aclDB              kv.RwDB
 
 	// For X Layer
 	xlayerCfg    XLayerConfig
@@ -361,11 +367,19 @@ func CreateTxPoolBuckets(tx kv.RwTx) error {
 
 func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, ethCfg *ethconfig.Config, cache kvcache.Cache, chainID uint256.Int, shanghaiTime *big.Int, londonBlock *big.Int, aclDB kv.RwDB) (*TxPool, error) {
 	var err error
-	localsHistory, err := simplelru.NewLRU[string, struct{}](10_000, nil)
+	// localsHistory, err := simplelru.NewLRU[string, struct{}](10_000, nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// discardHistory, err := simplelru.NewLRU[string, DiscardReason](10_000, nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	localsHistory, err := lru.New[string, struct{}](10_000)
 	if err != nil {
 		return nil, err
 	}
-	discardHistory, err := simplelru.NewLRU[string, DiscardReason](10_000, nil)
+	discardHistory, err := lru.New[string, DiscardReason](10_000)
 	if err != nil {
 		return nil, err
 	}
@@ -381,23 +395,25 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 	}
 
 	tp := &TxPool{
-		lock:                    &sync.RWMutex{},
-		byHash:                  map[string]*metaTx{},
-		isLocalLRU:              localsHistory,
-		discardReasonsLRU:       discardHistory,
-		all:                     byNonce,
-		recentlyConnectedPeers:  &recentlyConnectedPeers{},
-		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit),
-		baseFee:                 NewSubPool(BaseFeeSubPool, cfg.BaseFeeSubPoolLimit),
-		queued:                  NewSubPool(QueuedSubPool, cfg.QueuedSubPoolLimit),
-		newPendingTxs:           newTxs,
-		_stateCache:             cache,
-		senders:                 newSendersCache(tracedSenders),
-		_chainDB:                coreDB,
-		cfg:                     cfg,
-		chainID:                 chainID,
-		unprocessedRemoteTxs:    &types.TxSlots{},
-		unprocessedRemoteByHash: map[string]int{},
+		lock: &sync.RWMutex{},
+		// byHash:                  map[string]*metaTx{},
+		byHash:                 &sync.Map{},
+		isLocalLRU:             localsHistory,
+		discardReasonsLRU:      discardHistory,
+		all:                    byNonce,
+		recentlyConnectedPeers: &recentlyConnectedPeers{},
+		pending:                NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit),
+		baseFee:                NewSubPool(BaseFeeSubPool, cfg.BaseFeeSubPoolLimit),
+		queued:                 NewSubPool(QueuedSubPool, cfg.QueuedSubPoolLimit),
+		newPendingTxs:          newTxs,
+		_stateCache:            cache,
+		senders:                newSendersCache(tracedSenders),
+		_chainDB:               coreDB,
+		cfg:                    cfg,
+		chainID:                chainID,
+		unprocessedRemoteTxs:   &types.TxSlots{},
+		// unprocessedRemoteByHash: map[string]int{},
+		unprocessedRemoteByHash: &sync.Map{},
 		londonBlock:             londonBlock,
 		shanghaiTime:            shanghaiTime,
 		ethCfg:                  ethCfg,
@@ -434,6 +450,7 @@ func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChang
 	}
 	defer coreTx.Rollback()
 
+	t := time.Now()
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -557,7 +574,7 @@ func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChang
 		p.allowYieldingTransactions()
 	}
 
-	//log.Info("[txpool] new block", "number", p.lastSeenBlock.Load(), "pendngBaseFee", pendingBaseFee, "in", time.Since(t))
+	log.Info("[txpool] new block", "number", p.lastSeenBlock.Load(), "pendngBaseFee", pendingBaseFee, "in", time.Since(t))
 	return nil
 }
 
@@ -615,15 +632,18 @@ func (p *TxPool) processRemoteTxs(ctx context.Context) error {
 	}
 
 	p.unprocessedRemoteTxs.Resize(0)
-	p.unprocessedRemoteByHash = map[string]int{}
+	p.unprocessedRemoteByHash = &sync.Map{}
 
 	//log.Info("[txpool] on new txs", "amount", len(newPendingTxs.txs), "in", time.Since(t))
 	return nil
 }
 func (p *TxPool) getRlpLocked(tx kv.Tx, hash []byte) (rlpTxn []byte, sender common.Address, isLocal bool, err error) {
-	txn, ok := p.byHash[string(hash)]
-	if ok && txn.Tx.Rlp != nil {
-		return txn.Tx.Rlp, p.senders.senderID2Addr[txn.Tx.SenderID], txn.subPool&IsLocal > 0, nil
+	var txn *metaTx
+	if val, ok := p.byHash.Load(string(hash)); ok {
+		txn, ok = val.(*metaTx)
+		if ok && txn.Tx.Rlp != nil {
+			return txn.Tx.Rlp, p.senders.senderID2Addr[txn.Tx.SenderID], txn.subPool&IsLocal > 0, nil
+		}
 	}
 	v, err := tx.GetOne(kv.PoolTransaction, hash)
 	if err != nil {
@@ -641,36 +661,49 @@ func (p *TxPool) GetRlp(tx kv.Tx, hash []byte) ([]byte, error) {
 	return common.Copy(rlpTx), err
 }
 func (p *TxPool) AppendLocalAnnouncements(types []byte, sizes []uint32, hashes []byte) ([]byte, []uint32, []byte) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	for hash, txn := range p.byHash {
+	// p.lock.Lock()
+	// defer p.lock.Unlock()
+
+	p.byHash.Range(func(key any, value any) bool {
+		hash := key.(string)
+		txn := value.(*metaTx)
 		if txn.subPool&IsLocal == 0 {
-			continue
+			return true
 		}
 		types = append(types, txn.Tx.Type)
 		sizes = append(sizes, txn.Tx.Size)
 		hashes = append(hashes, hash...)
-	}
+		return true
+	})
+
 	return types, sizes, hashes
 }
 func (p *TxPool) AppendRemoteAnnouncements(types []byte, sizes []uint32, hashes []byte) ([]byte, []uint32, []byte) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	// p.lock.Lock()
+	// defer p.lock.Unlock()
 
-	for hash, txn := range p.byHash {
-		if txn.subPool&IsLocal != 0 {
-			continue
+	p.byHash.Range(func(key any, value any) bool {
+		hash := key.(string)
+		txn := value.(*metaTx)
+		if txn.subPool&IsLocal == 0 {
+			return true
 		}
 		types = append(types, txn.Tx.Type)
 		sizes = append(sizes, txn.Tx.Size)
 		hashes = append(hashes, hash...)
-	}
-	for hash, txIdx := range p.unprocessedRemoteByHash {
+		return true
+	})
+
+	p.unprocessedRemoteByHash.Range(func(key any, value any) bool {
+		hash := key.(string)
+		txIdx := value.(int)
 		txSlot := p.unprocessedRemoteTxs.Txs[txIdx]
 		types = append(types, txSlot.Type)
 		sizes = append(sizes, txSlot.Size)
 		hashes = append(hashes, hash...)
-	}
+		return true
+	})
+
 	return types, sizes, hashes
 }
 func (p *TxPool) AppendAllAnnouncements(types []byte, sizes []uint32, hashes []byte) ([]byte, []uint32, []byte) {
@@ -679,15 +712,15 @@ func (p *TxPool) AppendAllAnnouncements(types []byte, sizes []uint32, hashes []b
 	return types, sizes, hashes
 }
 func (p *TxPool) IdHashKnown(tx kv.Tx, hash []byte) (bool, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	// p.lock.RLock()
+	// defer p.lock.RUnlock()
 	if _, ok := p.discardReasonsLRU.Get(string(hash)); ok {
 		return true, nil
 	}
-	if _, ok := p.unprocessedRemoteByHash[string(hash)]; ok {
+	if _, ok := p.unprocessedRemoteByHash.Load(string(hash)); ok {
 		return true, nil
 	}
-	if _, ok := p.byHash[string(hash)]; ok {
+	if _, ok := p.byHash.Load(string(hash)); ok {
 		return true, nil
 	}
 	return tx.Has(kv.PoolTransaction, hash)
@@ -729,11 +762,12 @@ func (p *TxPool) AddRemoteTxs(_ context.Context, newTxs types.TxSlots) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	for i, txn := range newTxs.Txs {
-		_, ok := p.unprocessedRemoteByHash[string(txn.IDHash[:])]
+		_, ok := p.unprocessedRemoteByHash.Load(string(txn.IDHash[:]))
 		if ok {
 			continue
 		}
-		p.unprocessedRemoteByHash[string(txn.IDHash[:])] = len(p.unprocessedRemoteTxs.Txs)
+		// p.unprocessedRemoteByHash[string(txn.IDHash[:])] = len(p.unprocessedRemoteTxs.Txs)
+		p.unprocessedRemoteByHash.Store(string(txn.IDHash[:]), len(p.unprocessedRemoteTxs.Txs))
 		p.unprocessedRemoteTxs.Append(txn, newTxs.Senders.At(i), false)
 	}
 }
@@ -974,7 +1008,7 @@ func (p *TxPool) punishSpammer(spammer uint64) {
 	}
 }
 
-func fillDiscardReasons(reasons []DiscardReason, newTxs types.TxSlots, discardReasonsLRU *simplelru.LRU[string, DiscardReason]) []DiscardReason {
+func fillDiscardReasons(reasons []DiscardReason, newTxs types.TxSlots, discardReasonsLRU *lru.Cache[string, DiscardReason]) []DiscardReason {
 	for i := range reasons {
 		if reasons[i] != NotSet {
 			continue
@@ -1069,7 +1103,7 @@ func (p *TxPool) cache() kvcache.Cache {
 func (p *TxPool) addTxs(blockNum uint64, cacheView kvcache.CacheView, senders *sendersBatch,
 	newTxs types.TxSlots, pendingBaseFee, blockGasLimit uint64,
 	pending *PendingPool, baseFee, queued *SubPool,
-	byNonce *BySenderAndNonce, byHash map[string]*metaTx, add func(*metaTx, *types.Announcements) DiscardReason, discard func(*metaTx, DiscardReason), collect bool) (types.Announcements, []DiscardReason, error) {
+	byNonce *BySenderAndNonce, byHash *sync.Map, add func(*metaTx, *types.Announcements) DiscardReason, discard func(*metaTx, DiscardReason), collect bool) (types.Announcements, []DiscardReason, error) {
 	protocolBaseFee := calcProtocolBaseFee(pendingBaseFee)
 	if assert.Enable {
 		for _, txn := range newTxs.Txs {
@@ -1091,7 +1125,8 @@ func (p *TxPool) addTxs(blockNum uint64, cacheView kvcache.CacheView, senders *s
 	discardReasons := make([]DiscardReason, len(newTxs.Txs))
 	announcements := types.Announcements{}
 	for i, txn := range newTxs.Txs {
-		if found, ok := byHash[string(txn.IDHash[:])]; ok {
+		if v, ok := byHash.Load(string(txn.IDHash[:])); ok {
+			found := v.(*metaTx)
 			discardReasons[i] = DuplicateHash
 			// In case if the transation is stuck, "poke" it to rebroadcast
 			if collect && newTxs.IsLocal[i] && (found.currentSubPool == PendingSubPool || found.currentSubPool == BaseFeeSubPool) {
@@ -1139,7 +1174,8 @@ func (p *TxPool) addTxsOnNewBlock(
 	baseFee,
 	queued *SubPool,
 	byNonce *BySenderAndNonce,
-	byHash map[string]*metaTx,
+	// byHash map[string]*metaTx,
+	byHash *sync.Map,
 	sendersWithChangedStateBeforeLimboTrim *LimboSendersWithChangedState,
 	add func(*metaTx, *types.Announcements) DiscardReason,
 	discard func(*metaTx, DiscardReason),
@@ -1164,7 +1200,7 @@ func (p *TxPool) addTxsOnNewBlock(
 	sendersWithChangedState := map[uint64]struct{}{}
 	announcements := types.Announcements{}
 	for i, txn := range newTxs.Txs {
-		if _, ok := byHash[string(txn.IDHash[:])]; ok {
+		if _, ok := byHash.Load(string(txn.IDHash[:])); ok {
 			sendersWithChangedStateBeforeLimboTrim.decrement(txn.SenderID)
 			continue
 		}
@@ -1281,7 +1317,8 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) Disca
 		return PendingPoolOverflow
 	}
 
-	p.byHash[string(mt.Tx.IDHash[:])] = mt
+	// p.byHash[string(mt.Tx.IDHash[:])] = mt
+	p.byHash.Store(string(mt.Tx.IDHash[:]), mt)
 
 	if replaced := p.all.replaceOrInsert(mt); replaced != nil {
 		if assert.Enable {
@@ -1300,7 +1337,8 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) Disca
 // dropping transaction from all sub-structures and from db
 // Important: don't call it while iterating by all
 func (p *TxPool) discardLocked(mt *metaTx, reason DiscardReason) {
-	delete(p.byHash, string(mt.Tx.IDHash[:]))
+	p.byHash.Delete(string(mt.Tx.IDHash[:]))
+	// delete(p.byHash, string(mt.Tx.IDHash[:]))
 	p.deletedTxs = append(p.deletedTxs, mt)
 	p.all.delete(mt)
 	p.discardReasonsLRU.Add(string(mt.Tx.IDHash[:]), reason)
@@ -1653,32 +1691,72 @@ func (p *TxPool) flushLocked(tx kv.RwTx) (err error) {
 	}
 
 	v := make([]byte, 0, 1024)
-	for txHash, metaTx := range p.byHash {
+
+	var rangeErr error
+	p.byHash.Range(func(key, value any) bool {
+		txHash := key.(string)
+		metaTx := value.(*metaTx)
+
 		if metaTx.Tx.Rlp == nil {
-			continue
+			return true
 		}
+
 		v = common.EnsureEnoughSize(v, 20+len(metaTx.Tx.Rlp))
 
 		addr, ok := p.senders.senderID2Addr[metaTx.Tx.SenderID]
 		if !ok {
 			log.Warn("[txpool] flush: sender address not found by ID", "senderID", metaTx.Tx.SenderID)
-			continue
+			return true
 		}
 
 		copy(v[:20], addr.Bytes())
 		copy(v[20:], metaTx.Tx.Rlp)
 
-		has, err := tx.Has(kv.PoolTransaction, []byte(txHash))
+		var has bool
+		has, rangeErr = tx.Has(kv.PoolTransaction, []byte(txHash))
 		if err != nil {
-			return err
+			return false
 		}
 		if !has {
 			if err := tx.Put(kv.PoolTransaction, []byte(txHash), v); err != nil {
-				return err
+				return false
 			}
 		}
 		metaTx.Tx.Rlp = nil
+
+		return true
+	})
+
+	if rangeErr != nil {
+		return rangeErr
 	}
+
+	// for txHash, metaTx := range p.byHash {
+	// 	if metaTx.Tx.Rlp == nil {
+	// 		continue
+	// 	}
+	// 	v = common.EnsureEnoughSize(v, 20+len(metaTx.Tx.Rlp))
+
+	// 	addr, ok := p.senders.senderID2Addr[metaTx.Tx.SenderID]
+	// 	if !ok {
+	// 		log.Warn("[txpool] flush: sender address not found by ID", "senderID", metaTx.Tx.SenderID)
+	// 		continue
+	// 	}
+
+	// 	copy(v[:20], addr.Bytes())
+	// 	copy(v[20:], metaTx.Tx.Rlp)
+
+	// 	has, err := tx.Has(kv.PoolTransaction, []byte(txHash))
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if !has {
+	// 		if err := tx.Put(kv.PoolTransaction, []byte(txHash), v); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	// 	metaTx.Tx.Rlp = nil
+	// }
 
 	binary.BigEndian.PutUint64(encID, p.pendingBaseFee.Load())
 	if err := tx.Put(kv.PoolInfo, PoolPendingBaseFeeKey, encID); err != nil {
@@ -1839,9 +1917,14 @@ func PutChainConfig(tx kv.Putter, cc *chain.Config, buf []byte) error {
 // nolint
 func (p *TxPool) printDebug(prefix string) {
 	fmt.Printf("%s.pool.byHash\n", prefix)
-	for _, j := range p.byHash {
+	p.byHash.Range(func(key, value any) bool {
+		j := value.(*metaTx)
 		fmt.Printf("\tsenderID=%d, nonce=%d, tip=%d\n", j.Tx.SenderID, j.Tx.Nonce, j.Tx.Tip)
-	}
+		return true
+	})
+	// for _, j := range p.byHash {
+	// 	fmt.Printf("\tsenderID=%d, nonce=%d, tip=%d\n", j.Tx.SenderID, j.Tx.Nonce, j.Tx.Tip)
+	// }
 	fmt.Printf("%s.pool.queues.len: %d,%d,%d\n", prefix, p.pending.Len(), p.baseFee.Len(), p.queued.Len())
 	for _, mt := range p.pending.best.ms {
 		mt.Tx.PrintDebug(fmt.Sprintf("%s.pending: %b,%d,%d,%d", prefix, mt.subPool, mt.Tx.SenderID, mt.Tx.Nonce, mt.Tx.Tip))
@@ -2160,6 +2243,7 @@ type BySenderAndNonce struct {
 	tree             *btree.BTreeG[*metaTx]
 	search           *metaTx
 	senderIDTxnCount map[uint64]int // count of sender's txns in the pool - may differ from nonce
+	mu               sync.RWMutex
 }
 
 func (b *BySenderAndNonce) nonce(senderID uint64) (nonce uint64, ok bool) {
@@ -2263,6 +2347,7 @@ type PendingPool struct {
 	worst  *WorstQueue
 	limit  int
 	t      SubPoolType
+	mu     sync.RWMutex
 }
 
 func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
@@ -2279,6 +2364,11 @@ type bestSlice struct {
 
 func (s *bestSlice) Len() int { return len(s.ms) }
 func (s *bestSlice) Swap(i, j int) {
+	if i < 0 || i >= len(s.ms) || j < 0 || j >= len(s.ms) {
+		log.Info("Swap: index out of range", "i", i, "j", j, "len", len(s.ms))
+		return
+	}
+
 	s.ms[i], s.ms[j] = s.ms[j], s.ms[i]
 	s.ms[i].bestIndex, s.ms[j].bestIndex = i, j
 }
@@ -2297,9 +2387,23 @@ func (s *bestSlice) UnsafeAdd(i *metaTx) {
 }
 
 func (p *PendingPool) EnforceWorstInvariants() {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for EnforceWorstInvariants", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for EnforceWorstInvariants", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for EnforceBestInvariants", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for EnforceBestInvariants", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	if !p.sorted {
 		sort.Sort(p.best)
 		p.sorted = true
@@ -2307,30 +2411,87 @@ func (p *PendingPool) EnforceBestInvariants() {
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Best", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Best", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
 	if len(p.best.ms) == 0 {
 		return nil
 	}
 	return p.best.ms[0]
 }
 func (p *PendingPool) Worst() *metaTx { //nolint
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Worst", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Worst", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
 	if len(p.worst.ms) == 0 {
 		return nil
 	}
 	return (p.worst.ms)[0]
 }
-func (p *PendingPool) PopWorst() *metaTx { //nolint
+func (p *PendingPool) PopWorst() *metaTx {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for PopWorst", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for PopWorst", GetGoid()))
+		p.mu.Unlock()
+	}()
+
+	if len(p.worst.ms) == 0 {
+		return nil
+	}
 	i := heap.Pop(p.worst).(*metaTx)
-	if i.bestIndex >= 0 {
+	if i.bestIndex >= 0 && i.bestIndex < len(p.best.ms) {
 		p.best.UnsafeRemove(i)
+		p.sorted = false
 	}
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Updated", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Updated", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	heap.Fix(p.worst, mt.worstIndex)
 }
-func (p *PendingPool) Len() int     { return len(p.best.ms) }
-func (p *PendingPool) IsFull() bool { return p.Len() >= p.limit }
+func (p *PendingPool) Len() int {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Len", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Len", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
+	return len(p.best.ms)
+}
+func (p *PendingPool) IsFull() bool {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for IsFull", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for IsFull", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
+	return len(p.best.ms) >= p.limit
+}
 func (p *PendingPool) Remove(i *metaTx) {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Remove", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Remove", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2344,6 +2505,13 @@ func (p *PendingPool) Remove(i *metaTx) {
 }
 
 func (p *PendingPool) Add(i *metaTx) {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Add", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Add", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
@@ -2353,6 +2521,9 @@ func (p *PendingPool) Add(i *metaTx) {
 	p.sorted = false
 }
 func (p *PendingPool) DebugPrint(prefix string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	for i, it := range p.best.ms {
 		fmt.Printf("%s.best: %d, %d, %d,%d\n", prefix, i, it.subPool, it.bestIndex, it.Tx.Nonce)
 	}
@@ -2366,6 +2537,7 @@ type SubPool struct {
 	worst *WorstQueue
 	limit int
 	t     SubPoolType
+	mu    sync.RWMutex
 }
 
 func NewSubPool(t SubPoolType, limit int) *SubPool {
@@ -2374,33 +2546,84 @@ func NewSubPool(t SubPoolType, limit int) *SubPool {
 }
 
 func (p *SubPool) EnforceInvariants() {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.EnforceInvariants", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.EnforceInvariants", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	heap.Init(p.worst)
 	heap.Init(p.best)
 }
 func (p *SubPool) Best() *metaTx { //nolint
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Best", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Best", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
 	if len(p.best.ms) == 0 {
 		return nil
 	}
 	return p.best.ms[0]
 }
 func (p *SubPool) Worst() *metaTx { //nolint
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Worst", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Worst", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
 	if len(p.worst.ms) == 0 {
 		return nil
 	}
 	return p.worst.ms[0]
 }
 func (p *SubPool) PopBest() *metaTx { //nolint
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.PopBest", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.PopBest", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	i := heap.Pop(p.best).(*metaTx)
 	heap.Remove(p.worst, i.worstIndex)
 	return i
 }
 func (p *SubPool) PopWorst() *metaTx { //nolint
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.PopWorst", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.PopWorst", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	i := heap.Pop(p.worst).(*metaTx)
 	heap.Remove(p.best, i.bestIndex)
 	return i
 }
-func (p *SubPool) Len() int { return p.best.Len() }
+func (p *SubPool) Len() int {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Len", GetGoid()))
+	p.mu.RLock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Len", GetGoid()))
+		p.mu.RUnlock()
+	}()
+
+	return p.best.Len()
+}
 func (p *SubPool) Add(i *metaTx) {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Add", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Add", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
@@ -2410,17 +2633,34 @@ func (p *SubPool) Add(i *metaTx) {
 }
 
 func (p *SubPool) Remove(i *metaTx) {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Remove", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Remove", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	heap.Remove(p.best, i.bestIndex)
 	heap.Remove(p.worst, i.worstIndex)
 	i.currentSubPool = 0
 }
 
 func (p *SubPool) Updated(i *metaTx) {
+	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Updated", GetGoid()))
+	p.mu.Lock()
+	defer func() {
+		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Updated", GetGoid()))
+		p.mu.Unlock()
+	}()
+
 	heap.Fix(p.best, i.bestIndex)
 	heap.Fix(p.worst, i.worstIndex)
 }
 
 func (p *SubPool) DebugPrint(prefix string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	for i, it := range p.best.ms {
 		fmt.Printf("%s.best: %d, %d, %d\n", prefix, i, it.subPool, it.bestIndex)
 	}
@@ -2587,4 +2827,29 @@ func (p *WorstQueue) Pop() interface{} {
 	item.currentSubPool = 0 // for safety
 	p.ms = old[0 : n-1]
 	return item
+}
+
+var (
+	goroutinePrefix = []byte("goroutine ")
+)
+
+// This is terrible, slow, and should never be used.
+func GetGoid() int {
+	buf := make([]byte, 32)
+	n := runtime.Stack(buf, false)
+	buf = buf[:n]
+	// goroutine 1 [running]: ...
+
+	buf, ok := bytes.CutPrefix(buf, goroutinePrefix)
+	if !ok {
+		return 0
+	}
+
+	i := bytes.IndexByte(buf, ' ')
+	if i < 0 {
+		return 0
+	}
+
+	id, _ := strconv.Atoi(string(buf[:i]))
+	return id
 }

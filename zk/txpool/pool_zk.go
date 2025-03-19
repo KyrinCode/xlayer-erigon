@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -176,14 +175,14 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 	}
 }
 
-var (
-	removeWG sync.WaitGroup
-)
+// var (
+// 	removeWG sync.WaitGroup
+// )
 
 // zk: the implementation of best here is changed only to not take into account block gas limits as we don't care about
 // these in zk.  Instead we do a quick check on the transaction maximum gas in zk
 func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, error) {
-	removeWG.Wait()
+	// removeWG.Wait()
 	ok, count, toRemove, err := p.bestRead(n, txs, tx, onTopOf, availableGas, availableBlobGas, toSkip)
 	if err != nil {
 		return ok, count, err
@@ -193,26 +192,26 @@ func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableG
 	}
 	txs.Resize(uint(count))
 	if len(toRemove) > 0 {
-		removeWG.Add(1)
-		go func() {
-			p.lock.Lock()
-			defer p.lock.Unlock()
-			removeWG.Done()
-			for _, mt := range toRemove {
-				p.pending.Remove(mt)
-				p.discardLocked(mt, UnsupportedTx)
-				//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
-			}
-		}()
-		time.Sleep(1 * time.Nanosecond)
+		// removeWG.Add(1)
+		// go func() {
+		p.lock.Lock()
+		defer p.lock.Unlock()
+		// removeWG.Done()
+		for _, mt := range toRemove {
+			p.pending.Remove(mt)
+			p.discardLocked(mt, UnsupportedTx)
+			//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
+		}
+		// }()
 	}
 
 	return true, count, nil
 }
 
 func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, []*metaTx, error) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	// t := time.Now()
+	// p.lock.RLock()
+	// defer p.lock.RUnlock()
 
 	if p.isDeniedYieldingTransactions() {
 		//log.Trace("Denied yielding transactions, cannot proceed")
@@ -229,6 +228,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 	isLondon := p.isLondon()
 	_ = isLondon
 	best := p.pending.best
+	newMs := best.ms
 
 	txs.Resize(uint(cmp.Min(int(n), len(best.ms))))
 	var toRemove []*metaTx
@@ -236,13 +236,13 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 
 	p.pending.EnforceBestInvariants()
 
-	for i := 0; count < int(n) && i < len(best.ms); i++ {
+	for i := 0; count < int(n) && i < len(newMs); i++ {
 		// if we wouldn't have enough gas for a standard transaction then quit out early
 		if availableGas < fixedgas.TxGas {
 			break
 		}
 
-		mt := best.ms[i]
+		mt := newMs[i]
 		//log.Trace("Processing transaction", "txID", mt.Tx.IDHash)
 
 		if toSkip.Contains(mt.Tx.IDHash) {
@@ -340,6 +340,7 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	cache := p._stateCache
 	toDelete := make([]*metaTx, 0)
 
+	ts1 := time.Now()
 	p.all.ascendAll(func(mt *metaTx) bool {
 		for _, id := range ids {
 			if bytes.Equal(mt.Tx.IDHash[:], id[:]) {
@@ -358,12 +359,16 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		}
 		return true
 	})
+	ts2 := time.Now()
+	log.Info("p.all.ascendAll cost", "time", ts2.Sub(ts1))
 
 	sendersWithChangedState := make(map[uint64]struct{})
 	for _, mt := range toDelete {
 		p.discardLocked(mt, Mined)
 		sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
 	}
+	ts3 := time.Now()
+	log.Info("discardLocked cost", "time", ts3.Sub(ts2))
 
 	baseFee := p.pendingBaseFee.Load()
 
@@ -371,6 +376,10 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	if err != nil {
 		return err
 	}
+
+	ts4 := time.Now()
+	log.Info("cache.View cost", "time", ts4.Sub(ts3))
+
 	for senderID := range sendersWithChangedState {
 		nonce, balance, err := p.senders.info(cacheView, senderID)
 		if err != nil {
@@ -380,6 +389,8 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
 
 	}
+	ts5 := time.Now()
+	log.Info("onSenderStateChange cost", "time", ts5.Sub(ts4))
 	return nil
 }
 
