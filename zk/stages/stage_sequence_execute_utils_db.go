@@ -42,25 +42,26 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 	}
 
 	if supportAC {
-		// Support Async IO, only need to create read only transaction
+		// Support Async IO, only need to create read-only transaction
 		var txsmt kv.Tx = nil
 		if dbsmt != nil {
-			if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
+			// use multi mdbx
+			if txsmt, err = dbsmt.BeginRo(ctx); err != nil {
 				log.Error("failed to start smt tx", "err", err)
 				return nil, err
 			}
-
 			eridb := db2.NewEriCacheDb(sdb.ctx, txsmt, tx)
 			sdb.SetTx(tx, txsmt, eridb)
 		} else {
+			// use only one mdbx
 			eridb := db2.NewEriDb(tx, tx)
-			sdb.SetTx(tx, txsmt, eridb)
+			sdb.SetTx(tx, tx, eridb)
 		}
-
 	} else {
-		// Support Sync IO，so need to create read write transaction
+		// Support Sync IO，so need to create read-write transaction
 		var txsmt kv.RwTx = nil
 		if dbsmt != nil {
+			// use multi mdbx
 			if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
 				log.Error("failed to start smt tx", "err", err)
 				return nil, err
@@ -68,8 +69,9 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 			eridb := db2.NewEriDb(txsmt, tx)
 			sdb.SetTx(tx, txsmt, eridb)
 		} else {
+			// use only one mdbx
 			eridb := db2.NewEriDb(tx, tx)
-			sdb.SetTx(tx, txsmt, eridb)
+			sdb.SetTx(tx, tx, eridb)
 		}
 	}
 
@@ -78,7 +80,6 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 
 func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.Tx, eridb smtNs.DB) {
 	sdb.tx = tx
-	sdb.txsmt = txsmt
 	sdb.hermezDb = hermez_db.NewHermezDb(tx)
 	sdb.stateReader = state.NewPlainStateReader(tx)
 
@@ -94,9 +95,6 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		}
 		return err
 	}
-	if sdb.dbsmt != nil {
-		sdb.txsmt.Commit()
-	}
 
 	tx, err := sdb.db.BeginRw(sdb.ctx)
 	if err != nil {
@@ -104,7 +102,9 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 	}
 
 	if !sdb.supportAC {
+		// Support Sync IO，so need to create read-write transaction
 		if sdb.dbsmt != nil {
+			// use multi mdbx
 			if err = sdb.txsmt.Commit(); err != nil {
 				return err
 			}
@@ -117,13 +117,17 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 
 			sdb.SetTx(tx, txsmt, eridb)
 		} else {
+			// use only one mdbx, tx has already commit and create new tx
 			eridb := db2.NewEriDb(tx, tx)
 			sdb.SetTx(tx, tx, eridb)
 		}
 	} else {
+		// Support Async IO, only need to create read-only transaction
 		if sdb.dbsmt != nil {
+			// use multi mdbx, no need to commit txsmt here and also no need to create new tx
 			sdb.SetTx(tx, sdb.txsmt, sdb.eridb)
 		} else {
+			// use only one mdbx, tx has already commit and create new tx
 			eridb := db2.NewEriDb(tx, tx)
 			sdb.SetTx(tx, tx, eridb)
 		}
@@ -133,15 +137,16 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 }
 
 func (sdb *stageDb) Commit(s *stagedsync.StageState, flushSmt bool) error {
-	if !sdb.supportAC && flushSmt {
+	if sdb.supportAC && flushSmt {
 		smtCache, deltaCache := sdb.eridb.RetriveAndCleanCache()
 		s.SetSmtCache(smtCache, deltaCache)
 	}
 
 	err := sdb.tx.Commit()
 	if err != nil {
-		if !sdb.supportAC && sdb.dbsmt != nil {
+		if sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
+			// TODO: should we clear the cache?
 		}
 		return err
 	}
