@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/holiman/uint256"
@@ -334,13 +333,9 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 }
 
 func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	cache := p._stateCache
 	toDelete := make([]*metaTx, 0)
 
-	ts1 := time.Now()
 	p.all.ascendAll(func(mt *metaTx) bool {
 		for _, id := range ids {
 			if bytes.Equal(mt.Tx.IDHash[:], id[:]) {
@@ -359,16 +354,12 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		}
 		return true
 	})
-	ts2 := time.Now()
-	log.Info("p.all.ascendAll cost", "time", ts2.Sub(ts1))
 
 	sendersWithChangedState := make(map[uint64]struct{})
 	for _, mt := range toDelete {
 		p.discardLocked(mt, Mined)
 		sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
 	}
-	ts3 := time.Now()
-	log.Info("discardLocked cost", "time", ts3.Sub(ts2))
 
 	baseFee := p.pendingBaseFee.Load()
 
@@ -377,8 +368,8 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		return err
 	}
 
-	ts4 := time.Now()
-	log.Info("cache.View cost", "time", ts4.Sub(ts3))
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	for senderID := range sendersWithChangedState {
 		nonce, balance, err := p.senders.info(cacheView, senderID)
@@ -387,10 +378,7 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		}
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
-
 	}
-	ts5 := time.Now()
-	log.Info("onSenderStateChange cost", "time", ts5.Sub(ts4))
 	return nil
 }
 

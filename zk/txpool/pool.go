@@ -348,6 +348,7 @@ type TxPool struct {
 	apolloCfg    ApolloConfig
 	gpCache      GPCache // GPCache will only work in sequencer node, without rpc node
 	freeGasAddrs map[string]bool
+	deleteMtx    sync.RWMutex
 
 	// we cannot be in a flushing state whilst getting transactions from the pool, so we have this mutex which is
 	// exposed publicly so anything wanting to get "best" transactions can ensure a flush isn't happening and
@@ -1339,7 +1340,9 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) Disca
 func (p *TxPool) discardLocked(mt *metaTx, reason DiscardReason) {
 	p.byHash.Delete(string(mt.Tx.IDHash[:]))
 	// delete(p.byHash, string(mt.Tx.IDHash[:]))
+	p.deleteMtx.Lock()
 	p.deletedTxs = append(p.deletedTxs, mt)
+	p.deleteMtx.Unlock()
 	p.all.delete(mt)
 	p.discardReasonsLRU.Add(string(mt.Tx.IDHash[:]), reason)
 }
@@ -2247,6 +2250,9 @@ type BySenderAndNonce struct {
 }
 
 func (b *BySenderAndNonce) nonce(senderID uint64) (nonce uint64, ok bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = math.MaxUint64
@@ -2267,11 +2273,17 @@ func (b *BySenderAndNonce) nonce(senderID uint64) (nonce uint64, ok bool) {
 	return nonce, ok
 }
 func (b *BySenderAndNonce) ascendAll(f func(*metaTx) bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	b.tree.Ascend(func(mt *metaTx) bool {
 		return f(mt)
 	})
 }
 func (b *BySenderAndNonce) ascend(senderID uint64, f func(*metaTx) bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = 0
@@ -2283,6 +2295,9 @@ func (b *BySenderAndNonce) ascend(senderID uint64, f func(*metaTx) bool) {
 	})
 }
 func (b *BySenderAndNonce) descend(senderID uint64, f func(*metaTx) bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = math.MaxUint64
@@ -2294,6 +2309,9 @@ func (b *BySenderAndNonce) descend(senderID uint64, f func(*metaTx) bool) {
 	})
 }
 func (b *BySenderAndNonce) count(senderID uint64) int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	return b.senderIDTxnCount[senderID]
 }
 func (b *BySenderAndNonce) hasTxs(senderID uint64) bool {
@@ -2305,6 +2323,9 @@ func (b *BySenderAndNonce) hasTxs(senderID uint64) bool {
 	return has
 }
 func (b *BySenderAndNonce) get(senderID, txNonce uint64) *metaTx {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	s := b.search
 	s.Tx.SenderID = senderID
 	s.Tx.Nonce = txNonce
@@ -2316,9 +2337,15 @@ func (b *BySenderAndNonce) get(senderID, txNonce uint64) *metaTx {
 
 // nolint
 func (b *BySenderAndNonce) has(mt *metaTx) bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	return b.tree.Has(mt)
 }
 func (b *BySenderAndNonce) delete(mt *metaTx) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if _, ok := b.tree.Delete(mt); ok {
 		senderID := mt.Tx.SenderID
 		count := b.senderIDTxnCount[senderID]
@@ -2330,6 +2357,9 @@ func (b *BySenderAndNonce) delete(mt *metaTx) {
 	}
 }
 func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	it, ok := b.tree.ReplaceOrInsert(mt)
 	if ok {
 		return it
@@ -2462,6 +2492,10 @@ func (p *PendingPool) Updated(mt *metaTx) {
 		p.mu.Unlock()
 	}()
 
+	if mt.worstIndex < 0 || mt.worstIndex >= p.worst.Len() {
+		log.Warn("Invalid worstIndex, skipping heap.Fix", "index", mt.worstIndex, "len", p.worst.Len(), "txID", fmt.Sprintf("%x", mt.Tx.IDHash))
+		return
+	}
 	heap.Fix(p.worst, mt.worstIndex)
 }
 func (p *PendingPool) Len() int {
@@ -2653,7 +2687,16 @@ func (p *SubPool) Updated(i *metaTx) {
 		p.mu.Unlock()
 	}()
 
+	if i.bestIndex < 0 || i.bestIndex >= p.best.Len() {
+		log.Warn("Invalid bestIndex, skipping heap.Fix", "index", i.bestIndex, "len", p.best.Len(), "txID", fmt.Sprintf("%x", i.Tx.IDHash))
+		return
+	}
 	heap.Fix(p.best, i.bestIndex)
+
+	if i.worstIndex < 0 || i.worstIndex >= p.worst.Len() {
+		log.Warn("Invalid worstIndex, skipping heap.Fix", "index", i.worstIndex, "len", p.worst.Len(), "txID", fmt.Sprintf("%x", i.Tx.IDHash))
+		return
+	}
 	heap.Fix(p.worst, i.worstIndex)
 }
 
