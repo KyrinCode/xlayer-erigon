@@ -140,6 +140,7 @@ func sequencingBatchStep(
 	}
 	defer sdb.Rollback()
 
+	oldCache := s.GetSmtCache()
 	if sdb.supportAC {
 		sdb.eridb.SetCache(s.GetSmtCache())
 	}
@@ -224,7 +225,7 @@ func sequencingBatchStep(
 		shouldCheckForExecutionAndDataStreamAlignment = false
 	}
 
-	needsUnwind, exitStage, err := tryHaltSequencer(batchContext, batchState, streamWriter, u, executionAt)
+	needsUnwind, exitStage, err := tryHaltSequencer(batchContext, batchState, streamWriter, u, executionAt, oldCache)
 	if needsUnwind || err != nil {
 		return err
 	}
@@ -755,6 +756,7 @@ func sequencingBatchStep(
 		if batchContext.sdb.supportAC {
 			quit := batchContext.ctx.Done()
 			batchContext.sdb.eridb.OpenBatch(quit) // do nothing...
+			oldCache = s.GetSmtCache()
 			batchContext.sdb.eridb.SetCache(s.GetSmtCache())
 			if block, err = doFinishBlockAndUpdateState(batchContext, ibs, header, parentBlock, batchState, ger, l1BlockHash, l1TreeUpdateIndex, infoTreeIndexProgress, batchCounters); err != nil {
 				batchContext.sdb.eridb.RollbackBatch()
@@ -835,7 +837,7 @@ func sequencingBatchStep(
 		if err != nil {
 			return err
 		}
-		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.XLayer.ExecutorMock, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries)
+		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.XLayer.ExecutorMock, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries, oldCache)
 
 		// For X Layer, local replay's feature of stateroot mismatch detection
 		if cfg.zk.XLayer.SequencerReplay {
@@ -852,7 +854,7 @@ func sequencingBatchStep(
 		}
 
 		// check for new responses from the verifier
-		needsUnwind, err := updateStreamAndCheckRollback(batchContext, batchState, streamWriter, u)
+		needsUnwind, err := updateStreamAndCheckRollback(batchContext, batchState, streamWriter, u, oldCache)
 
 		// lets commit everything after updateStreamAndCheckRollback no matter of its result unless
 		// we're in L1 recovery where losing some blocks on restart doesn't matter
