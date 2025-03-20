@@ -95,10 +95,8 @@ func SpawnSequencingStage(
 		if !supportAC {
 			return err
 		}
-
-		if s.BlockNumber%50 == 0 {
-			err = s.FlushSmtCache()
-		}
+		log.Info("zjg, FlushSmtCache--1")
+		err = s.FlushSmtCache()
 		//err = s.FlushSmtCache()
 	}
 
@@ -199,8 +197,8 @@ func sequencingBatchStep(
 
 	if shouldCheckForExecutionAndDataStreamAlignment {
 		// TODO: remove this after testing
-		log.Warn("zjg, sleep 10 seconds")
-		time.Sleep(10 * time.Second)
+		// log.Warn("zjg, sleep 10 seconds")
+		// time.Sleep(10 * time.Second)
 		// handle cases where the last batch wasn't committed to the data stream.
 		// this could occur because we're migrating from an RPC node to a sequencer
 		// or because the sequencer was restarted and not all processes completed (like waiting from remote executor)
