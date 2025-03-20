@@ -336,6 +336,9 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	cache := p._stateCache
 	toDelete := make([]*metaTx, 0)
 
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.all.ascendAll(func(mt *metaTx) bool {
 		for _, id := range ids {
 			if bytes.Equal(mt.Tx.IDHash[:], id[:]) {
@@ -367,9 +370,6 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	if err != nil {
 		return err
 	}
-
-	p.lock.Lock()
-	defer p.lock.Unlock()
 
 	for senderID := range sendersWithChangedState {
 		nonce, balance, err := p.senders.info(cacheView, senderID)
