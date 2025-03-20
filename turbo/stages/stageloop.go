@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
+	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 
 	lru "github.com/hashicorp/golang-lru/arc/v2"
 	"github.com/ledgerwatch/log/v3"
@@ -59,8 +60,11 @@ func AsyncFlushSmtData(ctx context.Context,
 	}
 
 	var wg sync.WaitGroup
-	defer wg.Wait() // 等待所有 FlushDataToDB goroutine 完成
-
+	defer func() {
+		logger.Info("Waiting for all flush operations to complete...")
+		wg.Wait() // 等待所有 FlushDataToDB goroutine 完成
+		logger.Info("All flush operations completed, exiting")
+	}()
 	for {
 		select {
 		case smtCache, ok := <-s.SmtCacheCh:
@@ -69,11 +73,29 @@ func AsyncFlushSmtData(ctx context.Context,
 				return
 			}
 
+			log.Info("---Get from channel---")
 			wg.Add(1)
 			go FlushDataToDB(&wg, ctx, db, logger, smtCache)
 
 		case <-ctx.Done():
-			logger.Info("AsyncFlushSmtData received stop signal", "reason", ctx.Err())
+			logger.Info("Context done received, starting cleanup")
+			s.FlushSmtCache()
+			for {
+				select {
+				case smtCache, ok := <-s.SmtCacheCh:
+					if !ok {
+						logger.Info("SmtCacheCh closed during shutdown")
+						break
+					}
+					log.Info("---Get from channel---")
+					wg.Add(1)
+					go FlushDataToDB(&wg, context.Background(), db, logger, smtCache)
+				default:
+					goto waitAndExit
+				}
+			}
+			// logger.Info("AsyncFlushSmtData received stop signal", "reason", ctx.Err())
+		waitAndExit:
 			return
 		}
 	}
@@ -82,11 +104,17 @@ func AsyncFlushSmtData(ctx context.Context,
 func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte) {
 	defer wg.Done()
 
+	logger.Info("Starting to flush SMT data to DB...")
 	err := db.Batch(func(tx kv.RwTx) error {
 		batch := membatch.NewHashBatchWithCache(tx, ctx.Done(), "", logger, smtCache)
 		defer batch.Close()
 
-		return batch.Flush(ctx, tx)
+		if err := batch.Flush(ctx, tx); err != nil {
+			logger.Error("batch flush failed", "error", err)
+			return err
+		}
+		logger.Info("Batch flush completed successfully")
+		return nil
 	})
 
 	if err != nil {

@@ -96,10 +96,10 @@ func SpawnSequencingStage(
 			return err
 		}
 
-		if s.BlockNumber%50 == 0 {
-			err = s.FlushSmtCache()
-		}
-		//err = s.FlushSmtCache()
+		// if s.BlockNumber%50 == 0 {
+		// 	err = s.FlushSmtCache()
+		// }
+		err = s.FlushSmtCache()
 	}
 
 	return err
