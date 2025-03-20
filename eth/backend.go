@@ -274,6 +274,9 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	}
 
 	// Assemble the Ethereum object
+
+	// call InitStandaloneSMT before openning the DB
+	kv.InitStandaloneSMT(config.XLayer.StandaloneSMTDatabase)
 	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, logger)
 	if err != nil {
 		return nil, err
@@ -301,10 +304,16 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	}
 
 	// SMT DB
-	smtdb, err := node.OpenDatabaseSMT(ctx, stack.Config(), logger)
-	if err != nil {
-		log.Error("Failed to OpenDatabaseSMT", "err", err)
-		return nil, err
+	var smtdb kv.RwDB = chainKv
+	if config.XLayer.StandaloneSMTDatabase {
+		log.Info("Opening standalone SMT database (smt folder).")
+		smtdb, err = node.OpenDatabaseSMT(ctx, stack.Config(), logger)
+		if err != nil {
+			log.Error("Failed to OpenDatabaseSMT", "err", err)
+			return nil, err
+		}
+	} else {
+		log.Info("SMT database is part of main chain DB (chaindata folder).")
 	}
 	txsmt, err := smtdb.BeginRw(ctx)
 	if err != nil {
@@ -319,6 +328,10 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	if err := txsmt.Commit(); err != nil {
 		log.Error("Failed to commit SMT init transaction", "err", err)
 		return nil, err
+	}
+	if !config.XLayer.StandaloneSMTDatabase {
+		txsmt = nil
+		smtdb = nil
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -1965,7 +1978,11 @@ func (s *Ethereum) Start() error {
 		if s.config.DebugNoSync {
 			return nil
 		}
-		go stages2.AsyncFlushSmtData(s.smtFlushCtx, s.smtDB, s.stagedSync, s.logger)
+		smtdb := s.smtDB
+		if s.smtDB == nil {
+			smtdb = s.chainDB
+		}
+		go stages2.AsyncFlushSmtData(s.smtFlushCtx, smtdb, s.stagedSync, s.logger)
 		go stages2.StageLoop(s.sentryCtx, s.chainDB, s.stagedSync, s.sentriesClient.Hd, s.waitForStageLoopStop, s.config.Sync.LoopThrottle, s.logger, s.blockReader, hook, s.config.ForcePartialCommit)
 	}
 

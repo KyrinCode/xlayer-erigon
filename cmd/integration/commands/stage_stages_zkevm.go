@@ -93,17 +93,23 @@ func unwindZk(ctx context.Context, db, dbsmt kv.RwDB) error {
 	}
 	defer tx.Rollback()
 
-	txsmt, err := dbsmt.BeginRw(ctx)
-	if err != nil {
-		return err
+	var txsmt kv.RwTx = nil
+	if dbsmt != nil {
+		txsmt, err = dbsmt.BeginRw(ctx)
+		if err != nil {
+			return err
+		}
+		defer txsmt.Rollback()
+		if err := smtdb.CreateEriDbBuckets(txsmt); err != nil {
+			return err
+		}
+	} else {
+		if err := smtdb.CreateEriDbBuckets(tx); err != nil {
+			return err
+		}
 	}
-	defer txsmt.Rollback()
 
 	if err := hermez_db.CreateHermezBuckets(tx); err != nil {
-		return err
-	}
-
-	if err := smtdb.CreateEriDbBuckets(txsmt); err != nil {
 		return err
 	}
 
@@ -120,11 +126,16 @@ func unwindZk(ctx context.Context, db, dbsmt kv.RwDB) error {
 	}
 
 	if err := tx.Commit(); err != nil {
-		txsmt.Rollback()
+		if txsmt != nil {
+			txsmt.Rollback()
+		}
 		return err
 	}
 
-	return txsmt.Commit()
+	if txsmt != nil {
+		return txsmt.Commit()
+	}
+	return nil
 }
 
 func compareDbs(db1, db2 kv.RwDB) ([]string, error) {

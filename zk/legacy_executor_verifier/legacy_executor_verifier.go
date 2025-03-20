@@ -34,13 +34,15 @@ type VerifierRequest struct {
 	creationTime time.Time
 	timeout      time.Duration
 	retries      int
+
+	cache map[string]map[string][]byte
 }
 
 func NewVerifierRequest(forkId, batchNumber uint64, blockNumbers []uint64, stateRoot common.Hash, counters map[string]int) *VerifierRequest {
-	return NewVerifierRequestWithLimits(forkId, batchNumber, blockNumbers, stateRoot, counters, 0, -1)
+	return NewVerifierRequestWithLimits(forkId, batchNumber, blockNumbers, stateRoot, counters, 0, -1, nil)
 }
 
-func NewVerifierRequestWithLimits(forkId, batchNumber uint64, blockNumbers []uint64, stateRoot common.Hash, counters map[string]int, timeout time.Duration, retries int) *VerifierRequest {
+func NewVerifierRequestWithLimits(forkId, batchNumber uint64, blockNumbers []uint64, stateRoot common.Hash, counters map[string]int, timeout time.Duration, retries int, cache map[string]map[string][]byte) *VerifierRequest {
 	return &VerifierRequest{
 		BatchNumber:  batchNumber,
 		BlockNumbers: blockNumbers,
@@ -50,6 +52,7 @@ func NewVerifierRequestWithLimits(forkId, batchNumber uint64, blockNumbers []uin
 		creationTime: time.Now(),
 		timeout:      timeout,
 		retries:      retries,
+		cache:        cache,
 	}
 }
 
@@ -111,7 +114,7 @@ func (vb *VerifierBundle) isInternalError() bool {
 }
 
 type WitnessGenerator interface {
-	GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool) ([]byte, error)
+	GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, cache map[string]map[string][]byte) ([]byte, error)
 }
 
 type LegacyExecutorVerifier struct {
@@ -162,10 +165,11 @@ func (v *LegacyExecutorVerifier) StartAsyncVerification(
 	useMockExecutor bool,
 	requestTimeout time.Duration,
 	retries int,
+	cache map[string]map[string][]byte,
 ) {
 	var promise *Promise[*VerifierBundle]
 
-	request := NewVerifierRequestWithLimits(forkId, batchNumber, blockNumbers, stateRoot, counters, requestTimeout, retries)
+	request := NewVerifierRequestWithLimits(forkId, batchNumber, blockNumbers, stateRoot, counters, requestTimeout, retries, cache)
 	if useRemoteExecutor {
 		promise = v.VerifyAsync(request)
 	} else if useMockExecutor {
@@ -250,13 +254,16 @@ func (v *LegacyExecutorVerifier) VerifyAsync(request *VerifierRequest) *Promise[
 			return verifierBundle, err
 		}
 
-		txsmt, err := v.dbsmt.BeginRo(innerCtx)
-		if err != nil {
-			return verifierBundle, err
+		var txsmt kv.Tx = nil
+		if v.dbsmt != nil {
+			txsmt, err = v.dbsmt.BeginRo(innerCtx)
+			if err != nil {
+				return verifierBundle, err
+			}
+			defer txsmt.Rollback()
 		}
-		defer txsmt.Rollback()
 
-		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull)
+		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, request.cache)
 		if err != nil {
 			return verifierBundle, err
 		}
@@ -353,6 +360,15 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 		}
 		defer tx.Rollback()
 
+		var txsmt kv.Tx = nil
+		if v.dbsmt != nil {
+			txsmt, err = v.dbsmt.BeginRo(innerCtx)
+			if err != nil {
+				return verifierBundle, err
+			}
+			defer txsmt.Rollback()
+		}
+
 		hermezDb := hermez_db.NewHermezDbReader(tx)
 
 		l1InfoTreeMinTimestamps := make(map[uint64]uint64)
@@ -361,13 +377,7 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 			return verifierBundle, err
 		}
 
-		txsmt, err := v.dbsmt.BeginRo(innerCtx)
-		if err != nil {
-			return verifierBundle, err
-		}
-		defer txsmt.Rollback()
-
-		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull)
+		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, request.cache)
 		if err != nil {
 			return verifierBundle, err
 		}

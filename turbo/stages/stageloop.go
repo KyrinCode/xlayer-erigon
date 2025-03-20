@@ -67,7 +67,7 @@ func AsyncFlushSmtData(ctx context.Context,
 	}()
 	for {
 		select {
-		case smtCache, ok := <-s.SmtCacheCh:
+		case smtCacheToWrite, ok := <-s.SmtCacheCh:
 			if !ok {
 				logger.Info("SmtCacheCh closed, stopping AsyncFlushSmtData")
 				return
@@ -75,21 +75,28 @@ func AsyncFlushSmtData(ctx context.Context,
 
 			log.Info("---Get from channel---")
 			wg.Add(1)
-			go FlushDataToDB(&wg, ctx, db, logger, smtCache)
+			go FlushDataToDB(&wg, ctx, db, logger, smtCacheToWrite.SmtCache, smtCacheToWrite.MaxBlockHeight, s.FinishedBlockHeightCh)
 
+		case maxBlockHeight, ok := <-s.FinishedBlockHeightCh:
+			if !ok {
+				logger.Info("FinishedBlockHeightCh closed, stopping update smt cache")
+				return
+			}
+
+			s.UpdateSmtCacheList(maxBlockHeight)
 		case <-ctx.Done():
 			logger.Info("Context done received, starting cleanup")
 			s.FlushSmtCache()
 			for {
 				select {
-				case smtCache, ok := <-s.SmtCacheCh:
+				case smtCacheToWrite, ok := <-s.SmtCacheCh:
 					if !ok {
 						logger.Info("SmtCacheCh closed during shutdown")
 						break
 					}
 					log.Info("---Get from channel---")
 					wg.Add(1)
-					go FlushDataToDB(&wg, context.Background(), db, logger, smtCache)
+					go FlushDataToDB(&wg, context.Background(), db, logger, smtCacheToWrite.SmtCache, smtCacheToWrite.MaxBlockHeight, s.FinishedBlockHeightCh)
 				default:
 					goto waitAndExit
 				}
@@ -101,7 +108,7 @@ func AsyncFlushSmtData(ctx context.Context,
 	}
 }
 
-func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte) {
+func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte, maxBlockHeight uint64, notifyCh chan<- uint64) {
 	defer wg.Done()
 
 	logger.Info("Starting to flush SMT data to DB...")
@@ -119,6 +126,8 @@ func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, log
 
 	if err != nil {
 		logger.Error("failed to flush data to DB", "error", err)
+	} else {
+		notifyCh <- maxBlockHeight
 	}
 }
 
