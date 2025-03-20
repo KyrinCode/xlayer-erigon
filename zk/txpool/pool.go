@@ -2392,7 +2392,7 @@ func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
 // It's more expensive to maintain "slice sort" invariant, but it allow do cheap copy of
 // pending.best slice for mining (because we consider txs and metaTx are immutable)
 type PendingPool struct {
-	sorted bool // means `PendingPool.best` is sorted or not
+	sorted atomic.Bool // means `PendingPool.best` is sorted or not
 	best   *bestSlice
 	worst  *WorstQueue
 	limit  int
@@ -2437,36 +2437,27 @@ func (s *bestSlice) UnsafeAdd(i *metaTx) {
 }
 
 func (p *PendingPool) EnforceWorstInvariants() {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for EnforceWorstInvariants", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for EnforceWorstInvariants", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for EnforceBestInvariants", GetGoid()))
-	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for EnforceBestInvariants", GetGoid()))
-		p.mu.Unlock()
-	}()
-
-	if !p.sorted {
-		sort.Sort(p.best)
-		p.sorted = true
+	if p.sorted.Load() {
+		return
 	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	sort.Sort(p.best)
+	p.sorted.Store(true)
+
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Best", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Best", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	if len(p.best.ms) == 0 {
 		return nil
@@ -2474,12 +2465,8 @@ func (p *PendingPool) Best() *metaTx { //nolint
 	return p.best.ms[0]
 }
 func (p *PendingPool) Worst() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Worst", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Worst", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	if len(p.worst.ms) == 0 {
 		return nil
@@ -2487,12 +2474,8 @@ func (p *PendingPool) Worst() *metaTx { //nolint
 	return (p.worst.ms)[0]
 }
 func (p *PendingPool) PopWorst() *metaTx {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for PopWorst", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for PopWorst", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	if len(p.worst.ms) == 0 {
 		return nil
@@ -2500,17 +2483,13 @@ func (p *PendingPool) PopWorst() *metaTx {
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 && i.bestIndex < len(p.best.ms) {
 		p.best.UnsafeRemove(i)
-		p.sorted = false
+		p.sorted.Store(false)
 	}
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Updated", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Updated", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	if mt.worstIndex < 0 || mt.worstIndex >= p.worst.Len() {
 		log.Warn("Invalid worstIndex, skipping heap.Fix", "index", mt.worstIndex, "len", p.worst.Len(), "txID", fmt.Sprintf("%x", mt.Tx.IDHash))
@@ -2519,32 +2498,20 @@ func (p *PendingPool) Updated(mt *metaTx) {
 	heap.Fix(p.worst, mt.worstIndex)
 }
 func (p *PendingPool) Len() int {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for Len", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for Len", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	return len(p.best.ms)
 }
 func (p *PendingPool) IsFull() bool {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for IsFull", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for IsFull", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	return len(p.best.ms) >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Remove", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Remove", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
@@ -2553,18 +2520,14 @@ func (p *PendingPool) Remove(i *metaTx) {
 		p.best.UnsafeRemove(i)
 	}
 	if i.bestIndex != p.best.Len()-1 {
-		p.sorted = false
+		p.sorted.Store(false)
 	}
 	i.currentSubPool = 0
 }
 
 func (p *PendingPool) Add(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for Add", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for Add", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
@@ -2572,7 +2535,7 @@ func (p *PendingPool) Add(i *metaTx) {
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
-	p.sorted = false
+	p.sorted.Store(false)
 }
 func (p *PendingPool) DebugPrint(prefix string) {
 	p.mu.RLock()
@@ -2600,23 +2563,15 @@ func NewSubPool(t SubPoolType, limit int) *SubPool {
 }
 
 func (p *SubPool) EnforceInvariants() {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.EnforceInvariants", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.EnforceInvariants", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	heap.Init(p.worst)
 	heap.Init(p.best)
 }
 func (p *SubPool) Best() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Best", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Best", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	if len(p.best.ms) == 0 {
 		return nil
@@ -2624,12 +2579,8 @@ func (p *SubPool) Best() *metaTx { //nolint
 	return p.best.ms[0]
 }
 func (p *SubPool) Worst() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Worst", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Worst", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	if len(p.worst.ms) == 0 {
 		return nil
@@ -2637,46 +2588,30 @@ func (p *SubPool) Worst() *metaTx { //nolint
 	return p.worst.ms[0]
 }
 func (p *SubPool) PopBest() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.PopBest", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.PopBest", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	i := heap.Pop(p.best).(*metaTx)
 	heap.Remove(p.worst, i.worstIndex)
 	return i
 }
 func (p *SubPool) PopWorst() *metaTx { //nolint
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.PopWorst", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.PopWorst", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	i := heap.Pop(p.worst).(*metaTx)
 	heap.Remove(p.best, i.bestIndex)
 	return i
 }
 func (p *SubPool) Len() int {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring RLock for SubPool.Len", GetGoid()))
 	p.mu.RLock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing RLock for SubPool.Len", GetGoid()))
-		p.mu.RUnlock()
-	}()
+	defer p.mu.RUnlock()
 
 	return p.best.Len()
 }
 func (p *SubPool) Add(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Add", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Add", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
@@ -2687,12 +2622,8 @@ func (p *SubPool) Add(i *metaTx) {
 }
 
 func (p *SubPool) Remove(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Remove", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Remove", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	heap.Remove(p.best, i.bestIndex)
 	heap.Remove(p.worst, i.worstIndex)
@@ -2700,12 +2631,8 @@ func (p *SubPool) Remove(i *metaTx) {
 }
 
 func (p *SubPool) Updated(i *metaTx) {
-	// log.Info(fmt.Sprintf("goroutine %d: acquiring Lock for SubPool.Updated", GetGoid()))
 	p.mu.Lock()
-	defer func() {
-		// log.Info(fmt.Sprintf("goroutine %d: releasing Lock for SubPool.Updated", GetGoid()))
-		p.mu.Unlock()
-	}()
+	defer p.mu.Unlock()
 
 	if i.bestIndex < 0 || i.bestIndex >= p.best.Len() {
 		log.Warn("Invalid bestIndex, skipping heap.Fix", "index", i.bestIndex, "len", p.best.Len(), "txID", fmt.Sprintf("%x", i.Tx.IDHash))
