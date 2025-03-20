@@ -1442,15 +1442,19 @@ func promote(pending *PendingPool, baseFee, queued *SubPool, pendingBaseFee uint
 	}
 
 	// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
+	// var toAdd = []*metaTx{}
 	for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
 		if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
 			tx := queued.PopBest()
 			announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
 			pending.Add(tx)
+			// toAdd = append(toAdd, tx)
 		} else {
 			baseFee.Add(queued.PopBest())
 		}
 	}
+
+	// pending.BatchAdd(toAdd)
 
 	// Discard worst transactions from the queued sub pool if they do not qualify
 	for worst := queued.Worst(); queued.Len() > 0 && worst.subPool < QueuedPoolBits; worst = queued.Worst() {
@@ -2535,8 +2539,27 @@ func (p *PendingPool) Add(i *metaTx) {
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
+	// sort.Sort(p.best)
 	p.sorted.Store(false)
 }
+func (p *PendingPool) BatchAdd(is []*metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// if i.Tx.Traced {
+	// 	log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
+	// }
+	for _, i := range is {
+		i.currentSubPool = p.t
+		heap.Push(p.worst, i)
+		i.bestIndex = len(p.best.ms)
+		p.best.ms = append(p.best.ms, i)
+	}
+
+	sort.Sort(p.best)
+	p.sorted.Store(true)
+}
+
 func (p *PendingPool) DebugPrint(prefix string) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
