@@ -544,7 +544,7 @@ LOOP:
 		if readNewProto {
 			if parsedProto, entryNum, err = ReadParsedProto(c); err != nil {
 				if err == ErrReachedEntryNumberLimit {
-					return c.trySendChannelEOF()
+					return c.trySendStopSignal()
 				}
 				return err
 			}
@@ -576,7 +576,7 @@ LOOP:
 		if c.header.TotalEntries == entryNum+1 {
 			log.Trace("[Datastream client] reached the current end of the stream", "header_totalEntries", c.header.TotalEntries, "entryNum", entryNum)
 
-			if err := c.trySendChannelEOF(); err != nil {
+			if err := c.trySendStopSignal(); err != nil {
 				return err
 			}
 			break LOOP
@@ -586,7 +586,7 @@ LOOP:
 	return nil
 }
 
-func (c *StreamClient) trySendChannelEOF() error {
+func (c *StreamClient) trySendStopSignal() error {
 	retries := 0
 	for {
 		select {
