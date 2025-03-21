@@ -274,7 +274,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 
 	// call InitStandaloneSMT before openning the DB
 	kv.InitStandaloneSMT(config.XLayer.StandaloneSMTDatabase)
-	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, logger)
+	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, config.XLayer.StandaloneSMTDatabase, logger)
 	if err != nil {
 		return nil, err
 	}

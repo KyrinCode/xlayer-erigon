@@ -31,7 +31,7 @@ func initDb(t *testing.T, dbPath string, standaloneSmtDb bool) (kv.RwDB, kv.RwTx
 		t.Fatalf("Cannot create db %e", err)
 	}
 
-	migrator := migrations.NewMigrator(kv.ChainDB)
+	migrator := migrations.NewMigrator(kv.ChainDB, false)
 	if err := migrator.VerifyVersion(database); err != nil {
 		t.Fatalf("Cannot verify db version %e", err)
 	}

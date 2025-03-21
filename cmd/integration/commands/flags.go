@@ -45,6 +45,8 @@ var (
 
 	_forceSetHistoryV3    bool
 	workers, reconWorkers uint64
+
+	standaloneSmtDb bool // true: SMT DB is separate from ChainDB
 )
 
 func must(err error) {
@@ -55,6 +57,10 @@ func must(err error) {
 
 func withConfig(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&config, "config", "", "yaml/toml config file location")
+}
+
+func withStandaloneSmtDb(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&standaloneSmtDb, "standalone-smt-db", false, "SMT DB is separate from ChainDB")
 }
 
 func withMining(cmd *cobra.Command) {
