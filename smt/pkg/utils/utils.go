@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"math/bits"
 	"strconv"
@@ -779,70 +778,70 @@ func HashContractBytecode(bc string) string {
 	return ConvertBigIntToHex(HashContractBytecodeBigInt(bc))
 }
 
-func HashContractBytecodeBigInt(bc string) *big.Int {
-	bytecode := bc
-
-	if strings.HasPrefix(bc, "0x") {
-		bytecode = bc[2:]
+func charToByte(c byte) byte {
+	if c >= '0' && c <= '9' {
+		return c - '0'
 	}
+	if c >= 'a' && c <= 'f' {
+		return c - 'a' + 10
+	}
+	if c >= 'A' && c <= 'F' {
+		return c - 'A' + 10
+	}
+	// should not reach here
+	return 0
+}
+
+func HashContractBytecodeBigInt(bc string) *big.Int {
+	bytecode := strings.TrimPrefix(bc, "0x")
+
+	targetBytesLen := len(bytecode) / 2
+	if len(bytecode)%2 != 0 {
+		targetBytesLen += 1
+	}
+
+	targetBytesLen += 1
+
+	if targetBytesLen%56 != 0 {
+		targetBytesLen = targetBytesLen + (56 - targetBytesLen%56)
+	}
+
+	targetBytesLen = targetBytesLen / 7 * 8
+
+	targetBytes := make([]byte, targetBytesLen)
+
+	counter := 0
+	offset := 0
+	i := 0
 
 	if len(bytecode)%2 != 0 {
-		bytecode = "0" + bytecode
+		targetBytes[offset] = charToByte(bytecode[0])
+		offset += 1
+		counter += 1
+		i += 1
 	}
 
-	bytecode += "01"
-
-	for len(bytecode)%(56*2) != 0 {
-		bytecode += "00"
-	}
-
-	lastByteInt, _ := strconv.ParseInt(bytecode[len(bytecode)-2:], 16, 64)
-	lastByte := strconv.FormatInt(lastByteInt|0x80, 16)
-	bytecode = bytecode[:len(bytecode)-2] + lastByte
-
-	numBytes := float64(len(bytecode)) / 2
-	numHashes := int(math.Ceil(numBytes / (BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT)))
-
-	tmpHash := [4]uint64{0, 0, 0, 0}
-	bytesPointer := 0
-
-	maxBytesToAdd := BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT
-	var elementsToHash []uint64
-	var in [8]uint64
-	var capacity [4]uint64
-	scalar := new(big.Int)
-	tmpScalar := new(big.Int)
-	var byteToAdd string
-	for i := 0; i < numHashes; i++ {
-		elementsToHash = tmpHash[:]
-
-		subsetBytecode := bytecode[bytesPointer : bytesPointer+maxBytesToAdd*2]
-		bytesPointer += maxBytesToAdd * 2
-
-		tmpElem := ""
-		counter := 0
-
-		for j := 0; j < maxBytesToAdd; j++ {
-			byteToAdd = "00"
-			if j < len(subsetBytecode)/2 {
-				byteToAdd = subsetBytecode[j*2 : (j+1)*2]
-			}
-
-			tmpElem = byteToAdd + tmpElem
-			counter += 1
-
-			if counter == BYTECODE_BYTES_ELEMENT {
-				tmpScalar, _ = scalar.SetString(tmpElem, 16)
-				elementsToHash = append(elementsToHash, tmpScalar.Uint64())
-				tmpElem = ""
-				counter = 0
-			}
+	for ; i < len(bytecode); i += 2 {
+		targetBytes[offset] = charToByte(bytecode[i])<<4 | charToByte(bytecode[i+1])
+		offset += 1
+		counter += 1
+		if counter == BYTECODE_BYTES_ELEMENT {
+			counter = 0
+			offset += 1
+			// targetBytes[offset] = 0
 		}
+	}
 
-		copy(in[:], elementsToHash[4:12])
-		copy(capacity[:], elementsToHash[:4])
+	targetBytes[offset] = 0x01
+	targetBytes[len(targetBytes)-2] |= 0x80
 
-		tmpHash = Hash(in, capacity)
+	tmpData := &[8]uint64{}
+	tmpHash := (*[4]uint64)(unsafe.Pointer(tmpData))
+	var result = (*[4]uint64)(unsafe.Pointer(unsafe.SliceData(tmpData[4:])))
+	for i := 0; i < len(targetBytes); i += 64 {
+		in := (*[8]uint64)(unsafe.Pointer(unsafe.SliceData(targetBytes[i:])))
+		hashFunc(in, tmpHash, result)
+		tmpHash, result = result, tmpHash
 	}
 
 	return ArrayToScalar(tmpHash[:])
