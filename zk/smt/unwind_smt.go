@@ -7,7 +7,6 @@ import (
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon-lib/kv/membatchwithdb"
 	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 
 	"github.com/ledgerwatch/erigon/smt/pkg/smt"
@@ -39,19 +38,19 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 	// only open the batch if tx is not already one
 	isBatchOpen := false
 	if txsmt != nil {
-		if _, ok := txsmt.(*membatchwithdb.MemoryMutation); !ok {
-			quit := make(chan struct{})
-			eridb.OpenBatch(quit)
-			if cache != nil {
-				eridb.SetCache(cache)
-			}
-			isBatchOpen = true
+		//if _, ok := txsmt.(*membatchwithdb.MemoryMutation); !ok {
+		quit := make(chan struct{})
+		eridb.OpenBatch(quit)
+		if cache != nil {
+			eridb.SetCache(cache)
 		}
+		isBatchOpen = true
+		//}
 	} else {
-		if _, ok := tx.(*membatchwithdb.MemoryMutation); !ok {
-			quit := make(chan struct{})
-			eridb.OpenBatch(quit)
-		}
+		//if _, ok := tx.(*membatchwithdb.MemoryMutation); !ok {
+		quit := make(chan struct{})
+		eridb.OpenBatch(quit)
+		//}
 	}
 
 	cg := NewChangesGetter(tx)

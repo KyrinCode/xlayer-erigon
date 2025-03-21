@@ -199,13 +199,13 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtxsmt); err != nil {
 			return nil, err
 		}
-		if cache != nil {
-			for table, bucket := range cache {
-				for k, v := range bucket {
-					rwtxsmt.Put(table, []byte(k), v)
-				}
-			}
-		}
+		//if cache != nil {
+		//	for table, bucket := range cache {
+		//		for k, v := range bucket {
+		//			rwtxsmt.Put(table, []byte(k), v)
+		//		}
+		//	}
+		//}
 	} else {
 		// if there is no standalone smt db, we PopulateMemoryMutationTablesSmt on main db
 		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtx); err != nil {
@@ -223,7 +223,7 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 			return nil, fmt.Errorf("requested block is too old, block must be within %d blocks of the head block number (currently %d)", g.witnessUnwindLimit, latestBlock)
 		}
 
-		if err := UnwindForWitness(ctx, rwtx, rwtxsmt, startBlock, latestBlock, g.dirs, g.historyV3, g.agg); err != nil {
+		if err := UnwindForWitness(ctx, rwtx, rwtxsmt, startBlock, latestBlock, g.dirs, g.historyV3, g.agg, cache); err != nil {
 			return nil, fmt.Errorf("UnwindForWitness: %w", err)
 		}
 

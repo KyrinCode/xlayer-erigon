@@ -51,7 +51,7 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, longLivedCache, blockCach
 
 	cache.SmtCacheSnapshotList.Push(blockNumber, blockCache)
 
-	if blockNumber-cache.LastCleanHeight > 10000 {
+	if blockNumber-cache.LastCleanHeight > 1000 {
 		_, deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(true)
 		if deltaSmtCache == nil {
 			deltaSmtCache = map[string]map[string][]byte{}
