@@ -2703,8 +2703,8 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 	switch mt.currentSubPool {
 	case PendingSubPool:
 		var effectiveTip, thanEffectiveTip uint256.Int
-		if mt.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
-			difference := uint256.NewInt(0)
+		if (subPool & EnoughFeeCapBlock) == EnoughFeeCapBlock {
+			difference := &uint256.Int{}
 			difference.Sub(&mt.minFeeCap, &pendingBaseFee)
 			if difference.Cmp(uint256.NewInt(mt.minTip)) <= 0 {
 				effectiveTip = *difference
@@ -2712,8 +2712,8 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 				effectiveTip = *uint256.NewInt(mt.minTip)
 			}
 		}
-		if than.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
-			difference := uint256.NewInt(0)
+		if (thanSubPool & EnoughFeeCapBlock) == EnoughFeeCapBlock {
+			difference := &uint256.Int{}
 			difference.Sub(&than.minFeeCap, &pendingBaseFee)
 			if difference.Cmp(uint256.NewInt(than.minTip)) <= 0 {
 				thanEffectiveTip = *difference
@@ -2721,7 +2721,7 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 				thanEffectiveTip = *uint256.NewInt(than.minTip)
 			}
 		}
-		if effectiveTip.Cmp(&thanEffectiveTip) != 0 {
+		if !effectiveTip.Eq(&thanEffectiveTip) {
 			return effectiveTip.Cmp(&thanEffectiveTip) > 0
 		}
 		// Compare nonce and cumulative balance. Just as a side note, it doesn't
@@ -2735,8 +2735,8 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 			return mt.cumulativeBalanceDistance < than.cumulativeBalanceDistance
 		}
 	case BaseFeeSubPool:
-		if mt.minFeeCap.Cmp(&than.minFeeCap) != 0 {
-			return mt.minFeeCap.Cmp(&than.minFeeCap) > 0
+		if res := mt.minFeeCap.Cmp(&than.minFeeCap); res != 0 {
+			return res > 0
 		}
 	case QueuedSubPool:
 		if mt.nonceDistance != than.nonceDistance {
