@@ -197,7 +197,7 @@ func CompareAddressess(a, b Address) int {
 
 func NewOrderedListOfAddresses(size int) *OrderedList[Address] {
 	return &OrderedList[Address]{
-		list:        make([]Address, 0, size),
+		list:        make(map[Address]struct{}, size),
 		isOrdered:   false,
 		compareFunc: CompareAddressess,
 	}
