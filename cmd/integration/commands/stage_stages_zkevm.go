@@ -38,7 +38,7 @@ state_stages_zkevm --datadir=/datadirs/hermez-mainnet --unwind-batch-no=2 --chai
 
 		var dbsmt kv.RwDB = nil
 		if standaloneSmtDb {
-			dbsmt, err = openDB(dbCfg(kv.SmtDB, chaindata), true, logger)
+			dbsmt, err = openDB(dbCfg(kv.SmtDB, smtDbPath), true, logger)
 			if err != nil {
 				logger.Error("Opening SMT DB", "error", err)
 				return
