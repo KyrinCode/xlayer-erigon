@@ -2529,6 +2529,21 @@ func (p *PendingPool) Remove(i *metaTx) {
 	}
 	i.currentSubPool = 0
 }
+func (p *PendingPool) BatchRemove(is []*metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, i := range is {
+		if i.worstIndex >= 0 {
+			heap.Remove(p.worst, i.worstIndex)
+		}
+		if i.bestIndex >= 0 {
+			p.best.UnsafeRemove(i)
+		}
+		i.currentSubPool = 0
+	}
+	sort.Sort(p.best)
+}
 
 func (p *PendingPool) Add(i *metaTx) {
 	p.mu.Lock()

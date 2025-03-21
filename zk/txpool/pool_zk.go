@@ -338,12 +338,14 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	defer p.lock.Unlock()
 
 	p.all.ascendAll(func(mt *metaTx) bool {
+		toDelForPending := make([]*metaTx, 0)
 		for _, id := range ids {
 			if bytes.Equal(mt.Tx.IDHash[:], id[:]) {
 				toDelete = append(toDelete, mt)
 				switch mt.currentSubPool {
 				case PendingSubPool:
-					p.pending.Remove(mt)
+					// p.pending.Remove(mt)
+					toDelForPending = append(toDelForPending, mt)
 				case BaseFeeSubPool:
 					p.baseFee.Remove(mt)
 				case QueuedSubPool:
@@ -351,6 +353,9 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 				default:
 					//already removed
 				}
+			}
+			if len(toDelForPending) > 0 {
+				p.pending.BatchRemove(toDelForPending)
 			}
 		}
 		return true
