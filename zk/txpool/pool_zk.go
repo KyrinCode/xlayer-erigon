@@ -337,8 +337,9 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
+	toDelForPending := make([]*metaTx, 0)
+
 	p.all.ascendAll(func(mt *metaTx) bool {
-		toDelForPending := make([]*metaTx, 0)
 		for _, id := range ids {
 			if bytes.Equal(mt.Tx.IDHash[:], id[:]) {
 				toDelete = append(toDelete, mt)
@@ -355,11 +356,12 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 				}
 			}
 		}
-		if len(toDelForPending) > 0 {
-			p.pending.BatchRemove(toDelForPending)
-		}
 		return true
 	})
+
+	if len(toDelForPending) > 0 {
+		p.pending.BatchRemove(toDelForPending)
+	}
 
 	sendersWithChangedState := make(map[uint64]struct{})
 	for _, mt := range toDelete {
