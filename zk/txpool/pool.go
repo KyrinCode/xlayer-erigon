@@ -461,8 +461,10 @@ func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChang
 	pendingBaseFee, baseFeeChanged := p.setBaseFee(stateChanges.PendingBlockBaseFee, p.ethCfg.AllowFreeTransactions)
 	// Update pendingBase for all pool queues and slices
 	if baseFeeChanged {
+		p.pending.mtx.Lock()
 		p.pending.best.pendingBaseFee = pendingBaseFee
 		p.pending.worst.pendingBaseFee = pendingBaseFee
+		p.pending.mtx.Unlock()
 		p.baseFee.best.pendingBastFee = pendingBaseFee
 		p.baseFee.worst.pendingBaseFee = pendingBaseFee
 		p.queued.best.pendingBastFee = pendingBaseFee
@@ -701,8 +703,8 @@ func (p *TxPool) AddNewGoodPeer(peerID types.PeerID) { p.recentlyConnectedPeers.
 func (p *TxPool) Started() bool                      { return p.started.Load() }
 
 func (p *TxPool) ResetYieldedStatus() {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	p.pending.mtx.Lock()
+	defer p.pending.mtx.Unlock()
 	best := p.pending.best
 	for i := 0; i < len(best.ms); i++ {
 		best.ms[i].alreadyYielded = false
@@ -2258,11 +2260,12 @@ func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
 // It's more expensive to maintain "slice sort" invariant, but it allow do cheap copy of
 // pending.best slice for mining (because we consider txs and metaTx are immutable)
 type PendingPool struct {
-	sorted bool // means `PendingPool.best` is sorted or not
+	sorted atomic.Bool // means `PendingPool.best` is sorted or not
 	best   *bestSlice
 	worst  *WorstQueue
 	limit  int
 	t      SubPoolType
+	mtx    sync.RWMutex
 }
 
 func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
@@ -2297,28 +2300,43 @@ func (s *bestSlice) UnsafeAdd(i *metaTx) {
 }
 
 func (p *PendingPool) EnforceWorstInvariants() {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
-	if !p.sorted {
+	if !p.sorted.Load() {
+		p.mtx.Lock()
+		defer p.mtx.Unlock()
+
 		sort.Sort(p.best)
-		p.sorted = true
+		p.sorted.Swap(true)
 	}
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	if len(p.best.ms) == 0 {
 		return nil
 	}
 	return p.best.ms[0]
 }
 func (p *PendingPool) Worst() *metaTx { //nolint
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	if len(p.worst.ms) == 0 {
 		return nil
 	}
 	return (p.worst.ms)[0]
 }
 func (p *PendingPool) PopWorst() *metaTx { //nolint
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 {
 		p.best.UnsafeRemove(i)
@@ -2326,11 +2344,27 @@ func (p *PendingPool) PopWorst() *metaTx { //nolint
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	heap.Fix(p.worst, mt.worstIndex)
 }
-func (p *PendingPool) Len() int     { return len(p.best.ms) }
-func (p *PendingPool) IsFull() bool { return p.Len() >= p.limit }
+func (p *PendingPool) Len() int {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
+	return len(p.best.ms)
+}
+func (p *PendingPool) IsFull() bool {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
+	return p.Len() >= p.limit
+}
 func (p *PendingPool) Remove(i *metaTx) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2338,7 +2372,7 @@ func (p *PendingPool) Remove(i *metaTx) {
 		p.best.UnsafeRemove(i)
 	}
 	if i.bestIndex != p.best.Len()-1 {
-		p.sorted = false
+		p.sorted.Swap(false)
 	}
 	i.currentSubPool = 0
 }
@@ -2347,12 +2381,18 @@ func (p *PendingPool) Add(i *metaTx) {
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
-	p.sorted = false
+	p.sorted.Swap(false)
 }
 func (p *PendingPool) DebugPrint(prefix string) {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	for i, it := range p.best.ms {
 		fmt.Printf("%s.best: %d, %d, %d,%d\n", prefix, i, it.subPool, it.bestIndex, it.Tx.Nonce)
 	}
