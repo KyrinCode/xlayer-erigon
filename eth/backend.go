@@ -2064,7 +2064,7 @@ func (s *Ethereum) Stop() error {
 	s.logger.Info("Stopping SMT flush service...")
 	s.smtFlushCancel()
 	time.Sleep(3 * time.Second)
-	s.smtDB.Close()
+	// s.smtDB.Close()
 
 	s.gasTracker.Stop()
 
