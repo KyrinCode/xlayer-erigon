@@ -268,7 +268,7 @@ func (v *LegacyExecutorVerifier) VerifyAsync(request *VerifierRequest) *Promise[
 
 		cache := map[string]map[string][]byte{}
 		if v.cache != nil {
-			cache = v.cache.GetSmtSnapshotCache(blockNumbers[0])
+			cache = v.cache.GetSmtSnapshotCache(blockNumbers[len(blockNumbers)-1])
 		}
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, cache)
 		if err != nil {
@@ -386,7 +386,7 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 
 		cache := map[string]map[string][]byte{}
 		if v.cache != nil {
-			cache = v.cache.GetSmtSnapshotCache(blockNumbers[0])
+			cache = v.cache.GetSmtSnapshotCache(blockNumbers[len(blockNumbers)-1])
 		}
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, cache)
 		if err != nil {
