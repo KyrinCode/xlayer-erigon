@@ -382,12 +382,14 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
 	}
 
+	return nil
+}
+
+func (p *TxPool) Notify() {
 	select {
 	case p.notifyChan <- struct{}{}:
 	default:
 	}
-
-	return nil
 }
 
 func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockGasLimit uint64, senders map[common.Address]struct{}) error {
