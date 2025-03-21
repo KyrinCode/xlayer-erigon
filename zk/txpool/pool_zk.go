@@ -200,7 +200,6 @@ func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableG
 			for _, mt := range toRemove {
 				p.pending.Remove(mt)
 				p.discardLocked(mt, UnsupportedTx)
-				p.pending.EnforceBestInvariants()
 				//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
 			}
 		}()
@@ -224,8 +223,8 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 	isShanghai := p.isShanghai()
 	isLondon := p.isLondon()
 
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	// p.lock.RLock()
+	// defer p.lock.RUnlock()
 
 	best := p.pending.best
 	newMs := best.ms
@@ -233,8 +232,6 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 	txs.Resize(uint(cmp.Min(int(n), len(best.ms))))
 	var toRemove []*metaTx
 	count := 0
-
-	p.pending.EnforceBestInvariants()
 
 	for i := 0; count < int(n) && i < len(newMs); i++ {
 		// if we wouldn't have enough gas for a standard transaction then quit out early

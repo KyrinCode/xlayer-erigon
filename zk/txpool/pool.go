@@ -1442,19 +1442,19 @@ func promote(pending *PendingPool, baseFee, queued *SubPool, pendingBaseFee uint
 	}
 
 	// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
-	// var toAdd = []*metaTx{}
+	var toAdd = []*metaTx{}
 	for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
 		if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
 			tx := queued.PopBest()
 			announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
-			pending.Add(tx)
-			// toAdd = append(toAdd, tx)
+			// pending.Add(tx)
+			toAdd = append(toAdd, tx)
 		} else {
 			baseFee.Add(queued.PopBest())
 		}
 	}
 
-	// pending.BatchAdd(toAdd)
+	pending.BatchAdd(toAdd)
 
 	// Discard worst transactions from the queued sub pool if they do not qualify
 	for worst := queued.Worst(); queued.Len() > 0 && worst.subPool < QueuedPoolBits; worst = queued.Worst() {
@@ -2396,12 +2396,12 @@ func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
 // It's more expensive to maintain "slice sort" invariant, but it allow do cheap copy of
 // pending.best slice for mining (because we consider txs and metaTx are immutable)
 type PendingPool struct {
-	sorted atomic.Bool // means `PendingPool.best` is sorted or not
-	best   *bestSlice
-	worst  *WorstQueue
-	limit  int
-	t      SubPoolType
-	mu     sync.RWMutex
+	// sorted atomic.Bool // means `PendingPool.best` is sorted or not
+	best  *bestSlice
+	worst *WorstQueue
+	limit int
+	t     SubPoolType
+	mu    sync.RWMutex
 }
 
 func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
@@ -2447,16 +2447,16 @@ func (p *PendingPool) EnforceWorstInvariants() {
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
-	if p.sorted.Load() {
-		return
-	}
+	return
+	// if p.sorted.Load() {
+	// 	return
+	// }
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	// p.mu.Lock()
+	// defer p.mu.Unlock()
 
-	sort.Sort(p.best)
-	p.sorted.Store(true)
-
+	// sort.Sort(p.best)
+	// p.sorted.Store(true)
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
@@ -2487,7 +2487,8 @@ func (p *PendingPool) PopWorst() *metaTx {
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 && i.bestIndex < len(p.best.ms) {
 		p.best.UnsafeRemove(i)
-		p.sorted.Store(false)
+		sort.Sort(p.best)
+		// p.sorted.Store(false)
 	}
 	return i
 }
@@ -2524,7 +2525,7 @@ func (p *PendingPool) Remove(i *metaTx) {
 		p.best.UnsafeRemove(i)
 	}
 	if i.bestIndex != p.best.Len()-1 {
-		p.sorted.Store(false)
+		sort.Sort(p.best)
 	}
 	i.currentSubPool = 0
 }
@@ -2539,8 +2540,8 @@ func (p *PendingPool) Add(i *metaTx) {
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
-	// sort.Sort(p.best)
-	p.sorted.Store(false)
+	sort.Sort(p.best)
+	// p.sorted.Store(true)
 }
 func (p *PendingPool) BatchAdd(is []*metaTx) {
 	p.mu.Lock()
@@ -2557,7 +2558,7 @@ func (p *PendingPool) BatchAdd(is []*metaTx) {
 	}
 
 	sort.Sort(p.best)
-	p.sorted.Store(true)
+	// p.sorted.Store(true)
 }
 
 func (p *PendingPool) DebugPrint(prefix string) {
