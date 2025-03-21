@@ -349,6 +349,7 @@ type TxPool struct {
 	gpCache      GPCache // GPCache will only work in sequencer node, without rpc node
 	freeGasAddrs map[string]bool
 	deleteMtx    sync.RWMutex
+	notifyChan   chan struct{}
 
 	// we cannot be in a flushing state whilst getting transactions from the pool, so we have this mutex which is
 	// exposed publicly so anything wanting to get "best" transactions can ensure a flush isn't happening and
@@ -434,10 +435,15 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 			FreeGasLimit:         ethCfg.DeprecatedTxPool.FreeGasLimit,
 			EnableFreeGasList:    ethCfg.DeprecatedTxPool.EnableFreeGasList},
 		freeGasAddrs: map[string]bool{},
+		notifyChan:   make(chan struct{}),
 	}
 	tp.setFreeGasList(ethCfg.DeprecatedTxPool.FreeGasList)
 
 	return tp, nil
+}
+
+func (p *TxPool) GetNotifyChan() chan struct{} {
+	return p.notifyChan
 }
 
 func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChangeBatch, unwindTxs, minedTxs types.TxSlots, tx kv.Tx) error {
@@ -479,12 +485,18 @@ func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChang
 	pendingBaseFee, baseFeeChanged := p.setBaseFee(stateChanges.PendingBlockBaseFee, p.ethCfg.AllowFreeTransactions)
 	// Update pendingBase for all pool queues and slices
 	if baseFeeChanged {
+		p.pending.mu.Lock()
 		p.pending.best.pendingBaseFee = pendingBaseFee
 		p.pending.worst.pendingBaseFee = pendingBaseFee
+		p.pending.mu.Unlock()
+		p.baseFee.mu.Lock()
 		p.baseFee.best.pendingBastFee = pendingBaseFee
 		p.baseFee.worst.pendingBaseFee = pendingBaseFee
+		p.baseFee.mu.Unlock()
+		p.queued.mu.Lock()
 		p.queued.best.pendingBastFee = pendingBaseFee
 		p.queued.worst.pendingBaseFee = pendingBaseFee
+		p.queued.mu.Unlock()
 	}
 
 	p.addLimboToUnwindTxs(&unwindTxs)
@@ -2543,6 +2555,22 @@ func (p *PendingPool) BatchRemove(is []*metaTx) {
 		i.currentSubPool = 0
 	}
 	sort.Sort(p.best)
+}
+
+func (p *PendingPool) BatchRemove(is []*metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, i := range is {
+		if i.worstIndex >= 0 {
+			heap.Remove(p.worst, i.worstIndex)
+		}
+		if i.bestIndex >= 0 {
+			p.best.UnsafeRemove(i)
+		}
+		i.currentSubPool = 0
+	}
+
 }
 
 func (p *PendingPool) Add(i *metaTx) {
