@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"math/big"
 
@@ -127,6 +128,25 @@ func (m *EriCacheDb) GetDepth() (uint8, error) {
 
 func (m *EriCacheDb) SetDepth(depth uint8) error {
 	return m.cacheTx.Put(TableStats, []byte(MetaDepth), []byte{depth})
+}
+
+func (m *EriCacheDb) GetHeight() (uint64, error) {
+	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaHeight))
+	if err != nil {
+		return 0, err
+	}
+
+	if data == nil {
+		return 0, nil
+	}
+
+	return binary.BigEndian.Uint64(data), nil
+}
+
+func (m *EriCacheDb) SetHeight(h uint64) error {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, h)
+	return m.cacheTx.Put(TableStats, []byte(MetaHeight), buf)
 }
 
 func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {

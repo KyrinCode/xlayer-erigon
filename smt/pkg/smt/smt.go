@@ -29,6 +29,7 @@ type DB interface {
 	DeleteByNodeKey(key utils.NodeKey) error
 	SetLastRoot(lr *big.Int) error
 	SetDepth(uint8) error
+	SetHeight(uint64) error
 	CommitBatch() error
 	OpenBatch(quitCh <-chan struct{})
 	RollbackBatch()
@@ -40,6 +41,7 @@ type DB interface {
 type RoDB interface {
 	GetDepth() (uint8, error)
 	GetLastRoot() (*big.Int, error)
+	GetHeight() (uint64, error)
 	GetCode(codeHash []byte) ([]byte, error)
 	GetHashKey(key utils.NodeKey) (utils.NodeKey, error)
 	GetKeySource(key utils.NodeKey) ([]byte, error)
@@ -106,6 +108,15 @@ func (s *SMT) SetLastRoot(lr *big.Int) {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
 	err := s.Db.SetLastRoot(lr)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (s *SMT) SetHeight(h uint64) {
+	s.clearUpMutex.Lock()
+	defer s.clearUpMutex.Unlock()
+	err := s.Db.SetHeight(h)
 	if err != nil {
 		panic(err)
 	}

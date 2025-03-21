@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"math/big"
 	"unsafe"
@@ -34,6 +35,7 @@ const TableHashKey = "HermezSmtHashKey"
 
 const MetaLastRoot = "lastRoot"
 const MetaDepth = "depth"
+const MetaHeight = "height"
 
 var HermezSmtTables = []string{TableSmt, TableStats, TableAccountValues, TableMetadata, TableHashKey}
 
@@ -163,6 +165,25 @@ func (m *EriRoDb) GetDepth() (uint8, error) {
 
 func (m *EriDb) SetDepth(depth uint8) error {
 	return m.tx.Put(TableStats, []byte(MetaDepth), []byte{depth})
+}
+
+func (m *EriRoDb) GetHeight() (uint64, error) {
+	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaHeight))
+	if err != nil {
+		return 0, err
+	}
+
+	if data == nil {
+		return 0, nil
+	}
+
+	return binary.BigEndian.Uint64(data), nil
+}
+
+func (m *EriDb) SetHeight(h uint64) error {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, h)
+	return m.tx.Put(TableStats, []byte(MetaHeight), buf)
 }
 
 func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {

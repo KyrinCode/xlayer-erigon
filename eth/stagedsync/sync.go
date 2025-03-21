@@ -78,6 +78,7 @@ func (s *Sync) CachedBlockLen() int {
 }
 
 func (s *Sync) FlushSmtCache() error {
+	log.Info("---Flushing SMT cache---")
 	blockHeight, deltaSmtCache, _ := s.SmtCacheSnapshotList.getAllCacheShapshot()
 	if deltaSmtCache == nil {
 		return nil
