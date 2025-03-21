@@ -2720,10 +2720,17 @@ type BestQueue struct {
 func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 	subPool := mt.subPool
 	thanSubPool := than.subPool
-	if mt.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
+
+	difference := &uint256.Int{}
+	difference.Sub(&mt.minFeeCap, &pendingBaseFee)
+
+	if difference.Sign() >= 0 {
 		subPool |= EnoughFeeCapBlock
 	}
-	if than.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
+
+	thanDifference := &uint256.Int{}
+	thanDifference.Sub(&than.minFeeCap, &pendingBaseFee)
+	if thanDifference.Sign() >= 0 {
 		thanSubPool |= EnoughFeeCapBlock
 	}
 	if subPool != thanSubPool {
@@ -2734,19 +2741,15 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 	case PendingSubPool:
 		var effectiveTip, thanEffectiveTip uint256.Int
 		if (subPool & EnoughFeeCapBlock) == EnoughFeeCapBlock {
-			difference := &uint256.Int{}
-			difference.Sub(&mt.minFeeCap, &pendingBaseFee)
-			if difference.Cmp(uint256.NewInt(mt.minTip)) <= 0 {
+			if difference.CmpUint64(mt.minTip) <= 0 {
 				effectiveTip = *difference
 			} else {
 				effectiveTip = *uint256.NewInt(mt.minTip)
 			}
 		}
 		if (thanSubPool & EnoughFeeCapBlock) == EnoughFeeCapBlock {
-			difference := &uint256.Int{}
-			difference.Sub(&than.minFeeCap, &pendingBaseFee)
-			if difference.Cmp(uint256.NewInt(than.minTip)) <= 0 {
-				thanEffectiveTip = *difference
+			if thanDifference.CmpUint64(than.minTip) <= 0 {
+				thanEffectiveTip = *thanDifference
 			} else {
 				thanEffectiveTip = *uint256.NewInt(than.minTip)
 			}
