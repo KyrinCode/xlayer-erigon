@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -39,9 +40,13 @@ func getNextPoolTransactions(ctx context.Context, cfg SequenceBlockCfg, executio
 		if allConditionsOk, _, err = cfg.txPool.YieldBest(cfg.yieldSize, &slots, poolTx, executionAt, gasLimit, 0, alreadyYielded); err != nil {
 			return err
 		}
+		st := time.Now()
 		yieldedTxs, yieldedIds, toRemove, err := extractTransactionsFromSlot(&slots, executionAt, cfg)
 		if err != nil {
 			return err
+		}
+		if len(yieldedTxs) == int(cfg.yieldSize) {
+			log.Info("[txpool] extractTransactionsFromSlot", "elapsed", time.Since(st), "yieldedTxs", len(yieldedTxs))
 		}
 		for _, txId := range toRemove {
 			cfg.txPool.MarkForDiscardFromPendingBest(txId)

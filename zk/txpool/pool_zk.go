@@ -236,6 +236,12 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 
 	p.pending.EnforceBestInvariants()
 
+	st := time.Now()
+	defer func() {
+		if count == int(n) {
+			log.Info("[txpool] bestRead", "elapsed", time.Since(st), "yieldSize", n, "pendingLen", p.pending.Len(), "baseFeeLen", p.baseFee.Len(), "queuedLen", p.queued.Len())
+		}
+	}()
 	for i := 0; count < int(n) && i < len(newMs); i++ {
 		// if we wouldn't have enough gas for a standard transaction then quit out early
 		if availableGas < fixedgas.TxGas {
