@@ -499,6 +499,7 @@ func sequencingBatchStep(
 			badTxHashes := make([]common.Hash, 0)
 			minedTxHashes := make([]common.Hash, 0)
 
+			cfg.txPool.Notify()
 		InnerLoopTransactions:
 			for i, transaction := range batchState.blockState.transactionsForInclusion {
 				// quick check if we should stop handling transactions
@@ -813,6 +814,8 @@ func sequencingBatchStep(
 		if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
 			return err
 		}
+
+		cfg.txPool.Notify()
 
 		t.LogTimer()
 		gasPerSecond := float64(0)
