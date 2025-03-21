@@ -356,8 +356,12 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		}
 		return true
 	})
+	wg := sync.WaitGroup{}
 	if len(toDelForPending) > 0 {
-		p.pending.BatchRemove(toDelForPending)
+		wg.Add(1)
+		go func() {
+			p.pending.BatchRemove(toDelForPending, &wg)
+		}()
 	}
 
 	sendersWithChangedState := make(map[uint64]struct{})
@@ -373,10 +377,16 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		return err
 	}
 
+	var waitOk = false
+
 	for senderID := range sendersWithChangedState {
 		nonce, balance, err := p.senders.info(cacheView, senderID)
 		if err != nil {
 			return err
+		}
+		if !waitOk {
+			wg.Wait()
+			waitOk = true
 		}
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
