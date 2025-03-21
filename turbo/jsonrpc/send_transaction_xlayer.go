@@ -86,7 +86,8 @@ func (api *APIImpl) worker() {
 				return
 			}
 			txBatch = append(txBatch, req)
-			if len(txBatch) >= api.BulkAddTxsSize {
+		case <-api.notifyChan:
+			if len(txBatch) > 0 {
 				api.processBatch(txBatch)
 				txBatch = nil
 				ticker.Reset(api.BulkAddTxsWaitTime)

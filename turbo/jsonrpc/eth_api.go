@@ -396,10 +396,11 @@ type APIImpl struct {
 	BulkAddTxsSize     int
 	BulkAddTxsWaitTime time.Duration
 	txChan             chan txRequest
+	notifyChan         chan struct{}
 }
 
 // NewEthAPI returns APIImpl instance
-func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient, gascap uint64, feecap float64, returnDataLimit int, ethCfg *ethconfig.Config, allowUnprotectedTxs bool, maxGetProofRewindBlockCount int, subscribeLogsChannelSize int, logger log.Logger, gasTracker RpcL1GasPriceTracker, LogsMaxRange uint64) *APIImpl {
+func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient, gascap uint64, feecap float64, returnDataLimit int, ethCfg *ethconfig.Config, allowUnprotectedTxs bool, maxGetProofRewindBlockCount int, subscribeLogsChannelSize int, logger log.Logger, gasTracker RpcL1GasPriceTracker, LogsMaxRange uint64, notifyChan chan struct{}) *APIImpl {
 	if gascap == 0 {
 		gascap = uint64(math.MaxUint64 / 2)
 	}
@@ -445,6 +446,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 		BulkAddTxsSize:     ethCfg.XLayer.BulkAddTxsSize,
 		BulkAddTxsWaitTime: ethCfg.XLayer.BulkAddTxsWaitTime,
 		txChan:             make(chan txRequest, 1000),
+		notifyChan:         notifyChan,
 	}
 
 	// For X Layer

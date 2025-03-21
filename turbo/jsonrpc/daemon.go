@@ -29,6 +29,7 @@ func APIList(db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBackend, txPool txpool.
 	blockReader services.FullBlockReader, agg *libstate.Aggregator, cfg *httpcfg.HttpCfg, engine consensus.EngineReader,
 	ethCfg *ethconfig.Config, l1Syncer *syncer.L1Syncer, logger log.Logger, dataStreamServer server.DataStreamServer,
 	gasTracker *RecurringL1GasPriceTracker,
+	notifyChan chan struct{},
 ) (list []rpc.API, gpCache *GasPriceCache) {
 	// non-sequencer nodes should forward on requests to the sequencer
 	rpcUrl := ""
@@ -39,7 +40,7 @@ func APIList(db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBackend, txPool txpool.
 	base := NewBaseApi(filters, stateCache, blockReader, agg, cfg.WithDatadir, cfg.EvmCallTimeout, engine, cfg.Dirs)
 	base.SetL2RpcUrl(ethCfg.Zk.L2RpcUrl)
 	base.SetGasless(ethCfg.AllowFreeTransactions)
-	ethImpl := NewEthAPI(base, db, dbsmt, eth, txPool, mining, cfg.Gascap, cfg.Feecap, cfg.ReturnDataLimit, ethCfg, cfg.AllowUnprotectedTxs, cfg.MaxGetProofRewindBlockCount, cfg.WebsocketSubscribeLogsChannelSize, logger, gasTracker, cfg.LogsMaxRange)
+	ethImpl := NewEthAPI(base, db, dbsmt, eth, txPool, mining, cfg.Gascap, cfg.Feecap, cfg.ReturnDataLimit, ethCfg, cfg.AllowUnprotectedTxs, cfg.MaxGetProofRewindBlockCount, cfg.WebsocketSubscribeLogsChannelSize, logger, gasTracker, cfg.LogsMaxRange, notifyChan)
 	erigonImpl := NewErigonAPI(base, db, eth)
 	txpoolImpl := NewTxPoolAPI(base, db, txPool, rawPool, rpcUrl)
 	netImpl := NewNetAPIImpl(eth)

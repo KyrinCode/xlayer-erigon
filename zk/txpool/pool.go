@@ -342,6 +342,7 @@ type TxPool struct {
 	apolloCfg    ApolloConfig
 	gpCache      GPCache // GPCache will only work in sequencer node, without rpc node
 	freeGasAddrs map[string]bool
+	notifyChan   chan struct{}
 
 	// we cannot be in a flushing state whilst getting transactions from the pool, so we have this mutex which is
 	// exposed publicly so anything wanting to get "best" transactions can ensure a flush isn't happening and
@@ -417,10 +418,15 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 			FreeGasLimit:         ethCfg.DeprecatedTxPool.FreeGasLimit,
 			EnableFreeGasList:    ethCfg.DeprecatedTxPool.EnableFreeGasList},
 		freeGasAddrs: map[string]bool{},
+		notifyChan:   make(chan struct{}),
 	}
 	tp.setFreeGasList(ethCfg.DeprecatedTxPool.FreeGasList)
 
 	return tp, nil
+}
+
+func (p *TxPool) GetNotifyChan() chan struct{} {
+	return p.notifyChan
 }
 
 func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChangeBatch, unwindTxs, minedTxs types.TxSlots, tx kv.Tx) error {
