@@ -1029,9 +1029,9 @@ func reinit() {
 
 func InitStandaloneSMT(standalone bool) {
 	if standalone {
-		ChaindataTables = append(ChaindataTables, TablesSmt...)
-	} else {
 		ChaindataDeprecatedTables = append(ChaindataDeprecatedTables, TablesSmt...)
+	} else {
+		ChaindataTables = append(ChaindataTables, TablesSmt...)
 	}
 	reinit()
 }

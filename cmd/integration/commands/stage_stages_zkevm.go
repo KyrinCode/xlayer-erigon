@@ -28,6 +28,7 @@ state_stages_zkevm --datadir=/datadirs/hermez-mainnet --unwind-batch-no=2 --chai
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, _ := common2.RootContext()
 		logger := debug.SetupCobra(cmd, "integration")
+		kv.InitStandaloneSMT(standaloneSmtDb)
 		db, err := openDB(dbCfg(kv.ChainDB, chaindata), true, logger)
 		if err != nil {
 			logger.Error("Opening DB", "error", err)
