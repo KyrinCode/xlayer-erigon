@@ -166,6 +166,11 @@ LOOP:
 			return err
 		}
 
+		if block == nil {
+			log.Error(fmt.Sprintf("[%s]: Block %d not found, skip write to datastream", logPrefix, currentBlockNumber))
+			continue
+		}
+
 		batchNum, err := reader.GetBatchNoByL2Block(currentBlockNumber)
 		if err != nil && !errors.Is(err, hermez_db.ErrorNotStored) {
 			return err
