@@ -487,15 +487,6 @@ func sequencingBatchStep(
 				}
 			}
 
-			if len(batchState.blockState.transactionsForInclusion) == 0 {
-				pauseTime := time.Now()
-				time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
-				metrics.GetLogStatistics().CumulativeCounting(metrics.GetTxPauseCounter)
-				metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxPauseTiming, time.Since(pauseTime))
-			} else {
-				log.Trace(fmt.Sprintf("[%s] Yielded transactions from the pool", logPrefix), "txCount", len(batchState.blockState.transactionsForInclusion))
-			}
-
 			badTxHashes := make([]common.Hash, 0)
 			minedTxHashes := make([]common.Hash, 0)
 
