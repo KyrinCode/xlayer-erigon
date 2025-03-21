@@ -354,9 +354,9 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 					//already removed
 				}
 			}
-			if len(toDelForPending) > 0 {
-				p.pending.BatchRemove(toDelForPending)
-			}
+		}
+		if len(toDelForPending) > 0 {
+			p.pending.BatchRemove(toDelForPending)
 		}
 		return true
 	})
