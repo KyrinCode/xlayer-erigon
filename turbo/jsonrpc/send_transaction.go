@@ -23,8 +23,8 @@ import (
 	"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
-const batchSize = 300
-const batchTimeout = 5 * time.Millisecond
+const batchSize = 28
+const batchTimeout = 60 * time.Millisecond
 
 type txRequest struct {
 	ctx        context.Context
@@ -98,13 +98,15 @@ func (api *APIImpl) worker() {
 				return
 			}
 			txBatch = append(txBatch, req)
-			if len(txBatch) >= batchSize {
+		case <-api.notifyChan:
+			if len(txBatch) > 0 {
 				api.processBatch(txBatch)
 				txBatch = nil
 				ticker.Reset(batchTimeout)
 			}
 		case <-ticker.C:
 			if len(txBatch) > 0 {
+				log.Info("process batch", "len", len(txBatch))
 				err := api.processBatch(txBatch)
 				if err != nil {
 					log.Error("process batch failed", "err", err)
@@ -113,6 +115,20 @@ func (api *APIImpl) worker() {
 			}
 			ticker.Reset(batchTimeout)
 		}
+		// if len(txBatch) >= batchSize {
+		// 	api.processBatch(txBatch)
+		// 	txBatch = nil
+		// 	ticker.Reset(batchTimeout)
+		// }
+		// case <-ticker.C:
+		// 	if len(txBatch) > 0 {
+		// 		err := api.processBatch(txBatch)
+		// 		if err != nil {
+		// 			log.Error("process batch failed", "err", err)
+		// 		}
+		// 		txBatch = nil
+		// 	}
+		// 	ticker.Reset(batchTimeout)
 	}
 }
 
