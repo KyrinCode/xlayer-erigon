@@ -635,6 +635,12 @@ func (c *GasPriceCache) GetLatest() (common.Hash, *big.Int) {
 	return c.latestHash, price
 }
 
+func (c *GasPriceCache) GetLatestRO() (common.Hash, *big.Int) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	return c.latestHash, c.latestPrice
+}
+
 func (c *GasPriceCache) SetLatest(hash common.Hash, price *big.Int) {
 	c.mtx.Lock()
 	c.latestPrice = price
