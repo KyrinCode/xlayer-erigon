@@ -915,3 +915,11 @@ func DecodeKeySource(keySource []byte) (int, common.Address, common.Hash, error)
 	}
 	return t, accountAddr, storagePosition, nil
 }
+
+func UnsafeBytesToString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+func UnsafeStringToBytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
+}
