@@ -365,6 +365,34 @@ func TestArrayToScalarBig(t *testing.T) {
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("ArrayToScalarBig(%v) = %v, want %v", array, result, expected)
 	}
+
+	for _, v := range array {
+		v.Mul(v, v)
+	}
+
+	expect := arrayToScalarBigSlow(array)
+	result, ok := arrayToScalarBigFast(array)
+	if ok && expect.Cmp(result) != 0 {
+		t.Errorf("ArrayToScalarBigFast(%v) = %v, want %v", array, result, expect)
+	}
+}
+
+func TestScalarToRoot(t *testing.T) {
+	for i := 0; i < 255; i++ {
+		seed := big.NewInt(rand.Int63())
+		seed.Mul(seed, seed)
+		seed.Mul(seed, seed)
+
+		inputs := []*big.Int{seed, big.NewInt(1).Neg(seed), big.NewInt(1).Mul(seed, seed), big.NewInt(1).MulRange(1, int64(i))}
+
+		for _, input := range inputs {
+			expect := scalarToRootSlow(input)
+			result := ScalarToRoot(input)
+			if expect != result {
+				t.Errorf("ScalarToRoot(%v) = %v, want %v", input, result, expect)
+			}
+		}
+	}
 }
 
 func TestRemoveKeyBits(t *testing.T) {
@@ -799,6 +827,27 @@ func TestScalarToNodeValue(t *testing.T) {
 	for i := range originalValues {
 		if result[i].Cmp(originalValues[i]) != 0 {
 			t.Errorf("Element %d: expected %s, got %s", i, originalValues[i], result[i])
+		}
+	}
+
+	for i := 0; i < 255; i++ {
+		seed := big.NewInt(rand.Int63())
+		seed.Mul(seed, seed)
+		seed.Mul(seed, seed)
+
+		inputs := []*big.Int{seed, big.NewInt(1).Neg(seed), big.NewInt(1).Mul(seed, seed), big.NewInt(1).MulRange(1, int64(i))}
+
+		for _, input := range inputs {
+			expect := scalarToNodeValueSlow(input)
+			var result [12]*big.Int
+			ok := scalarToNodeValueFast(input, &result)
+			if ok {
+				for i := range expect {
+					if result[i].Cmp(expect[i]) != 0 {
+						t.Errorf("Element %d: expected %s, got %s", i, expect[i], result[i])
+					}
+				}
+			}
 		}
 	}
 }
