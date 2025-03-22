@@ -60,17 +60,25 @@ func CreateEriDbBuckets(tx kv.RwTx) error {
 }
 
 func NewEriDb(txsmt kv.RwTx, txcdb kv.RwTx) *EriDb {
+	var tx kv.RwTx = txsmt
+	if tx == nil {
+		tx = txcdb
+	}
 	return &EriDb{
-		tx:          txsmt,
-		kvTxSMT:     txsmt,
+		tx:          tx,
+		kvTxSMT:     tx,
 		kvTxChainDB: txcdb,
 		EriRoDb:     NewRoEriDb(txsmt, txcdb),
 	}
 }
 
 func NewRoEriDb(txsmt, txcdb kv.Getter) *EriRoDb {
+	var tx kv.Getter = txsmt
+	if tx == nil {
+		tx = txcdb
+	}
 	return &EriRoDb{
-		kvTxRoSMT:     txsmt,
+		kvTxRoSMT:     tx,
 		kvTxRoChainDB: txcdb,
 	}
 }

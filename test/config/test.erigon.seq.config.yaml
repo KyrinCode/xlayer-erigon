@@ -103,5 +103,4 @@ zkevm.sequencer-timeout-on-empty-tx-pool: 5ms
 zkevm.pre-run-address-list: ["0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534"]
 zkevm.block-info-concurrent: true
 zkevm.standalone-smt-db: false  # true: enalbe split smt db, false: not split
-zkevm.executor-mock: true
 zkevm.enable-async-commit: false

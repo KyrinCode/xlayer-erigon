@@ -818,7 +818,7 @@ const tableAccountValues = "HermezSmtAccountValues"
 const tableMetadata = "HermezSmtMetadata"
 const tableHashKey = "HermezSmtHashKey"
 
-var tablesSmt = []string{
+var TablesSmt = []string{
 	tableSmt,
 	tableStats,
 	tableAccountValues,
@@ -1029,9 +1029,9 @@ func reinit() {
 
 func InitStandaloneSMT(standalone bool) {
 	if standalone {
-		ChaindataTables = append(ChaindataTables, tablesSmt...)
+		ChaindataDeprecatedTables = append(ChaindataDeprecatedTables, TablesSmt...)
 	} else {
-		ChaindataDeprecatedTables = append(ChaindataDeprecatedTables, tablesSmt...)
+		ChaindataTables = append(ChaindataTables, TablesSmt...)
 	}
 	reinit()
 }

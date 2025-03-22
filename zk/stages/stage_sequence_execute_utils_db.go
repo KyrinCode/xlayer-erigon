@@ -42,7 +42,7 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 	}
 
 	if supportAC {
-		// Support Async IO, only need to create read only transaction
+		// Support Async IO, only need to create read-only transaction
 		var txsmt kv.Tx = nil
 		if dbsmt != nil {
 			// use multi mdbx
@@ -50,7 +50,6 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 				log.Error("failed to start smt tx", "err", err)
 				return nil, err
 			}
-
 			eridb := db2.NewEriCacheDb(sdb.ctx, txsmt, tx)
 			sdb.SetTx(tx, txsmt, eridb)
 		} else {
@@ -59,7 +58,7 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 			sdb.SetTx(tx, tx, eridb)
 		}
 	} else {
-		// Support Sync IO，so need to create read write transaction
+		// Support Sync IO，so need to create read-write transaction
 		var txsmt kv.RwTx = nil
 		if dbsmt != nil {
 			// use multi mdbx
@@ -102,7 +101,8 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		return err
 	}
 
-	if !sdb.supportAC { // Support Sync IO，so need to create read write transaction
+	if !sdb.supportAC {
+		// Support Sync IO，so need to create read-write transaction
 		if sdb.dbsmt != nil {
 			// use multi mdbx
 			if err = sdb.txsmt.Commit(); err != nil {
@@ -121,9 +121,10 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 			eridb := db2.NewEriDb(tx, tx)
 			sdb.SetTx(tx, tx, eridb)
 		}
-	} else { // Support Async IO, only need to create read only transaction
+	} else {
+		// Support Async IO, only need to create read-only transaction
 		if sdb.dbsmt != nil {
-			// use multi mdbx, do not nedd to commit txsmt here and also not need to create new tx
+			// use multi mdbx, no need to commit txsmt here and also no need to create new tx
 			sdb.SetTx(tx, sdb.txsmt, sdb.eridb)
 		} else {
 			// use only one mdbx, tx has already commit and create new tx
@@ -143,8 +144,9 @@ func (sdb *stageDb) Commit(s *stagedsync.StageState, flushSmt bool) error {
 
 	err := sdb.tx.Commit()
 	if err != nil {
-		if !sdb.supportAC && sdb.dbsmt != nil {
+		if sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
+			// TODO: should we clear the cache?
 		}
 		return err
 	}
