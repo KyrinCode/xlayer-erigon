@@ -332,26 +332,29 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 
 func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
 	cache := p._stateCache
-	toDelete := make([]*metaTx, 0)
+	toDelete := make([]*metaTx, 0, len(ids))
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	toDelForPending := make([]*metaTx, 0)
+	idsMap := make(map[common.Hash]struct{}, len(ids))
+	for _, id := range ids {
+		idsMap[id] = struct{}{}
+	}
+
+	toDelForPending := make([]*metaTx, 0, len(ids))
 	p.all.ascendAll(func(mt *metaTx) bool {
-		for _, id := range ids {
-			if bytes.Equal(mt.Tx.IDHash[:], id[:]) {
-				toDelete = append(toDelete, mt)
-				switch mt.currentSubPool {
-				case PendingSubPool:
-					// p.pending.Remove(mt)
-					toDelForPending = append(toDelForPending, mt)
-				case BaseFeeSubPool:
-					p.baseFee.Remove(mt)
-				case QueuedSubPool:
-					p.queued.Remove(mt)
-				default:
-					//already removed
-				}
+		if _, ok := idsMap[mt.Tx.IDHash]; ok {
+			toDelete = append(toDelete, mt)
+			switch mt.currentSubPool {
+			case PendingSubPool:
+				// p.pending.Remove(mt)
+				toDelForPending = append(toDelForPending, mt)
+			case BaseFeeSubPool:
+				p.baseFee.Remove(mt)
+			case QueuedSubPool:
+				p.queued.Remove(mt)
+			default:
+				//already removed
 			}
 		}
 		return true
