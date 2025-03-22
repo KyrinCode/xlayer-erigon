@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math/big"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -121,6 +122,16 @@ func TestConvertBigIntToHex(t *testing.T) {
 			input:    big.NewInt(4096),
 			expected: "0x1000",
 		},
+		{
+			name:     "Case 4",
+			input:    big.NewInt(1),
+			expected: "0x1",
+		},
+		{
+			name:     "Case 5",
+			input:    big.NewInt(0x123),
+			expected: "0x123",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -131,6 +142,72 @@ func TestConvertBigIntToHex(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestArrayToHex(t *testing.T) {
+	testCases := []struct {
+		input []uint64
+	}{
+		{
+			input: nil,
+		},
+		{
+			input: []uint64{0x0, 0, 0, 0},
+		},
+		{
+			input: []uint64{0x12, 0x34, 0, 0},
+		},
+		{
+			input: []uint64{0xFF, 0x12, 0x56, 0x01},
+		},
+		{
+			input: []uint64{0x01},
+		},
+	}
+
+	testFunc := func(t *testing.T, input []uint64) {
+		keyConc := ArrayToScalar(input)
+		expect := ConvertBigIntToHex(keyConc)
+
+		result := ArrayToHex(input)
+		if result != expect {
+			t.Errorf("Expected %v, but got %v", expect, result)
+		}
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			testFunc(t, tc.input)
+		})
+	}
+
+	t.Run("random", func(t *testing.T) {
+		for i := 0; i < 4096; i++ {
+			input := [4]uint64{rand.Uint64(), rand.Uint64(), rand.Uint64(), rand.Uint64()}
+			testFunc(t, input[:])
+		}
+	})
+}
+
+func BenchmarkArrayToHex(b *testing.B) {
+	input := []uint64{0xFF, 0x12, 0x56, 0x01}
+
+	var result string
+
+	b.Run("original", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			keyConc := ArrayToScalar(input)
+			result = ConvertBigIntToHex(keyConc)
+		}
+	})
+	b.Run("new", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			result = ArrayToHex(input)
+		}
+	})
+	_ = result
 }
 
 func TestConvertHexToBigInt(t *testing.T) {

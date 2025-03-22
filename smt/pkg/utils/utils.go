@@ -346,6 +346,46 @@ func ArrayToScalar(array []uint64) *big.Int {
 	}
 }
 
+const hextable = "0123456789abcdef"
+
+func ArrayToHex(array []uint64) string {
+	if len(array) == 0 {
+		return "0x0"
+	}
+	byteLen := len(array) * 8
+	byteArray := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(array))), byteLen)
+
+	nonZeroPos := len(byteArray)
+	for i := len(byteArray) - 1; i >= 0; i-- {
+		if byteArray[i] == 0 {
+			nonZeroPos -= 1
+		} else {
+			break
+		}
+	}
+	byteArray = byteArray[:nonZeroPos]
+	if len(byteArray) == 0 {
+		return "0x0"
+	}
+
+	buf := make([]byte, len(byteArray)*2+2)
+
+	j := len(buf) - 2
+	for _, v := range byteArray {
+		buf[j] = hextable[v>>4]
+		buf[j+1] = hextable[v&0x0f]
+		j -= 2
+	}
+
+	if buf[2] == '0' {
+		buf = buf[1:]
+	}
+	buf[0] = '0'
+	buf[1] = 'x'
+
+	return unsafe.String(&buf[0], len(buf))
+}
+
 func ScalarToArray(scalar *big.Int) []uint64 {
 	scalar = new(big.Int).Set(scalar)
 	mask := new(big.Int)
