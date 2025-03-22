@@ -173,6 +173,13 @@ func TestArrayToHex(t *testing.T) {
 		if result != expect {
 			t.Errorf("Expected %v, but got %v", expect, result)
 		}
+
+		keyConc.Mul(keyConc, keyConc)
+		expect = ConvertBigIntToHex(keyConc)
+		result = ArrayToHex(keyConc.Bits())
+		if result != expect {
+			t.Errorf("Expected %v, but got %v", expect, result)
+		}
 	}
 
 	for i, tc := range testCases {

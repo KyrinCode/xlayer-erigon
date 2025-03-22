@@ -15,6 +15,8 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/length"
 	poseidon "github.com/okx/poseidongold/go"
+
+	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -347,11 +349,11 @@ func ArrayToScalar(array []uint64) *big.Int {
 
 const hextable = "0123456789abcdef"
 
-func ArrayToHex(array []uint64) string {
+func ArrayToHex[T constraints.Unsigned](array []T) string {
 	if len(array) == 0 {
 		return "0x0"
 	}
-	byteLen := len(array) * 8
+	byteLen := len(array) * int(unsafe.Sizeof(array[0]))
 	byteArray := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(array))), byteLen)
 
 	nonZeroPos := len(byteArray)
