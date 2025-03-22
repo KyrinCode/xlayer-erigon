@@ -129,8 +129,7 @@ func (m *EriCacheDb) SetDepth(depth uint8) error {
 }
 
 func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+	k := utils.ArrayToHex(key[:])
 
 	data, err := m.kvTxRo.GetOne(TableSmt, utils.UnsafeStringToBytes(k))
 	if err != nil {
@@ -148,11 +147,10 @@ func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 }
 
 func (m *EriCacheDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+	k := utils.ArrayToHex(key[:])
 
 	vConc := utils.ArrayToScalarBig(value[:])
-	v := utils.ConvertBigIntToHex(vConc)
+	v := utils.ArrayToHex(vConc.Bits())
 
 	return m.cacheTx.Put(TableSmt, utils.UnsafeStringToBytes(k), utils.UnsafeStringToBytes(v))
 }
@@ -162,8 +160,7 @@ func (m *EriCacheDb) Delete(key string) error {
 }
 
 func (m *EriCacheDb) DeleteByNodeKey(key utils.NodeKey) error {
-	keyConc := utils.ArrayToScalar(key[:])
-	k := utils.ConvertBigIntToHex(keyConc)
+	k := utils.ArrayToHex(key[:])
 	return m.cacheTx.Delete(TableSmt, utils.UnsafeStringToBytes(k))
 }
 
