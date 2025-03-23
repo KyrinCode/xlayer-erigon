@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 	"runtime"
 	"sync"
 	"time"
@@ -62,25 +63,39 @@ func AsyncFlushSmtData(ctx context.Context,
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
 	cache := s.GetCache()
 	for {
 		select {
-		case smtCacheToWrite, ok := <-cache.SmtCacheDataCh:
+		case smtCacheData, ok := <-cache.SmtCacheDataCh:
 			if !ok {
 				logger.Info("SmtCacheCh closed, stopping AsyncFlushSmtData")
 				return
 			}
 
 			wg.Add(1)
-			go FlushDataToDB(&wg, ctx, db, logger, smtCacheToWrite.SmtCacheData, smtCacheToWrite.MaxBlockHeight, cache.FinishedBlockHeightCh)
+			go FlushDataToDB(&wg, ctx, db, logger, smtCacheData)
+		case <-ticker.C:
+			tx, err := db.BeginRo(ctx)
+			if err != nil {
+				logger.Error("fail to open read only tx")
+				return
+			}
+			defer tx.Rollback()
 
-		case maxBlockHeight, ok := <-cache.FinishedBlockHeightCh:
-			if !ok {
-				logger.Info("FinishedBlockHeightCh closed, stopping update smt cache")
+			EriRoDb := db2.NewRoEriDb(tx, nil)
+			height, err := EriRoDb.GetLastHeight()
+			if err != nil {
+				logger.Error("Periodic check failed to get last height", "error", err)
 				return
 			}
 
-			cache.TruncateSmtCacheList(maxBlockHeight)
+			logger.Info("Periodic check", "last height", height)
+			if height > 0 {
+				cache.TruncateSmtCacheList(height)
+			}
 		case <-ctx.Done():
 			logger.Info("AsyncFlushSmtData received stop signal", "reason", ctx.Err())
 			return
@@ -88,7 +103,7 @@ func AsyncFlushSmtData(ctx context.Context,
 	}
 }
 
-func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte, maxBlockHeight uint64, notifyCh chan<- uint64) {
+func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte) {
 	defer wg.Done()
 
 	err := db.Batch(func(tx kv.RwTx) error {
@@ -100,8 +115,6 @@ func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, log
 
 	if err != nil {
 		logger.Error("failed to flush data to DB", "error", err)
-	} else {
-		notifyCh <- maxBlockHeight
 	}
 }
 

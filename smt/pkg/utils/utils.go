@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -914,4 +915,20 @@ func DecodeKeySource(keySource []byte) (int, common.Address, common.Hash, error)
 		storagePosition = common.BytesToHash(keySource[length.Addr+1 : length.Addr+length.Hash+1])
 	}
 	return t, accountAddr, storagePosition, nil
+}
+
+func ConvertUint64ToBytes(n uint64) []byte {
+	bytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(bytes, n)
+	// or use binary.LittleEndian.PutUint64(bytes, n)
+	return bytes
+}
+
+func ConvertBytesToUint64(bytes []byte) (uint64, error) {
+	if len(bytes) < 8 {
+		return 0, fmt.Errorf("byte slice too short: need 8, got %d", len(bytes))
+	}
+	n := binary.BigEndian.Uint64(bytes)
+	// or use binary.LittleEndian.Uint64(bytes)
+	return n, nil
 }

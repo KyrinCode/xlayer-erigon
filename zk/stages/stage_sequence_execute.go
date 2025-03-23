@@ -96,7 +96,7 @@ func SpawnSequencingStage(
 
 		// enable split smt db
 		if cfg.zk.XLayer.StandaloneSMTDatabase {
-			if s.CachedBlockLen() >= 50 {
+			if s.CachedBlockLen() >= 20 {
 				err = s.FlushSmtCache()
 			}
 		} else {

@@ -33,6 +33,7 @@ const TableMetadata = "HermezSmtMetadata"
 const TableHashKey = "HermezSmtHashKey"
 
 const MetaLastRoot = "lastRoot"
+const MetaLastHeight = "lastHeight"
 const MetaDepth = "depth"
 
 var HermezSmtTables = []string{TableSmt, TableStats, TableAccountValues, TableMetadata, TableHashKey}
@@ -154,6 +155,24 @@ func (m *EriRoDb) GetLastRoot() (*big.Int, error) {
 func (m *EriDb) SetLastRoot(r *big.Int) error {
 	v := utils.ConvertBigIntToHex(r)
 	return m.tx.Put(TableStats, []byte(MetaLastRoot), []byte(v))
+}
+
+func (m *EriRoDb) GetLastHeight() (uint64, error) {
+	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaLastHeight))
+	if err != nil {
+		return 0, err
+	}
+
+	if data == nil {
+		return 0, nil
+	}
+
+	return utils.ConvertBytesToUint64(data)
+}
+
+func (m *EriDb) SetLastHeight(blockHeight uint64) error {
+	v := utils.ConvertUint64ToBytes(blockHeight)
+	return m.tx.Put(TableStats, []byte(MetaLastHeight), []byte(v))
 }
 
 func (m *EriRoDb) GetDepth() (uint8, error) {

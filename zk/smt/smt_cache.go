@@ -3,28 +3,21 @@ package smt
 import "errors"
 
 type SmtCache struct {
-	SmtCacheDataCh        chan SmtCacheToWrite
-	FinishedBlockHeightCh chan uint64
-	SmtCacheSnapshotList  *SmtCacheList
+	SmtCacheDataCh       chan map[string]map[string][]byte
+	SmtCacheSnapshotList *SmtCacheList
 
 	DeltaSmtCache     map[string]map[string][]byte
 	LongLivedSmtCache map[string]map[string][]byte
 	LastResetHeight   uint64
 }
 
-type SmtCacheToWrite struct {
-	SmtCacheData   map[string]map[string][]byte
-	MaxBlockHeight uint64
-}
-
 func CreateNewSmtCache() *SmtCache {
 	return &SmtCache{
-		SmtCacheDataCh:        make(chan SmtCacheToWrite, 1),
-		FinishedBlockHeightCh: make(chan uint64, 1000),
-		SmtCacheSnapshotList:  NewSmtCacheList(),
-		DeltaSmtCache:         make(map[string]map[string][]byte),
-		LongLivedSmtCache:     make(map[string]map[string][]byte),
-		LastResetHeight:       uint64(0),
+		SmtCacheDataCh:       make(chan map[string]map[string][]byte, 1),
+		SmtCacheSnapshotList: NewSmtCacheList(),
+		DeltaSmtCache:        make(map[string]map[string][]byte),
+		LongLivedSmtCache:    make(map[string]map[string][]byte),
+		LastResetHeight:      uint64(0),
 	}
 }
 
@@ -74,7 +67,7 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, longLivedCache, blockCach
 		}
 	}
 
-	if blockNumber-cache.LastResetHeight > 1000 {
+	if blockNumber-cache.LastResetHeight > 500 {
 		_, deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(true)
 		if deltaSmtCache == nil {
 			deltaSmtCache = map[string]map[string][]byte{}
@@ -95,15 +88,8 @@ func (cache *SmtCache) CachedBlockLen() int {
 }
 
 func (cache *SmtCache) FlushSmtCache() error {
-	blockHeight := cache.SmtCacheSnapshotList.MaxBlockHeight()
-
-	cacheData := SmtCacheToWrite{
-		cache.DeltaSmtCache,
-		blockHeight,
-	}
-
 	select {
-	case cache.SmtCacheDataCh <- cacheData:
+	case cache.SmtCacheDataCh <- cache.DeltaSmtCache:
 		cache.DeltaSmtCache = map[string]map[string][]byte{}
 		return nil
 	default:

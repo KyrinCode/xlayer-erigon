@@ -112,6 +112,24 @@ func (m *EriCacheDb) SetLastRoot(r *big.Int) error {
 	return m.cacheTx.Put(TableStats, []byte(MetaLastRoot), []byte(v))
 }
 
+func (m *EriCacheDb) GetLastHeight() (uint64, error) {
+	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaLastHeight))
+	if err != nil {
+		return 0, err
+	}
+
+	if data == nil {
+		return 0, nil
+	}
+
+	return utils.ConvertBytesToUint64(data)
+}
+
+func (m *EriCacheDb) SetLastHeight(blockHeight uint64) error {
+	v := utils.ConvertUint64ToBytes(blockHeight)
+	return m.cacheTx.Put(TableStats, []byte(MetaLastHeight), []byte(v))
+}
+
 func (m *EriCacheDb) GetDepth() (uint8, error) {
 	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaDepth))
 	if err != nil {
