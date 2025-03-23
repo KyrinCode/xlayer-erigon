@@ -27,7 +27,6 @@ import (
 	"math"
 	"math/big"
 	"runtime"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,6 +41,7 @@ import (
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/eth/gasprice/gaspricecfg"
 	"github.com/ledgerwatch/log/v3"
+	"github.com/psilva261/timsort/v2"
 	"github.com/status-im/keycard-go/hexutils"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -2301,7 +2301,7 @@ func (p *PendingPool) EnforceWorstInvariants() {
 }
 func (p *PendingPool) EnforceBestInvariants() {
 	if !p.sorted {
-		sort.Sort(p.best)
+		timsort.TimSort(p.best)
 		p.sorted = true
 	}
 }
