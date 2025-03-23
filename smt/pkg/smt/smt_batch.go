@@ -42,6 +42,14 @@ func getProgressPrinterPre(logPrefix string, progressType string, size uint64, s
 	return &newChan, stopProgressPrinterPre
 }
 
+var (
+	nodeKeyMapCache = sync.Pool{
+		New: func() interface{} {
+			return make(map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey)
+		},
+	}
+)
+
 func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, nodeValues []*utils.NodeValue8, nodeValuesHashes []*[4]uint64, rootNodeHash *utils.NodeKey) (r *SMTResponse, err error) {
 	s.clearUpMutex.Lock()
 	defer s.clearUpMutex.Unlock()
@@ -50,8 +58,18 @@ func (s *SMT) InsertBatch(cfg InsertBatchConfig, nodeKeys []*utils.NodeKey, node
 		maxInsertingNodePathLevel = 0
 		size                      = len(nodeKeys)
 		smtBatchNodeRoot          *smtBatchNode
-		nodeHashesForDelete       = make(map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey)
+		nodeHashesForDelete       = nodeKeyMapCache.Get().(map[uint64]map[uint64]map[uint64]map[uint64]*utils.NodeKey)
 	)
+	defer func() {
+		for _, mapLevel0 := range nodeHashesForDelete {
+			for _, mapLevel1 := range mapLevel0 {
+				for _, mapLevel2 := range mapLevel1 {
+					clear(mapLevel2)
+				}
+			}
+		}
+		nodeKeyMapCache.Put(nodeHashesForDelete)
+	}()
 
 	//BE CAREFUL: modifies the arrays
 	if err := s.preprocessBatchedNodeValues(
@@ -336,7 +354,17 @@ func removeDuplicateEntriesByKeys(
 	nodeValuesHashes *[]*[4]uint64,
 ) error {
 	size := len(*nodeKeys)
-	storage := make(map[uint64]map[uint64]map[uint64]map[uint64]int)
+	storage := nodeKeyMapCache.Get().(map[uint64]map[uint64]map[uint64]map[uint64]int)
+	defer func() {
+		for _, mapLevel0 := range storage {
+			for _, mapLevel1 := range mapLevel0 {
+				for _, mapLevel2 := range mapLevel1 {
+					clear(mapLevel2)
+				}
+			}
+		}
+		nodeKeyMapCache.Put(storage)
+	}()
 
 	resultNodeKeys := make([]*utils.NodeKey, 0, size)
 	resultNodeValues := make([]*utils.NodeValue8, 0, size)
