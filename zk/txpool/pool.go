@@ -2408,12 +2408,12 @@ func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
 // It's more expensive to maintain "slice sort" invariant, but it allow do cheap copy of
 // pending.best slice for mining (because we consider txs and metaTx are immutable)
 type PendingPool struct {
-	// sorted atomic.Bool // means `PendingPool.best` is sorted or not
-	best  *bestSlice
-	worst *WorstQueue
-	limit int
-	t     SubPoolType
-	mu    sync.RWMutex
+	sorted atomic.Bool // means `PendingPool.best` is sorted or not
+	best   *bestSlice
+	worst  *WorstQueue
+	limit  int
+	t      SubPoolType
+	mu     sync.RWMutex
 }
 
 func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
@@ -2459,16 +2459,15 @@ func (p *PendingPool) EnforceWorstInvariants() {
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
-	return
-	// if p.sorted.Load() {
-	// 	return
-	// }
+	if p.sorted.Load() {
+		return
+	}
 
-	// p.mu.Lock()
-	// defer p.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	// sort.Sort(p.best)
-	// p.sorted.Store(true)
+	sort.Sort(p.best)
+	p.sorted.Swap(true)
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
@@ -2499,8 +2498,7 @@ func (p *PendingPool) PopWorst() *metaTx {
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 && i.bestIndex < len(p.best.ms) {
 		p.best.UnsafeRemove(i)
-		sort.Sort(p.best)
-		// p.sorted.Store(false)
+		p.sorted.Swap(false)
 	}
 	return i
 }
@@ -2537,7 +2535,7 @@ func (p *PendingPool) Remove(i *metaTx) {
 		p.best.UnsafeRemove(i)
 	}
 	if i.bestIndex != p.best.Len()-1 {
-		sort.Sort(p.best)
+		p.sorted.Swap(false)
 	}
 	i.currentSubPool = 0
 }

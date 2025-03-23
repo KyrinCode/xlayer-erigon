@@ -105,7 +105,6 @@ func (api *APIImpl) worker() {
 			}
 		case <-ticker.C:
 			if len(txBatch) > 0 {
-				log.Info("process batch", "len", len(txBatch))
 				err := api.processBatch(txBatch)
 				if err != nil {
 					log.Error("process batch failed", "err", err)
