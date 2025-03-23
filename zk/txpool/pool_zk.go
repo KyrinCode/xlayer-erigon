@@ -333,15 +333,14 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
 	cache := p._stateCache
 	toDelete := make([]*metaTx, 0, len(ids))
-	p.lock.Lock()
-	defer p.lock.Unlock()
 
 	idsMap := make(map[common.Hash]struct{}, len(ids))
 	for _, id := range ids {
 		idsMap[id] = struct{}{}
 	}
-
 	toDelForPending := make([]*metaTx, 0, len(ids))
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.all.ascendAll(func(mt *metaTx) bool {
 		if _, ok := idsMap[mt.Tx.IDHash]; ok {
 			toDelete = append(toDelete, mt)
