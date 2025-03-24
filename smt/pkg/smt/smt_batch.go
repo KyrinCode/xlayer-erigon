@@ -348,13 +348,21 @@ func validateDataLengths(
 	return nil
 }
 
+var (
+	storageMapCache = sync.Pool{
+		New: func() interface{} {
+			return make(map[uint64]map[uint64]map[uint64]map[uint64]int)
+		},
+	}
+)
+
 func removeDuplicateEntriesByKeys(
 	nodeKeys *[]*utils.NodeKey,
 	nodeValues *[]*utils.NodeValue8,
 	nodeValuesHashes *[]*[4]uint64,
 ) error {
 	size := len(*nodeKeys)
-	storage := nodeKeyMapCache.Get().(map[uint64]map[uint64]map[uint64]map[uint64]int)
+	storage := storageMapCache.Get().(map[uint64]map[uint64]map[uint64]map[uint64]int)
 	defer func() {
 		for _, mapLevel0 := range storage {
 			for _, mapLevel1 := range mapLevel0 {
@@ -363,7 +371,7 @@ func removeDuplicateEntriesByKeys(
 				}
 			}
 		}
-		nodeKeyMapCache.Put(storage)
+		storageMapCache.Put(storage)
 	}()
 
 	resultNodeKeys := make([]*utils.NodeKey, 0, size)
