@@ -421,6 +421,9 @@ func arrayToScalarBigFast(array []*big.Int) (*big.Int, bool) {
 			intBits[i] = 0
 		} else {
 			intBits[i] = array[i].Bits()[0]
+			if array[i].Sign() < 0 {
+				return nil, false
+			}
 			for _, v := range array[i].Bits()[1:] {
 				if v != 0 {
 					return nil, false

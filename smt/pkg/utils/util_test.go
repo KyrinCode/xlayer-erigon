@@ -375,6 +375,16 @@ func TestArrayToScalarBig(t *testing.T) {
 	if ok && expect.Cmp(result) != 0 {
 		t.Errorf("ArrayToScalarBigFast(%v) = %v, want %v", array, result, expect)
 	}
+
+	for _, v := range array {
+		v.Neg(big.NewInt(10))
+	}
+
+	expect = arrayToScalarBigSlow(array)
+	result, ok = arrayToScalarBigFast(array)
+	if ok && expect.Cmp(result) != 0 {
+		t.Errorf("ArrayToScalarBigFast(%v) = %v, want %v", array, result, expect)
+	}
 }
 
 func TestScalarToRoot(t *testing.T) {
