@@ -38,7 +38,7 @@ state_stages_zkevm --datadir=/datadirs/hermez-mainnet --unwind-batch-no=2 --chai
 
 		var dbsmt kv.RwDB = nil
 		if standaloneSmtDb {
-			dbsmt, err = openDB(dbCfg(kv.SmtDB, smtDbPath), true, logger)
+			dbsmt, err = openDB(dbCfg(kv.SmtDB, smtDbPath), false, logger)
 			if err != nil {
 				logger.Error("Opening SMT DB", "error", err)
 				return
@@ -132,7 +132,7 @@ func unwindZk(ctx context.Context, db, dbsmt kv.RwDB) error {
 		return err
 	}
 
-	err = stateStages.RunUnwind(db, wrap.TxContainer{Tx: tx})
+	err = stateStages.RunUnwind(db, wrap.TxContainer{Tx: tx, TxSmt: txsmt})
 	if err != nil {
 		return err
 	}

@@ -62,7 +62,7 @@ func withConfig(cmd *cobra.Command) {
 
 func withStandaloneSmtDb(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&standaloneSmtDb, "standalone-smt-db", false, "SMT DB is separate from ChainDB")
-	cmd.Flags().StringVar(&smtDbPath, "smt-db-path", "smt", "SMT DB path relative to the datadir")
+	cmd.Flags().StringVar(&smtDbPath, "smt-db-path", "/home/erigon/data/smt", "SMT DB path relative to the datadir")
 }
 
 func withMining(cmd *cobra.Command) {
