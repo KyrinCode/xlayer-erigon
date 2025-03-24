@@ -172,7 +172,7 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 		}
 		return true
 	})
-	p.pending.mu.Lock()
+	p.pending.mu.Unlock()
 
 	for _, mt := range toDel {
 		discard(mt, NonceTooLow)
