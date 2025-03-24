@@ -52,8 +52,16 @@ import (
 func AsyncFlushSmtData(ctx context.Context,
 	_db kv.RwDB,
 	s *stagedsync.Sync,
+	config ethconfig.XLayerConfig,
 	logger log.Logger,
 ) {
+	if !sequencer.IsSequencer() {
+		return
+	}
+	if !config.EnableAsyncCommit {
+		return
+	}
+
 	db, ok := _db.(*mdbx.MdbxKV)
 	if !ok {
 		logger.Error("invalid database type, expected *mdbx.MdbxKV")
@@ -63,7 +71,7 @@ func AsyncFlushSmtData(ctx context.Context,
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	cache := s.GetCache()
@@ -92,7 +100,7 @@ func AsyncFlushSmtData(ctx context.Context,
 				return
 			}
 
-			logger.Info("Periodic check", "last height", height)
+			logger.Debug("Periodic check", "last height", height)
 			if height > 0 {
 				cache.TruncateSmtCacheList(height)
 			}

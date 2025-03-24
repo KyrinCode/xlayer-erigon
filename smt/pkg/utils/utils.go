@@ -171,6 +171,19 @@ func (nv *NodeValue12) Get0to8() [8]uint64 {
 	return [8]uint64{nv[0].Uint64(), nv[1].Uint64(), nv[2].Uint64(), nv[3].Uint64(), nv[4].Uint64(), nv[5].Uint64(), nv[6].Uint64(), nv[7].Uint64()}
 }
 
+func (nv *NodeValue12) IsNil() bool {
+	if nv != nil {
+		isNil := true
+		for i := 0; i < 12; i++ {
+			isNil = isNil && nv[i] == nil
+		}
+
+		return isNil
+	} else {
+		return true
+	}
+}
+
 func (nv *NodeValue12) IsUniqueSibling() (int, error) {
 	count := 0
 	fnd := 0

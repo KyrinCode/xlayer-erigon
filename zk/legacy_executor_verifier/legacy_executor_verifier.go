@@ -2,6 +2,7 @@ package legacy_executor_verifier
 
 import (
 	"context"
+	"github.com/ledgerwatch/erigon/eth/stagedsync/stages"
 	"github.com/ledgerwatch/erigon/zk/smt"
 	"strconv"
 	"sync"
@@ -266,9 +267,14 @@ func (v *LegacyExecutorVerifier) VerifyAsync(request *VerifierRequest) *Promise[
 			defer txsmt.Rollback()
 		}
 
+		latestBlock, err := stages.GetStageProgress(tx, stages.Execution)
+		if err != nil {
+			return nil, err
+		}
+
 		cache := map[string]map[string][]byte{}
 		if v.cache != nil {
-			cache = v.cache.GetSmtSnapshotCache(blockNumbers[len(blockNumbers)-1])
+			cache = v.cache.GetSmtSnapshotCache(latestBlock)
 		}
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, cache)
 		if err != nil {
@@ -384,9 +390,14 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 			return verifierBundle, err
 		}
 
+		latestBlock, err := stages.GetStageProgress(tx, stages.Execution)
+		if err != nil {
+			return nil, err
+		}
+
 		cache := map[string]map[string][]byte{}
 		if v.cache != nil {
-			cache = v.cache.GetSmtSnapshotCache(blockNumbers[len(blockNumbers)-1])
+			cache = v.cache.GetSmtSnapshotCache(latestBlock)
 		}
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, cache)
 		if err != nil {

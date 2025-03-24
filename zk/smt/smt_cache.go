@@ -55,10 +55,6 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, longLivedCache, blockCach
 	// merge blockCache into deltaCache
 	for table, bucket := range blockCache {
 		if existingBucket, exists := cache.DeltaSmtCache[table]; exists {
-			if existingBucket == nil {
-				existingBucket = make(map[string][]byte)
-				cache.DeltaSmtCache[table] = existingBucket
-			}
 			for k, v := range bucket {
 				existingBucket[k] = v
 			}
