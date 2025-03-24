@@ -7,8 +7,8 @@
     "runHashDBTest": false,
 
     "runAggregatorServer": false,
-    "runAggregatorClient": false,
-    "runAggregatorClientMock": true,
+    "runAggregatorClient": true,
+    "runAggregatorClientMock": false,
     "aggregatorClientMockTimeout": 1,
     "proverName": "stateless-prover-test",
     

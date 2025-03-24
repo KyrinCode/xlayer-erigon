@@ -143,7 +143,7 @@ services:
 
   xlayer-mock-l1-network:
     container_name: xlayer-mock-l1-network
-    image: zjg555543/geth:fork13-v0.0.3
+    image:  giskook/geth:f13realprover
     ports:
       - 8545:8545
       - 8546:8546
