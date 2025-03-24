@@ -2505,9 +2505,6 @@ func (p *PendingPool) PopWorst() *metaTx {
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if mt.worstIndex < 0 || mt.worstIndex >= p.worst.Len() {
 		log.Warn("Invalid worstIndex, skipping heap.Fix", "index", mt.worstIndex, "len", p.worst.Len(), "txID", fmt.Sprintf("%x", mt.Tx.IDHash))
 		return
@@ -2527,9 +2524,6 @@ func (p *PendingPool) IsFull() bool {
 	return len(p.best.ms) >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
