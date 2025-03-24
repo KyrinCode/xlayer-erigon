@@ -3,8 +3,9 @@ package db
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"math/big"
+
+	"fmt"
 	"strings"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
