@@ -459,8 +459,8 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 			}
 		}
 	})
-	apii.wg.Add(4)
-	for i := 0; i < 4; i++ {
+	apii.wg.Add(1)
+	for i := 0; i < 1; i++ {
 		go apii.worker()
 	}
 	return apii

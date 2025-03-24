@@ -389,6 +389,10 @@ func (p *TxPool) Notify() {
 	}
 }
 
+func (p *TxPool) NotifySync() {
+	p.notifyChan <- struct{}{}
+}
+
 func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockGasLimit uint64, senders map[common.Address]struct{}) error {
 	if len(senders) == 0 {
 		return nil

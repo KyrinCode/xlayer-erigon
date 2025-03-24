@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -85,35 +86,49 @@ func (api *APIImpl) worker() {
 	defer api.wg.Done()
 
 	var txBatch []txRequest
-	ticker := time.NewTicker(batchTimeout)
-	defer ticker.Stop()
+	//ticker := time.NewTicker(batchTimeout)
+	//defer ticker.Stop()
+	txBatchMtx := new(sync.Mutex)
+	go func() {
+		for req := range api.txChan {
+			txBatchMtx.Lock()
+			txBatch = append(txBatch, req)
+			txBatchMtx.Unlock()
+		}
+	}()
 
 	for {
 		select {
-		case req, ok := <-api.txChan:
-			if !ok {
-				if len(txBatch) > 0 {
-					api.processBatch(txBatch)
-				}
-				return
-			}
-			txBatch = append(txBatch, req)
+		//case req, ok := <-api.txChan:
+		//	if !ok {
+		//		if len(txBatch) > 0 {
+		//			api.processBatch(txBatch)
+		//		}
+		//		return
+		//	}
+		//	txBatch = append(txBatch, req)
 		case <-api.notifyChan:
+			var txBatchToProcess []txRequest
+			txBatchMtx.Lock()
 			if len(txBatch) > 0 {
-				api.processBatch(txBatch)
-				txBatch = nil
-				ticker.Reset(batchTimeout)
+				txBatchToProcess, txBatch = txBatch, nil
 			}
-		case <-ticker.C:
-			if len(txBatch) > 0 {
-				log.Info("process batch", "len", len(txBatch))
-				err := api.processBatch(txBatch)
-				if err != nil {
-					log.Error("process batch failed", "err", err)
-				}
-				txBatch = nil
+			txBatchMtx.Unlock()
+			if len(txBatchToProcess) > 0 {
+				api.processBatch(txBatchToProcess)
+				//txBatch = nil
+				//ticker.Reset(batchTimeout)
 			}
-			ticker.Reset(batchTimeout)
+			//case <-ticker.C:
+			//	if len(txBatch) > 0 {
+			//		log.Info("process batch", "len", len(txBatch))
+			//		err := api.processBatch(txBatch)
+			//		if err != nil {
+			//			log.Error("process batch failed", "err", err)
+			//		}
+			//		txBatch = nil
+			//	}
+			//	ticker.Reset(batchTimeout)
 		}
 		// if len(txBatch) >= batchSize {
 		// 	api.processBatch(txBatch)
