@@ -334,9 +334,6 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 }
 
 func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	cache := p._stateCache
 	toDelete := make([]*metaTx, 0)
 	p.lock.Lock()
