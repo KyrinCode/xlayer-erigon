@@ -19,6 +19,7 @@ import (
 	"github.com/ledgerwatch/erigon/zk/utils"
 )
 
+// SendRawTransaction implements eth_sendRawTransaction. Creates new message call transaction or a contract creation for previously-signed transactions.
 func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
 	if !api.BulkAddTxs {
 		return api.sendRawTransactionSingle(ctx, encodedTx)
