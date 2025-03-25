@@ -108,8 +108,8 @@ func (cfg *ApolloConfig) CheckWhitelistAddr(localWhitelist libcommon.OrderedList
 }
 
 func (cfg *ApolloConfig) CheckFreeClaimAddr(localFreeClaimGasAddrs libcommon.OrderedList[libcommon.Address], addr libcommon.Address) bool {
-	cfg.RLock()
-	defer cfg.RUnlock()
+	// cfg.RLock()
+	// defer cfg.RUnlock()
 
 	if cfg.isPoolEnabled() {
 		return cfg.EthCfg.DeprecatedTxPool.FreeClaimGasAddrs.Contains(addr)

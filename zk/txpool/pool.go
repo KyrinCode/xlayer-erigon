@@ -27,7 +27,6 @@ import (
 	"math"
 	"math/big"
 	"runtime"
-	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -42,6 +41,7 @@ import (
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/eth/gasprice/gaspricecfg"
 	"github.com/ledgerwatch/log/v3"
+	"github.com/psilva261/timsort/v2"
 	"github.com/status-im/keycard-go/hexutils"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -2499,15 +2499,12 @@ func (p *PendingPool) PopWorst() *metaTx {
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 && i.bestIndex < len(p.best.ms) {
 		p.best.UnsafeRemove(i)
-		sort.Sort(p.best)
+		timsort.TimSort(p.best)
 		// p.sorted.Store(false)
 	}
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if mt.worstIndex < 0 || mt.worstIndex >= p.worst.Len() {
 		log.Warn("Invalid worstIndex, skipping heap.Fix", "index", mt.worstIndex, "len", p.worst.Len(), "txID", fmt.Sprintf("%x", mt.Tx.IDHash))
 		return
@@ -2527,9 +2524,6 @@ func (p *PendingPool) IsFull() bool {
 	return len(p.best.ms) >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2537,7 +2531,7 @@ func (p *PendingPool) Remove(i *metaTx) {
 		p.best.UnsafeRemove(i)
 	}
 	if i.bestIndex != p.best.Len()-1 {
-		sort.Sort(p.best)
+		timsort.TimSort(p.best)
 	}
 	i.currentSubPool = 0
 }
@@ -2556,7 +2550,7 @@ func (p *PendingPool) BatchRemove(is []*metaTx, wg *sync.WaitGroup) {
 		}
 		i.currentSubPool = 0
 	}
-	sort.Sort(p.best)
+	timsort.TimSort(p.best)
 }
 
 func (p *PendingPool) Add(i *metaTx) {
@@ -2569,7 +2563,7 @@ func (p *PendingPool) Add(i *metaTx) {
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
-	sort.Sort(p.best)
+	timsort.TimSort(p.best)
 	// p.sorted.Store(true)
 }
 func (p *PendingPool) BatchAdd(is []*metaTx) {
@@ -2586,7 +2580,7 @@ func (p *PendingPool) BatchAdd(is []*metaTx) {
 		p.best.ms = append(p.best.ms, i)
 	}
 
-	sort.Sort(p.best)
+	timsort.TimSort(p.best)
 	// p.sorted.Store(true)
 }
 
