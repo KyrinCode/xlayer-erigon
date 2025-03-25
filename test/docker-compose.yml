@@ -3,15 +3,420 @@ networks:
   default:
     name: erigon
 services:
-  xlayer-executor:
-    container_name: xlayer-executor
+  xlayer-executor-1:
+    container_name: xlayer-executor-1
     image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
     platform: linux/amd64
     environment:
       - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
     ports:
       - 0.0.0.0:50061:50061 # MT
-      - 0.0.0.0:50071:50071 # Executor
+      - 0.0.0.0:50021:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-2:
+    container_name: xlayer-executor-2
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50062:50061 # MT
+      - 0.0.0.0:50022:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+    
+  xlayer-executor-3:
+    container_name: xlayer-executor-3
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50063:50061 # MT
+      - 0.0.0.0:50023:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-4:
+    container_name: xlayer-executor-4
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50064:50061 # MT
+      - 0.0.0.0:50024:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-5:
+    container_name: xlayer-executor-5
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50065:50061 # MT
+      - 0.0.0.0:50025:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-6:
+    container_name: xlayer-executor-6
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50066:50061 # MT
+      - 0.0.0.0:50026:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-7:
+    container_name: xlayer-executor-7
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50067:50061 # MT
+      - 0.0.0.0:50027:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-8:
+    container_name: xlayer-executor-8
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50068:50061 # MT
+      - 0.0.0.0:50028:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-9:
+    container_name: xlayer-executor-9
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50069:50061 # MT
+      - 0.0.0.0:50029:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-10:
+    container_name: xlayer-executor-10
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50070:50061 # MT
+      - 0.0.0.0:50030:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-11:
+    container_name: xlayer-executor-11
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50071:50061 # MT
+      - 0.0.0.0:50031:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+  xlayer-executor-12:
+    container_name: xlayer-executor-12
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50072:50061 # MT
+      - 0.0.0.0:50032:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-13:
+    container_name: xlayer-executor-13
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50073:50061 # MT
+      - 0.0.0.0:50033:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-14:
+    container_name: xlayer-executor-14
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50074:50061 # MT
+      - 0.0.0.0:50034:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-15:
+    container_name: xlayer-executor-15
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50075:50061 # MT
+      - 0.0.0.0:50035:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-16:
+    container_name: xlayer-executor-16
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50076:50061 # MT
+      - 0.0.0.0:50036:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-17:
+    container_name: xlayer-executor-17
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50077:50061 # MT
+      - 0.0.0.0:50037:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-18:
+    container_name: xlayer-executor-18
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50078:50061 # MT
+      - 0.0.0.0:50038:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-19:
+    container_name: xlayer-executor-19
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50079:50061 # MT
+      - 0.0.0.0:50039:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-20:
+    container_name: xlayer-executor-20
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50080:50061 # MT
+      - 0.0.0.0:50040:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-21:
+    container_name: xlayer-executor-21
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50081:50061 # MT
+      - 0.0.0.0:50041:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-22:
+    container_name: xlayer-executor-22
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50082:50061 # MT
+      - 0.0.0.0:50042:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-23:
+    container_name: xlayer-executor-23
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50083:50061 # MT
+      - 0.0.0.0:50043:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-24:
+    container_name: xlayer-executor-24
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50084:50061 # MT
+      - 0.0.0.0:50044:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-25:
+    container_name: xlayer-executor-25
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50085:50061 # MT
+      - 0.0.0.0:50045:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-26:
+    container_name: xlayer-executor-26
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50086:50061 # MT
+      - 0.0.0.0:50046:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-27:
+    container_name: xlayer-executor-27
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50087:50061 # MT
+      - 0.0.0.0:50047:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-28:
+    container_name: xlayer-executor-28
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50088:50061 # MT
+      - 0.0.0.0:50048:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-29:
+    container_name: xlayer-executor-29
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50089:50061 # MT
+      - 0.0.0.0:50049:50071 # Executor
+    volumes:
+      - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
+    command: >
+      zkProver -c /usr/src/app/config.json
+
+  xlayer-executor-30:
+    container_name: xlayer-executor-30
+    image: hermeznetwork/zkevm-prover:v9.0.0-RC1-fork.13
+    platform: linux/amd64
+    environment:
+      - EXPERIMENTAL_DOCKER_DESKTOP_FORCE_QEMU=1
+    ports:
+      - 0.0.0.0:50090:50061 # MT
+      - 0.0.0.0:50050:50071 # Executor
     volumes:
       - ./config/test.stateless_executor.config.json:/usr/src/app/config.json
     command: >
@@ -214,9 +619,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 8G
         reservations:
-          memory: 512M
+          memory: 4G
     ports:
       - 8125:8545
     volumes:

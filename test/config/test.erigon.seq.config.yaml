@@ -24,8 +24,8 @@ zkevm.datastream-version: 2
 
 log.console.verbosity: info
 
-#zkevm.executor-urls: xlayer-executor:50071
-zkevm.executor-strict: false
+zkevm.executor-urls: ["xlayer-executor-1:50071", "xlayer-executor-2:50071", "xlayer-executor-3:50071", "xlayer-executor-4:50071", "xlayer-executor-5:50071", "xlayer-executor-6:50071", "xlayer-executor-7:50071", "xlayer-executor-8:50071", "xlayer-executor-9:50071", "xlayer-executor-10:50071", "xlayer-executor-11:50071", "xlayer-executor-12:50071", "xlayer-executor-13:50071", "xlayer-executor-14:50071", "xlayer-executor-15:50071", "xlayer-executor-16:50071", "xlayer-executor-17:50071", "xlayer-executor-18:50071", "xlayer-executor-19:50071", "xlayer-executor-20:50071", "xlayer-executor-21:50071", "xlayer-executor-22:50071", "xlayer-executor-23:50071", "xlayer-executor-24:50071", "xlayer-executor-25:50071", "xlayer-executor-26:50071", "xlayer-executor-27:50071", "xlayer-executor-28:50071", "xlayer-executor-29:50071", "xlayer-executor-30:50071"]
+zkevm.executor-strict: true
 zkevm.witness-full: false
 zkevm.executor-mock: true
 
@@ -100,3 +100,4 @@ txpool.freegaslist : '[{"name":"e2e", "from_list":["0x586cbc95ed16031d9efdaebacf
 # close a block/batch immediately after the 1st zkCounter overflow TX
 zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 5ms
+zkevm.executor-request-timeout: 1000s
