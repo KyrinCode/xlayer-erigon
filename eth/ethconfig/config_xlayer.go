@@ -29,6 +29,9 @@ type XLayerConfig struct {
 	// Executor
 	ExecutorMock        bool
 	BlockInfoConcurrent bool
+
+	// ethapi
+	BatchAddTxs bool
 }
 
 var DefaultXLayerConfig = XLayerConfig{}

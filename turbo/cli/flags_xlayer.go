@@ -31,6 +31,7 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		SequencerReplayL1SyncOnly:         ctx.Bool(utils.SequencerReplayL1SyncOnly.Name),
 		ExecutorMock:                      ctx.Bool(utils.ExecutorMock.Name),
 		BlockInfoConcurrent:               ctx.Bool(utils.BlockInfoConcurrent.Name),
+		BatchAddTxs:                       ctx.Bool(utils.BatchAddTxsFlag.Name),
 	}
 	if cfg.XLayer.BlockInfoConcurrent {
 		blockinfo.InitUseBlockInfoTreeTrue()

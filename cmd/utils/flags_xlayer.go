@@ -420,3 +420,7 @@ func SetPreRunList(ctx *cli.Context, cfg *ethconfig.Config) {
 		cfg.XLayer.PreRunTaskNum = ctx.Int(PreRunTaskNum.Name)
 	}
 }
+
+func SetBatchAddTxs(ctx *cli.Context, cfg *ethconfig.Config) {
+	cfg.XLayer.BatchAddTxs = ctx.Bool(BatchAddTxsFlag.Name)
+}
