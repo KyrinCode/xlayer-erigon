@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	ecommon "github.com/ledgerwatch/erigon/common"
+	"strings"
 	"sync"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -43,6 +45,11 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 	minFeeCap := uint256.NewInt(0).SetAllOne()
 	minTip := uint64(math.MaxUint64)
 	var toDel []*metaTx // can't delete items while iterate them
+
+	senderAddr, findSenderOk := p.senders.senderID2Addr[senderID]
+	isFreeClaimAddr := p.apolloCfg.CheckFreeClaimAddr(p.xlayerCfg.FreeClaimGasAddrs, senderAddr)
+	isFreeGasAddr := p.freeGasAddrs[senderAddr.String()]
+
 	byNonce.ascend(senderID, func(mt *metaTx) bool {
 		if mt.Tx.Traced {
 			log.Info(fmt.Sprintf("TX TRACING: onSenderStateChange loop iteration idHash=%x senderID=%d, senderNonce=%d, txn.nonce=%d, currentSubPool=%s", mt.Tx.IDHash, senderID, senderNonce, mt.Tx.Nonce, mt.currentSubPool))
@@ -80,7 +87,35 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 		// 1. is claim tx;
 		// 2. new bridge account with the first few tx
 		// 3. special project
-		freeType, gpMul := p.checkFreeGasAddrXLayer(senderID, mt.Tx)
+		var freeType int
+		var gpMul uint64
+		if findSenderOk {
+			freeType, gpMul = func() (int, uint64) {
+				// is claim tx
+				if isFreeClaimAddr {
+					return claim, p.xlayerCfg.GasPriceMultiple
+				}
+
+				// specific project
+				if p.apolloCfg.GetEnableFreeGasList(p.xlayerCfg.EnableFreeGasList) {
+					fromToName, freeGpList := p.xlayerCfg.FreeGasFromNameMap, p.xlayerCfg.FreeGasList
+					info := freeGpList[fromToName[strings.ToLower(senderAddr.String())]]
+					if info != nil &&
+						contains(info.ToList, mt.Tx.To) &&
+						containsMethod(ecommon.Bytes2Hex(mt.Tx.Rlp), info.MethodSigs) {
+
+						return specificProject, info.GasPriceMultiple
+					}
+				}
+
+				// 	new bridge address
+				if isFreeGasAddr {
+					return freeByNonce, 1
+				}
+
+				return notFree, 0
+			}()
+		}
 		// parse claim tx or dex tx, and add the withdraw addr into free gas cache
 		p.setFreeGasByNonceCache(senderID, mt, freeType == claim)
 		if freeType > notFree {
