@@ -387,7 +387,7 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 		discardReasonsLRU:       discardHistory,
 		all:                     byNonce,
 		recentlyConnectedPeers:  &recentlyConnectedPeers{},
-		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit),
+		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit, ethCfg.XLayer.AutoSortTxs), // For X Layer
 		baseFee:                 NewSubPool(BaseFeeSubPool, cfg.BaseFeeSubPoolLimit),
 		queued:                  NewSubPool(QueuedSubPool, cfg.QueuedSubPoolLimit),
 		newPendingTxs:           newTxs,
@@ -2260,17 +2260,20 @@ func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
 // It's more expensive to maintain "slice sort" invariant, but it allow do cheap copy of
 // pending.best slice for mining (because we consider txs and metaTx are immutable)
 type PendingPool struct {
-	sorted atomic.Bool // means `PendingPool.best` is sorted or not
+	sorted atomic.Bool // means `PendingPool.best` is sorted or not，it doesn't work when autoSort is true
 	best   *bestSlice
 	worst  *WorstQueue
 	limit  int
 	t      SubPoolType
 	mtx    sync.RWMutex
+
+	// For X Layer
+	autoSort bool
 }
 
-func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
-	log.Info("new sub pool", "SubPoolType", PendingSubPool, "limit", limit)
-	return &PendingPool{limit: limit, t: t, best: &bestSlice{ms: []*metaTx{}}, worst: &WorstQueue{ms: []*metaTx{}}}
+func NewPendingSubPool(t SubPoolType, limit int, autoSort bool) *PendingPool {
+	log.Info("new sub pool", "SubPoolType", PendingSubPool, "limit", limit, "autoSort", autoSort)
+	return &PendingPool{limit: limit, t: t, best: &bestSlice{ms: []*metaTx{}}, worst: &WorstQueue{ms: []*metaTx{}}, autoSort: autoSort}
 }
 
 // bestSlice - is similar to best queue, but with O(n log n) complexity and
@@ -2306,6 +2309,11 @@ func (p *PendingPool) EnforceWorstInvariants() {
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
+	// For X Layer
+	if p.autoSort {
+		return
+	}
+
 	if !p.sorted.Load() {
 		p.mtx.Lock()
 		defer p.mtx.Unlock()
@@ -2340,6 +2348,11 @@ func (p *PendingPool) PopWorst() *metaTx { //nolint
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 {
 		p.best.UnsafeRemove(i)
+
+		// For X Layer
+		if p.autoSort {
+			sort.Sort(p.best)
+		}
 	}
 	return i
 }
@@ -2373,6 +2386,11 @@ func (p *PendingPool) Remove(i *metaTx) {
 	}
 	if i.bestIndex != p.best.Len()-1 {
 		p.sorted.Swap(false)
+
+		// For X Layer
+		if p.autoSort {
+			sort.Sort(p.best)
+		}
 	}
 	i.currentSubPool = 0
 }
@@ -2388,6 +2406,11 @@ func (p *PendingPool) Add(i *metaTx) {
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
 	p.sorted.Swap(false)
+
+	// For X Layer
+	if p.autoSort {
+		sort.Sort(p.best)
+	}
 }
 func (p *PendingPool) DebugPrint(prefix string) {
 	p.mtx.RLock()
