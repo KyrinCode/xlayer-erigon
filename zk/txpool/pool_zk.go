@@ -47,7 +47,6 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 	var toDel []*metaTx // can't delete items while iterate them
 	p.pending.mu.Lock()
 
-
 	senderAddr, findSenderOk := p.senders.senderID2Addr[senderID]
 	isFreeClaimAddr := p.apolloCfg.CheckFreeClaimAddr(p.xlayerCfg.FreeClaimGasAddrs, senderAddr)
 	isFreeGasAddr := p.freeGasAddrs[senderAddr.String()]
@@ -375,36 +374,40 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	idsMap := make(map[common.Hash]struct{}, len(ids))
-	for _, id := range ids {
-		idsMap[id] = struct{}{}
-	}
-
-	toDelForPending := make([]*metaTx, 0, len(ids))
-	p.all.ascendAll(func(mt *metaTx) bool {
-		if _, ok := idsMap[mt.Tx.IDHash]; ok {
-			toDelete = append(toDelete, mt)
-			switch mt.currentSubPool {
-			case PendingSubPool:
-				// p.pending.Remove(mt)
-				toDelForPending = append(toDelForPending, mt)
-			case BaseFeeSubPool:
-				p.baseFee.Remove(mt)
-			case QueuedSubPool:
-				p.queued.Remove(mt)
-			default:
-				//already removed
-			}
-		}
-		return true
-	})
 	wg := sync.WaitGroup{}
-	if len(toDelForPending) > 0 {
-		wg.Add(1)
-		go func() {
+	wg.Add(1)
+	go func() {
+		idsMap := make(map[common.Hash]struct{}, len(ids))
+		for _, id := range ids {
+			idsMap[id] = struct{}{}
+		}
+		toDelForPending := make([]*metaTx, 0, len(ids))
+		p.all.ascendAll(func(mt *metaTx) bool {
+			if _, ok := idsMap[mt.Tx.IDHash]; ok {
+				toDelete = append(toDelete, mt)
+				switch mt.currentSubPool {
+				case PendingSubPool:
+					// p.pending.Remove(mt)
+					toDelForPending = append(toDelForPending, mt)
+				case BaseFeeSubPool:
+					p.baseFee.Remove(mt)
+				case QueuedSubPool:
+					p.queued.Remove(mt)
+				default:
+					//already removed
+				}
+			}
+			return true
+		})
+
+		if len(toDelForPending) > 0 {
+			wg.Add(1)
+			wg.Done()
 			p.pending.BatchRemove(toDelForPending, &wg)
-		}()
-	}
+		} else {
+			wg.Done()
+		}
+	}()
 
 	sendersWithChangedState := make(map[uint64]struct{})
 	for _, mt := range toDelete {
@@ -419,20 +422,16 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		return err
 	}
 
-	var waitOk = false
-
 	for senderID := range sendersWithChangedState {
 		nonce, balance, err := p.senders.info(cacheView, senderID)
 		if err != nil {
 			return err
 		}
-		if !waitOk {
-			wg.Wait()
-			waitOk = true
-		}
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
 	}
+
+	wg.Wait()
 
 	return nil
 }
