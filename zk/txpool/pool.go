@@ -1403,14 +1403,30 @@ func promote(pending *PendingPool, baseFee, queued *SubPool, pendingBaseFee uint
 		}
 	}
 
-	// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
-	for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
-		if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
-			tx := queued.PopBest()
-			announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
-			pending.Add(tx)
-		} else {
-			baseFee.Add(queued.PopBest())
+	// For X Layer
+	if pending.autoSort {
+		var toAdd = []*metaTx{}
+		// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
+		for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
+			if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
+				tx := queued.PopBest()
+				announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
+				toAdd = append(toAdd, tx)
+			} else {
+				baseFee.Add(queued.PopBest())
+			}
+		}
+		pending.BulkAdd(toAdd)
+	} else {
+		// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
+		for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
+			if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
+				tx := queued.PopBest()
+				announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
+				pending.Add(tx)
+			} else {
+				baseFee.Add(queued.PopBest())
+			}
 		}
 	}
 
