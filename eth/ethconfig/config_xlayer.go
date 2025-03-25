@@ -31,7 +31,7 @@ type XLayerConfig struct {
 	BlockInfoConcurrent bool
 
 	// Txpool
-	AutoSortTxs bool
+	AutoSortBest bool
 }
 
 var DefaultXLayerConfig = XLayerConfig{}

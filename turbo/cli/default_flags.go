@@ -329,7 +329,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.TxPoolFreeGasLimit,
 	&utils.TxPoolEnableFreeGasList,
 	&utils.TxPoolFreeGasList,
-	&utils.TxPoolAutoSortTxs,
+	&utils.TxPoolAutoSortBest,
 	&utils.HTTPApiKeysFlag,
 	&utils.MethodRateLimitFlag,
 	&utils.SequencerReplay,

@@ -31,7 +31,7 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		SequencerReplayL1SyncOnly:         ctx.Bool(utils.SequencerReplayL1SyncOnly.Name),
 		ExecutorMock:                      ctx.Bool(utils.ExecutorMock.Name),
 		BlockInfoConcurrent:               ctx.Bool(utils.BlockInfoConcurrent.Name),
-		AutoSortTxs:                       ctx.Bool(utils.TxPoolAutoSortTxs.Name),
+		AutoSortBest:                      ctx.Bool(utils.TxPoolAutoSortBest.Name),
 	}
 	if cfg.XLayer.BlockInfoConcurrent {
 		blockinfo.InitUseBlockInfoTreeTrue()

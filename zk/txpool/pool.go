@@ -387,7 +387,7 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 		discardReasonsLRU:       discardHistory,
 		all:                     byNonce,
 		recentlyConnectedPeers:  &recentlyConnectedPeers{},
-		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit, ethCfg.XLayer.AutoSortTxs), // For X Layer
+		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit, ethCfg.XLayer.AutoSortBest), // For X Layer
 		baseFee:                 NewSubPool(BaseFeeSubPool, cfg.BaseFeeSubPoolLimit),
 		queued:                  NewSubPool(QueuedSubPool, cfg.QueuedSubPoolLimit),
 		newPendingTxs:           newTxs,

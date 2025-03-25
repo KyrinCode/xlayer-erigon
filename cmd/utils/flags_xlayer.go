@@ -103,9 +103,9 @@ var (
 		Name:  "txpool.freegaslist",
 		Usage: "FreeGasList Project in JSON Format",
 	}
-	TxPoolAutoSortTxs = cli.BoolFlag{
-		Name:  "txpool.autosorttxs",
-		Usage: "Enable txs sort when pending pool is changed",
+	TxPoolAutoSortBest = cli.BoolFlag{
+		Name:  "txpool.autosortbest",
+		Usage: "Enable txs sort when best is changed",
 		Value: false,
 	}
 	// Gas Pricer
