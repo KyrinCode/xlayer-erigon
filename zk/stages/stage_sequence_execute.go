@@ -95,13 +95,7 @@ func SpawnSequencingStage(
 		}
 
 		// enable split smt db
-		if cfg.zk.XLayer.StandaloneSMTDatabase {
-			if s.CachedBlockLen() >= 20 {
-				err = s.FlushSmtCache()
-			}
-		} else {
-			err = s.FlushSmtCache()
-		}
+		err = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase)
 	}
 
 	return err
@@ -195,7 +189,7 @@ func sequencingBatchStep(
 			return err
 		}
 
-		return sdb.Commit(s, true)
+		return sdb.Commit(s, executionAt+1, true)
 	}
 
 	if shouldCheckForExecutionAndDataStreamAlignment {
@@ -212,7 +206,7 @@ func sequencingBatchStep(
 				return err
 			}
 			if isUnwinding {
-				err := sdb.Commit(s, true)
+				err := sdb.Commit(s, executionAt+1, true)
 				if err != nil {
 					// do not set shouldCheckForExecutionAndDataStreamAlighment=false because of the error
 					return err
@@ -231,7 +225,7 @@ func sequencingBatchStep(
 	if exitStage {
 		log.Info(fmt.Sprintf("[%s] Exiting stage during halted sequencer", logPrefix))
 		// commit the tx so any updates to the stream etc are persisted
-		return sdb.Commit(s, true)
+		return sdb.Commit(s, executionAt+1, true)
 	}
 
 	if err := utils.UpdateZkEVMBlockCfg(cfg.chainConfig, sdb.hermezDb, logPrefix); err != nil {
@@ -301,7 +295,8 @@ func sequencingBatchStep(
 	// until the next batch starts
 	sendersToSkip := make(map[common.Address]struct{})
 
-	for blockNumber := executionAt + 1; runLoopBlocks; blockNumber++ {
+	blockNumber := uint64(0)
+	for blockNumber = executionAt + 1; runLoopBlocks; blockNumber++ {
 		if batchTimedOut {
 			log.Debug(fmt.Sprintf("[%s] Closing batch due to timeout", logPrefix))
 			break
@@ -900,7 +895,7 @@ func sequencingBatchStep(
 	metrics.GetLogStatistics().SetTag(metrics.FinalizeBatchNumber, strconv.Itoa(int(batchState.batchNumber)))
 	tryToSleepSequencer(cfg.zk.XLayer.SequencerBatchSleepDuration, logPrefix)
 	startCommitTime := time.Now()
-	err = sdb.Commit(s, false)
+	err = sdb.Commit(s, blockNumber, false)
 	metrics.GetLogStatistics().CumulativeTiming(metrics.BatchCommitDBTiming, time.Since(startCommitTime))
 
 	batchTime := time.Since(batchStart)

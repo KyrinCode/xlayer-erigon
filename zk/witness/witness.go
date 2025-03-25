@@ -194,18 +194,11 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 
 	var rwtxsmt kv.RwTx = nil
 	if txsmt != nil {
-		rwtxsmt = membatchwithdb.NewMemoryBatchWithSizeNoSequence(txsmt, g.dirs.Tmp, g.zkConfig.WitnessMemdbSize)
+		rwtxsmt = membatchwithdb.NewMemoryBatchWithSizeNoSequenceWithCache(txsmt, g.dirs.Tmp, g.zkConfig.WitnessMemdbSize, cache)
 		defer rwtxsmt.Rollback()
 		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtxsmt); err != nil {
 			return nil, err
 		}
-		//if cache != nil {
-		//	for table, bucket := range cache {
-		//		for k, v := range bucket {
-		//			rwtxsmt.Put(table, []byte(k), v)
-		//		}
-		//	}
-		//}
 	} else {
 		// if there is no standalone smt db, we PopulateMemoryMutationTablesSmt on main db
 		if err = zkUtils.PopulateMemoryMutationTablesSmt(rwtx); err != nil {

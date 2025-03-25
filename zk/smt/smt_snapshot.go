@@ -59,20 +59,20 @@ func (l *SmtCacheList) findNode(blockHeight uint64) *SmtCacheSnapshot {
 	return nil
 }
 
-// getCacheShapshot retrieves the DeltaSmtCache for a given BlockHeight and merges it with all parent snapshots,
-// return deep copy data
-func (l *SmtCacheList) getCacheShapshot(blockHeight uint64, needCopy bool) (map[string]map[string][]byte, bool) {
+// cascadeGetCacheShapshot retrieves the DeltaSmtCache for a given BlockHeight and merges it with all parent snapshots,
+// return deep copy data if needCopy is true
+func (l *SmtCacheList) cascadeGetCacheShapshot(blockHeight uint64, needCopy bool) (map[string]map[string][]byte, bool) {
 	l.mutex.RLock() // Read lock for read-only operation
 	defer l.mutex.RUnlock()
+
+	// Initialize the merged cache
+	mergedCache := make(map[string]map[string][]byte)
 
 	// Find the specified node
 	node := l.findNode(blockHeight)
 	if node == nil {
-		return nil, false
+		return mergedCache, false
 	}
-
-	// Initialize the merged cache
-	mergedCache := make(map[string]map[string][]byte)
 
 	// Merge DeltaSmtCache from the current node and all parent snapshots
 	current := node
@@ -100,8 +100,8 @@ func (l *SmtCacheList) getCacheShapshot(blockHeight uint64, needCopy bool) (map[
 	return mergedCache, true
 }
 
-// getCacheShapshot retrieves all DeltaSmtCache and merges it with all parent snapshots
-func (l *SmtCacheList) getAllCacheShapshot(needDeepCopy bool) (uint64, map[string]map[string][]byte, bool) {
+// getAllCacheShapshot retrieves all DeltaSmtCache and merges it with all parent snapshots
+func (l *SmtCacheList) getAllCacheShapshot(needDeepCopy bool) (map[string]map[string][]byte, bool) {
 	l.mutex.RLock() // Read lock for read-only operation
 	defer l.mutex.RUnlock()
 
@@ -109,16 +109,16 @@ func (l *SmtCacheList) getAllCacheShapshot(needDeepCopy bool) (uint64, map[strin
 	if l.head != nil {
 		headBlockNumber = l.head.BlcokHeight
 	} else {
-		return headBlockNumber, nil, false
+		return nil, false
 	}
 
-	cache, found := l.getCacheShapshot(headBlockNumber, needDeepCopy)
-	return headBlockNumber, cache, found
+	cache, found := l.cascadeGetCacheShapshot(headBlockNumber, needDeepCopy)
+	return cache, found
 
 }
 
-// delCache deletes the node with the specified BlockHeight and all its parent snapshots
-func (l *SmtCacheList) delCache(blockHeight uint64) bool {
+// cascadeDeleteCache deletes the node with the specified BlockHeight and all its parent snapshots
+func (l *SmtCacheList) cascadeDeleteCache(blockHeight uint64) bool {
 	l.mutex.Lock() // Exclusive lock for write operation
 	defer l.mutex.Unlock()
 

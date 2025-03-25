@@ -60,7 +60,7 @@ func (s *Sync) GetSmtCache() map[string]map[string][]byte {
 }
 
 func (s *Sync) GetSmtSnapshotCache(blockNumber uint64) map[string]map[string][]byte {
-	return s.cache.GetSmtSnapshotCache(blockNumber)
+	return s.cache.CascadeGetCurrentBatchSnapshotCache(blockNumber)
 }
 
 func (s *Sync) SetSmtCache(blockNumber uint64, longLivedCache, blockCache map[string]map[string][]byte) {
@@ -71,8 +71,8 @@ func (s *Sync) CachedBlockLen() int {
 	return s.cache.CachedBlockLen()
 }
 
-func (s *Sync) FlushSmtCache() error {
-	return s.cache.FlushSmtCache()
+func (s *Sync) FlushSmtCache(batchPush bool) error {
+	return s.cache.FlushSmtCache(batchPush)
 }
 
 func (s *Sync) Len() int {

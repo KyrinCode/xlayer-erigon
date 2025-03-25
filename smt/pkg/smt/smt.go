@@ -722,6 +722,10 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 		return err
 	}
 
+	//if nodeValue.IsNil() {
+	//	return nil
+	//}
+
 	if nodeValue.IsFinalNode() || !shouldContinue {
 		return nil
 	}

@@ -100,7 +100,6 @@ func AsyncFlushSmtData(ctx context.Context,
 				return
 			}
 
-			logger.Debug("Periodic check", "last height", height)
 			if height > 0 {
 				cache.TruncateSmtCacheList(height)
 			}

@@ -63,8 +63,8 @@ func (s *StageState) CachedBlockLen() int {
 	return s.state.CachedBlockLen()
 }
 
-func (s *StageState) FlushSmtCache() error {
-	return s.state.FlushSmtCache()
+func (s *StageState) FlushSmtCache(batchPush bool) error {
+	return s.state.FlushSmtCache(batchPush)
 }
 
 func (s *StageState) LogPrefix() string { return s.state.LogPrefix() }
