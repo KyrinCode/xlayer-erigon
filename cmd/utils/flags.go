@@ -1512,11 +1512,6 @@ var (
 		Usage: "transaction count fetched from txpool each time",
 		Value: 1000,
 	}
-	BatchAddTxsFlag = cli.BoolFlag{
-		Name:  "batch-add-txs",
-		Usage: "Whether to enable batch transaction addition",
-		Value: false,
-	}
 )
 
 var MetricFlags = []cli.Flag{&MetricsEnabledFlag, &MetricsHTTPFlag, &MetricsPortFlag, &DiagDisabledFlag, &DiagEndpointAddrFlag, &DiagEndpointPortFlag, &DiagSpeedTestFlag}
@@ -2443,7 +2438,7 @@ func SetEthConfig(ctx *cli.Context, nodeConfig *nodecfg.Config, cfg *ethconfig.C
 	}
 
 	// For X Layer
-	SetBatchAddTxs(ctx, cfg)
+	SetBulkAddTxs(ctx, cfg)
 }
 
 // SetDNSDiscoveryDefaults configures DNS discovery with the given URL if

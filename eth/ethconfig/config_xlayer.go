@@ -30,8 +30,10 @@ type XLayerConfig struct {
 	ExecutorMock        bool
 	BlockInfoConcurrent bool
 
-	// ethapi
-	BatchAddTxs bool
+	// Bulk Add Txs
+	BulkAddTxs         bool
+	BulkAddTxsSize     int
+	BulkAddTxsWaitTime time.Duration
 }
 
 var DefaultXLayerConfig = XLayerConfig{}

@@ -20,7 +20,7 @@ import (
 )
 
 func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
-	if !api.BatchAddTxs {
+	if !api.BulkAddTxs {
 		return api.sendRawTransactionSingle(ctx, encodedTx)
 	}
 	return api.sendRawTransactionBatch(ctx, encodedTx)

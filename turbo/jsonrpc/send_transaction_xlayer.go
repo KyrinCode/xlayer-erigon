@@ -22,9 +22,6 @@ import (
 	"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
-const batchSize = 300
-const batchTimeout = 5 * time.Millisecond
-
 type txRequest struct {
 	ctx       context.Context
 	encodedTx hexutility.Bytes
@@ -75,10 +72,8 @@ func (api *APIImpl) sendRawTransactionBatch(ctx context.Context, encodedTx hexut
 }
 
 func (api *APIImpl) worker() {
-	defer api.wg.Done()
-
 	var txBatch []txRequest
-	ticker := time.NewTicker(batchTimeout)
+	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
 	for {
@@ -91,10 +86,10 @@ func (api *APIImpl) worker() {
 				return
 			}
 			txBatch = append(txBatch, req)
-			if len(txBatch) >= batchSize {
+			if len(txBatch) >= api.BulkAddTxsSize {
 				api.processBatch(txBatch)
 				txBatch = nil
-				ticker.Reset(batchTimeout)
+				ticker.Reset(api.BulkAddTxsWaitTime)
 			}
 		case <-ticker.C:
 			if len(txBatch) > 0 {
@@ -104,7 +99,7 @@ func (api *APIImpl) worker() {
 				}
 				txBatch = nil
 			}
-			ticker.Reset(batchTimeout)
+			ticker.Reset(api.BulkAddTxsWaitTime)
 		}
 	}
 }
