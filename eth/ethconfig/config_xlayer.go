@@ -29,6 +29,9 @@ type XLayerConfig struct {
 	// Executor
 	ExecutorMock        bool
 	BlockInfoConcurrent bool
+
+	// Txpool
+	AutoSortTxs bool
 }
 
 var DefaultXLayerConfig = XLayerConfig{}
