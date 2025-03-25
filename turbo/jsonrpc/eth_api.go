@@ -392,6 +392,7 @@ type APIImpl struct {
 	EnableInnerTx   bool
 	PreRunList      map[common.Address]struct{}
 	preRunProcessor *PreRunProcessor
+	BatchAddTxs     bool
 	txChan          chan txRequest
 	wg              sync.WaitGroup
 }
@@ -439,6 +440,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 		L2GasPricer:   gasprice.NewL2GasPriceSuggester(context.Background(), ethCfg.GPO),
 		EnableInnerTx: ethCfg.XLayer.EnableInnerTx,
 		PreRunList:    ethCfg.XLayer.PreRunList,
+		BatchAddTxs:   ethCfg.XLayer.BatchAddTxs,
 		txChan:        make(chan txRequest, 1000),
 	}
 
@@ -457,10 +459,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 			}
 		}
 	})
-	apii.wg.Add(4)
-	for i := 0; i < 4; i++ {
-		go apii.worker()
-	}
+	go apii.worker()
 	return apii
 }
 
