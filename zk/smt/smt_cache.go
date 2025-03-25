@@ -94,21 +94,49 @@ func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) m
 	cache.PreBatchImageLock.RLock()
 	defer cache.PreBatchImageLock.RUnlock()
 
-	// merge preBatchSnapShotImage into current data
-	for table, bucket := range cache.PreBatchSnapshotImage {
-		if _, exists := cacheData[table]; !exists {
-			cacheData[table] = make(map[string][]byte)
-		}
-
-		for key, value := range bucket {
-			// If the key already exists, keep the earliest value (parent priority)
-			if _, exists := cacheData[table][key]; !exists {
-				cacheData[table][key] = value // replace the old value with the latest one
-			}
-		}
-	}
+	mergeSmtCache(cacheData, cache.PreBatchSnapshotImage, false)
 
 	return cacheData
+}
+
+// mergeSmtCache merges fromCache into toCache concurrently
+func mergeSmtCache(toCache, fromCache map[string]map[string][]byte, overWrite bool) {
+	var wg sync.WaitGroup
+
+	safeCacheData := sync.Map{}
+
+	for table := range toCache {
+		safeCacheData.Store(table, toCache[table])
+	}
+
+	for table, bucket := range fromCache {
+		wg.Add(1)
+		go func(table string, bucket map[string][]byte) {
+			defer wg.Done()
+
+			val, _ := safeCacheData.LoadOrStore(table, make(map[string][]byte))
+			tableData := val.(map[string][]byte)
+
+			for key, value := range bucket {
+				if overWrite {
+					tableData[key] = value
+				} else {
+					if _, exists := tableData[key]; !exists {
+						tableData[key] = value
+					}
+				}
+			}
+
+			safeCacheData.Store(table, tableData)
+		}(table, bucket)
+	}
+
+	wg.Wait()
+
+	safeCacheData.Range(func(key, value interface{}) bool {
+		toCache[key.(string)] = value.(map[string][]byte)
+		return true
+	})
 }
 
 // SetSmtCache set smt cache every block
