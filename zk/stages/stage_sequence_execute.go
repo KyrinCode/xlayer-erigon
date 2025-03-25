@@ -453,8 +453,6 @@ func sequencingBatchStep(
 			default:
 			}
 
-			requireTxPoolLock.Swap(true)
-
 			getTxTime := time.Now()
 			if batchState.isLimboRecovery() {
 				batchState.blockState.transactionsForInclusion, err = getLimboTransaction(ctx, cfg, batchState.limboRecoveryData.limboTxHash, executionAt)
@@ -833,8 +831,6 @@ func sequencingBatchStep(
 		if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
 			return err
 		}
-
-		requireTxPoolLock.Swap(false)
 
 		//cfg.txPool.Notify()
 
