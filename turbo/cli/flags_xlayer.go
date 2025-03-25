@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/ledgerwatch/erigon/zk/datastream/server"
 	"strings"
 
 	"github.com/ledgerwatch/erigon/cmd/utils"
@@ -38,6 +39,8 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		}
 		cfg.XLayer.Apollo.NamespaceName = strings.Join(ns, ",")
 	}
+
+	server.DsSkip = ctx.Bool(utils.L2DataStreamerSkip.Name)
 }
 
 func ApplyFlagsForNodeXLayerConfig(ctx *cli.Context, cfg *nodecfg.Config) {

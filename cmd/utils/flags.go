@@ -1512,6 +1512,11 @@ var (
 		Usage: "transaction count fetched from txpool each time",
 		Value: 1000,
 	}
+	L2DataStreamerSkip = cli.BoolFlag{
+		Name:  "zkevm.data-stream-skip",
+		Usage: "skip missing blocks in data-streamer",
+		Value: false,
+	}
 )
 
 var MetricFlags = []cli.Flag{&MetricsEnabledFlag, &MetricsHTTPFlag, &MetricsPortFlag, &DiagDisabledFlag, &DiagEndpointAddrFlag, &DiagEndpointPortFlag, &DiagSpeedTestFlag}

@@ -23,6 +23,8 @@ const (
 	commitEntryCountLimit = 80_000
 )
 
+var DsSkip = false
+
 // gets the blocks for the said batch from the reader
 // writes a bookmarks, batch start, blocks and batch end
 // basically writes a whole standalone batch
@@ -166,7 +168,7 @@ LOOP:
 			return err
 		}
 
-		if block == nil {
+		if DsSkip && block == nil {
 			log.Error(fmt.Sprintf("[%s]: Block %d not found, skip write to datastream", logPrefix, currentBlockNumber))
 			continue
 		}

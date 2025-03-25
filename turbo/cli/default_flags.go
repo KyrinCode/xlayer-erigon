@@ -179,6 +179,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.L2DataStreamerUrlFlag,
 	&utils.L2DataStreamerUseTLSFlag,
 	&utils.L2DataStreamerTimeout,
+	&utils.L2DataStreamerSkip,
 	&utils.L2ShortCircuitToVerifiedBatchFlag,
 	&utils.L1SyncStartBlock,
 	&utils.L1SyncStopBatch,
