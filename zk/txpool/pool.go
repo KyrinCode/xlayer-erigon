@@ -2376,6 +2376,9 @@ func (p *PendingPool) Updated(mt *metaTx) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
+	p.UpdatedNoLock(mt)
+}
+func (p *PendingPool) UpdatedNoLock(mt *metaTx) {
 	heap.Fix(p.worst, mt.worstIndex)
 }
 func (p *PendingPool) Len() int {
@@ -2394,6 +2397,10 @@ func (p *PendingPool) Remove(i *metaTx) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
+	p.RemoveNoLock(i)
+}
+
+func (p *PendingPool) RemoveNoLock(i *metaTx) {
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
