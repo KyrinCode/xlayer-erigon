@@ -75,7 +75,7 @@ func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexuti
 }
 
 func (api *APIImpl) worker() {
-	var txBatch []txRequest
+	var txBulk []txRequest
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigc)
@@ -87,24 +87,24 @@ func (api *APIImpl) worker() {
 		select {
 		case req, ok := <-api.txChan:
 			if !ok {
-				if len(txBatch) > 0 {
-					api.processBatch(txBatch)
+				if len(txBulk) > 0 {
+					api.processBatch(txBulk)
 				}
 				return
 			}
-			txBatch = append(txBatch, req)
-			if len(txBatch) >= api.BulkAddTxsSize {
-				api.processBatch(txBatch)
-				txBatch = nil
+			txBulk = append(txBulk, req)
+			if len(txBulk) >= api.BulkAddTxsSize {
+				api.processBatch(txBulk)
+				txBulk = nil
 				ticker.Reset(api.BulkAddTxsWaitTime)
 			}
 		case <-ticker.C:
-			if len(txBatch) > 0 {
-				err := api.processBatch(txBatch)
+			if len(txBulk) > 0 {
+				err := api.processBatch(txBulk)
 				if err != nil {
 					log.Error("process batch failed", "err", err)
 				}
-				txBatch = nil
+				txBulk = nil
 			}
 			ticker.Reset(api.BulkAddTxsWaitTime)
 		case <-sigc:
