@@ -2524,9 +2524,6 @@ func (p *PendingPool) IsFull() bool {
 	return len(p.best.ms) >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2563,8 +2560,6 @@ func (p *PendingPool) Add(i *metaTx) {
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
