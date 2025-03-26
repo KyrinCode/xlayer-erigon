@@ -2,6 +2,7 @@ package membatchwithdb
 
 import (
 	"bytes"
+
 	"github.com/ledgerwatch/erigon-lib/common"
 
 	"github.com/c2h5oh/datasize"
@@ -69,9 +70,9 @@ func NewMemoryBatchWithCustomDBWithCache(tx kv.Tx, db kv.RwDB, uTx kv.RwTx, tmpD
 
 // GetOne with cache support, returns cached value if available
 func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, error) {
-	if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
-		return nil, nil
-	}
+	// if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
+	// 	return nil, nil
+	// }
 
 	keyStr := string(key)
 	if keys, ok := m.cache[table]; ok {
@@ -98,6 +99,7 @@ func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, erro
 // Has with cache support
 func (m *MemoryMutationWithCache) Has(table string, key []byte) (bool, error) {
 	if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
+		panic("zjg, MemoryMutationWithCache-Has----1")
 		return false, nil
 	}
 

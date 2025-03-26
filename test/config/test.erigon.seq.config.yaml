@@ -24,10 +24,10 @@ zkevm.datastream-version: 2
 
 log.console.verbosity: info
 
-#zkevm.executor-urls: xlayer-executor:50071
-zkevm.executor-strict: false
+zkevm.executor-urls: xlayer-executor:50071
+zkevm.executor-strict: true
 zkevm.witness-full: false
-zkevm.executor-mock: true
+zkevm.executor-mock: false
 
 zkevm.sequencer-block-seal-time: "1s"
 zkevm.sequencer-batch-seal-time: "10s"
@@ -102,5 +102,5 @@ zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 5ms
 zkevm.pre-run-address-list: ["0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534"]
 zkevm.block-info-concurrent: true
-zkevm.standalone-smt-db: false  # true: enalbe split smt db, false: not split
-zkevm.enable-async-commit: false
+zkevm.standalone-smt-db: true  # true: enalbe split smt db, false: not split
+zkevm.enable-async-commit: true

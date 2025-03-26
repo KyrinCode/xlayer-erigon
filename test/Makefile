@@ -131,6 +131,7 @@ stop: ## Stops all services
 min-run: build-docker ## Runs a minimal node
 	$(RUN_DOCKER_L1_NETWORK)
 	$(RUN_DOCKER_POOL_DB)
+	$(RUN_DOCKER_STATELESS_EXECUTOR)
 	sleep 3
 	$(RUN_DOCKER_SEQ)
 	sleep 3

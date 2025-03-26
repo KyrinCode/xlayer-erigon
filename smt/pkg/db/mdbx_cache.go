@@ -22,7 +22,7 @@ type EriCacheDb struct {
 }
 
 func NewEriCacheDb(ctx context.Context, txsmt kv.Tx, txcdb kv.RwTx) *EriCacheDb {
-	batch := membatch.NewHashBatch(txsmt, ctx.Done(), "./tempdb", log.New())
+	batch := membatch.NewHashBatch(txsmt, ctx.Done(), "./tempdb-cache", log.New())
 	defer func() {
 		batch.Close()
 	}()
@@ -167,6 +167,7 @@ func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 }
 
 func (m *EriCacheDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
+	//log.Info("zjg, EriCacheDb-Insert----0", "key", fmt.Sprintf("%x", key), "value", len(value))
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
 
@@ -175,7 +176,7 @@ func (m *EriCacheDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
 
 	vConc := utils.ArrayToScalarBig(vals)
 	v := utils.ConvertBigIntToHex(vConc)
-
+	//log.Info("zjg, EriCacheDb-Insert----1", "key", fmt.Sprintf("%x", k), "value", len(v))
 	return m.cacheTx.Put(TableSmt, []byte(k), []byte(v))
 }
 
