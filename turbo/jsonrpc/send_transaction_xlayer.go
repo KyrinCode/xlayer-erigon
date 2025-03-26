@@ -88,21 +88,21 @@ func (api *APIImpl) worker() {
 		case req, ok := <-api.txChan:
 			if !ok {
 				if len(txBulk) > 0 {
-					api.processBatch(txBulk)
+					api.processBulk(txBulk)
 				}
 				return
 			}
 			txBulk = append(txBulk, req)
 			if len(txBulk) >= api.BulkAddTxsSize {
-				api.processBatch(txBulk)
+				api.processBulk(txBulk)
 				txBulk = nil
 				ticker.Reset(api.BulkAddTxsWaitTime)
 			}
 		case <-ticker.C:
 			if len(txBulk) > 0 {
-				err := api.processBatch(txBulk)
+				err := api.processBulk(txBulk)
 				if err != nil {
-					log.Error("process batch failed", "err", err)
+					log.Error("process bulk failed", "err", err)
 				}
 				txBulk = nil
 			}
@@ -113,7 +113,7 @@ func (api *APIImpl) worker() {
 	}
 }
 
-func (api *APIImpl) processBatch(batch []txRequest) error {
+func (api *APIImpl) processBulk(bulk []txRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -143,7 +143,7 @@ func (api *APIImpl) processBatch(batch []txRequest) error {
 	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
 
 	var rlpTxs [][]byte
-	for _, req := range batch {
+	for _, req := range bulk {
 		_, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
 		if err != nil {
 			log.Error("validateTransaction failed", "err", err)
@@ -218,7 +218,7 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 		return common.Hash{}, err
 	}
 	if badTxHashCounter >= api.BadTxAllowance {
-		return common.Hash{}, errors.New("transaction uses too many counters to fit into a batch")
+		return common.Hash{}, errors.New("transaction uses too many counters to fit into a bulk")
 	}
 
 	if len(api.PreRunList) > 0 && utils2.CheckAddressExists(api.PreRunList, sender) {
