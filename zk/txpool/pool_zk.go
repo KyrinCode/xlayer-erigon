@@ -346,8 +346,6 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 
 	cache := p._stateCache
 	toDelete := make([]*metaTx, 0)
-	p.lock.Lock()
-	defer p.lock.Unlock()
 
 	p.all.ascendAll(func(mt *metaTx) bool {
 		for _, id := range ids {
