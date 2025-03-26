@@ -46,11 +46,6 @@ type Timing struct {
 	took     time.Duration
 }
 
-// TruncateSmtCacheList delete all the block snapshot cache that is lower than the target blockHeight
-func (s *Sync) TruncateSmtCacheList(blockHeight uint64) {
-	s.cache.TruncateSmtCacheList(blockHeight)
-}
-
 func (s *Sync) GetCache() *smt.SmtCache {
 	return s.cache
 }
@@ -67,12 +62,12 @@ func (s *Sync) SetSmtCache(blockNumber uint64, longLivedCache, blockCache map[st
 	s.cache.SetSmtCache(blockNumber, longLivedCache, blockCache)
 }
 
-func (s *Sync) CachedBlockLen() int {
-	return s.cache.CachedBlockLen()
-}
-
 func (s *Sync) FlushSmtCache(batchPush bool) error {
 	return s.cache.FlushSmtCache(batchPush)
+}
+
+func (s *Sync) ResetCurrentBatchCache(blockNumber uint64) {
+	s.cache.ResetCurrentBatch(blockNumber)
 }
 
 func (s *Sync) Len() int {

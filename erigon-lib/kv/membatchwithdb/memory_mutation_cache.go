@@ -12,19 +12,21 @@ import (
 // MemoryMutationWithCache extends MemoryMutation with a caching layer
 type MemoryMutationWithCache struct {
 	*MemoryMutation
-	cache map[string]map[string][]byte // Cache for key-value pairs
+	cache       map[string]map[string][]byte // Read-only cache, passed externally
+	modifyCache map[string]map[string][]byte // Writable cache for modifications
 }
 
 // NewMemoryBatchWithCache creates a MemoryMutation with caching
 func NewMemoryBatchWithCache(tx kv.Tx, tmpDir string, logger log.Logger, cache map[string]map[string][]byte) *MemoryMutationWithCache {
 	base := NewMemoryBatch(tx, tmpDir, logger)
 	if cache == nil {
-		cache = make(map[string]map[string][]byte)
+		cache = make(map[string]map[string][]byte) // Ensure cache is never nil
 	}
 
 	return &MemoryMutationWithCache{
 		MemoryMutation: base,
 		cache:          cache,
+		modifyCache:    make(map[string]map[string][]byte), // Initialize modifyCache from scratch
 	}
 }
 
@@ -38,10 +40,11 @@ func NewMemoryBatchNoSequenceWithCache(tx kv.Tx, tmpDir string, logger log.Logge
 	return &MemoryMutationWithCache{
 		MemoryMutation: base,
 		cache:          cache,
+		modifyCache:    make(map[string]map[string][]byte),
 	}
 }
 
-// NewMemoryBatchWithSizeWithCache creates a cached version with custom size
+// NewMemoryBatchWithSizeNoSequenceWithCache creates a cached version with custom size
 func NewMemoryBatchWithSizeNoSequenceWithCache(tx kv.Tx, tmpDir string, mapSize datasize.ByteSize, cache map[string]map[string][]byte) *MemoryMutationWithCache {
 	base := NewMemoryBatchWithSizeNoSequence(tx, tmpDir, mapSize)
 	if cache == nil {
@@ -51,6 +54,7 @@ func NewMemoryBatchWithSizeNoSequenceWithCache(tx kv.Tx, tmpDir string, mapSize 
 	return &MemoryMutationWithCache{
 		MemoryMutation: base,
 		cache:          cache,
+		modifyCache:    make(map[string]map[string][]byte),
 	}
 }
 
@@ -64,50 +68,71 @@ func NewMemoryBatchWithCustomDBWithCache(tx kv.Tx, db kv.RwDB, uTx kv.RwTx, tmpD
 	return &MemoryMutationWithCache{
 		MemoryMutation: base,
 		cache:          cache,
+		modifyCache:    make(map[string]map[string][]byte),
 	}
 }
 
-// GetOne with cache support, returns cached value if available
+// GetOne with cache support, prioritizes modifyCache, then cache, then MemoryMutation
 func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, error) {
 	if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
 		return nil, nil
 	}
 
 	keyStr := string(key)
-	if keys, ok := m.cache[table]; ok {
-		if cachedVal, exists := keys[keyStr]; exists {
-			return cachedVal, nil // Directly return cached value
+
+	// 1. Check modifyCache first
+	if modKeys, ok := m.modifyCache[table]; ok {
+		if val, exists := modKeys[keyStr]; exists {
+			return val, nil
 		}
 	}
 
+	// 2. Check read-only cache
+	if keys, ok := m.cache[table]; ok {
+		if val, exists := keys[keyStr]; exists {
+			return val, nil
+		}
+	}
+
+	// 3. Fall back to MemoryMutation
 	c, err := m.statelessCursor(table)
 	if err != nil {
 		return nil, err
 	}
 	_, v, err := c.SeekExact(key)
 	if err == nil && v != nil {
-		if _, ok := m.cache[table]; !ok {
-			m.cache[table] = make(map[string][]byte)
+		// Store in modifyCache (not cache, as cache is read-only)
+		if _, ok := m.modifyCache[table]; !ok {
+			m.modifyCache[table] = make(map[string][]byte)
 		}
-		// Store a copy of the value in the cache
-		m.cache[table][keyStr] = common.Copy(v)
+		m.modifyCache[table][keyStr] = common.Copy(v)
 	}
 	return v, err
 }
 
-// Has with cache support
+// Has with cache support, prioritizes modifyCache, then cache, then MemoryMutation
 func (m *MemoryMutationWithCache) Has(table string, key []byte) (bool, error) {
 	if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
 		return false, nil
 	}
 
 	keyStr := string(key)
+
+	// 1. Check modifyCache first
+	if modKeys, ok := m.modifyCache[table]; ok {
+		if _, exists := modKeys[keyStr]; exists {
+			return true, nil
+		}
+	}
+
+	// 2. Check read-only cache
 	if keys, ok := m.cache[table]; ok {
 		if _, exists := keys[keyStr]; exists {
 			return true, nil
 		}
 	}
 
+	// 3. Fall back to MemoryMutation
 	c, err := m.statelessCursor(table)
 	if err != nil {
 		return false, err
@@ -118,77 +143,81 @@ func (m *MemoryMutationWithCache) Has(table string, key []byte) (bool, error) {
 	}
 	exists := bytes.Equal(key, k)
 	if exists {
-		if _, ok := m.cache[table]; !ok {
-			m.cache[table] = make(map[string][]byte)
+		// Store presence in modifyCache
+		if _, ok := m.modifyCache[table]; !ok {
+			m.modifyCache[table] = make(map[string][]byte)
 		}
-		// Cache presence only, value will be updated on GetOne
-		m.cache[table][keyStr] = nil
+		m.modifyCache[table][keyStr] = nil // Presence only, value updated on GetOne
 	}
 	return exists, nil
 }
 
-// Put with cache support
+// Put with cache support, writes to modifyCache only
 func (m *MemoryMutationWithCache) Put(table string, k, v []byte) error {
 	err := m.memTx.Put(table, k, v)
 	if err != nil {
 		return err
 	}
-	if _, ok := m.cache[table]; !ok {
-		m.cache[table] = make(map[string][]byte)
+	// Write to modifyCache only
+	if _, ok := m.modifyCache[table]; !ok {
+		m.modifyCache[table] = make(map[string][]byte)
 	}
-	// Store a copy of the value in the cache
-	m.cache[table][string(k)] = common.Copy(v)
+	m.modifyCache[table][string(k)] = common.Copy(v)
 	return nil
 }
 
-// Append with cache support
+// Append with cache support, writes to modifyCache only
 func (m *MemoryMutationWithCache) Append(table string, key []byte, value []byte) error {
 	err := m.memTx.Append(table, key, value)
 	if err != nil {
 		return err
 	}
-	if _, ok := m.cache[table]; !ok {
-		m.cache[table] = make(map[string][]byte)
+	// Write to modifyCache only
+	if _, ok := m.modifyCache[table]; !ok {
+		m.modifyCache[table] = make(map[string][]byte)
 	}
-	// Store a copy of the value in the cache
-	m.cache[table][string(key)] = common.Copy(value)
+	m.modifyCache[table][string(key)] = common.Copy(value)
 	return nil
 }
 
-// Delete with cache support
+// Delete with cache support, modifies modifyCache only
 func (m *MemoryMutationWithCache) Delete(table string, k []byte) error {
 	err := m.MemoryMutation.Delete(table, k)
 	if err != nil {
 		return err
 	}
-	if keys, ok := m.cache[table]; ok {
-		delete(keys, string(k))
+	// Update modifyCache only
+	if modKeys, ok := m.modifyCache[table]; ok {
+		delete(modKeys, string(k))
 	}
 	return nil
 }
 
-// Commit with cache support
+// Commit with cache support, clears modifyCache
 func (m *MemoryMutationWithCache) Commit() error {
 	err := m.MemoryMutation.Commit()
 	if err != nil {
 		return err
 	}
-	m.cache = make(map[string]map[string][]byte)
+	// Clear modifyCache, cache remains unchanged
+	m.modifyCache = make(map[string]map[string][]byte)
 	return nil
 }
 
-// Rollback with cache support
+// Rollback with cache support, clears modifyCache
 func (m *MemoryMutationWithCache) Rollback() {
 	m.MemoryMutation.Rollback()
-	m.cache = make(map[string]map[string][]byte)
+	// Clear modifyCache, cache remains unchanged
+	m.modifyCache = make(map[string]map[string][]byte)
 }
 
-// ClearBucket with cache support
+// ClearBucket with cache support, clears modifyCache entry
 func (m *MemoryMutationWithCache) ClearBucket(bucket string) error {
 	err := m.MemoryMutation.ClearBucket(bucket)
 	if err != nil {
 		return err
 	}
-	delete(m.cache, bucket)
+	// Clear from modifyCache only
+	delete(m.modifyCache, bucket)
 	return nil
 }

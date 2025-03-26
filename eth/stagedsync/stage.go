@@ -59,12 +59,12 @@ func (s *StageState) SetSmtCache(blockNumber uint64, longLivedSmtCache, blockCac
 	s.state.SetSmtCache(blockNumber, longLivedSmtCache, blockCache)
 }
 
-func (s *StageState) CachedBlockLen() int {
-	return s.state.CachedBlockLen()
-}
-
 func (s *StageState) FlushSmtCache(batchPush bool) error {
 	return s.state.FlushSmtCache(batchPush)
+}
+
+func (s *StageState) ResetCurrentBatchCache(blockNumber uint64) {
+	s.state.ResetCurrentBatchCache(blockNumber)
 }
 
 func (s *StageState) LogPrefix() string { return s.state.LogPrefix() }

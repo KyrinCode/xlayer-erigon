@@ -180,3 +180,53 @@ func (l *SmtCacheList) MaxBlockHeight() uint64 {
 
 	return l.maxHeight // Directly return cached length
 }
+
+// deleteTargetCache deletes the node with the specified BlockHeight
+func (l *SmtCacheList) deleteTargetCache(blockHeight uint64) bool {
+	l.mutex.Lock() // Exclusive lock for write operation
+	defer l.mutex.Unlock()
+
+	if l.head == nil {
+		return false
+	}
+
+	// Special case: delete the head node and all its parents
+	if l.head.BlcokHeight == blockHeight {
+		l.head = l.head.parentSnapshot // Delete the head node
+		l.length -= 1
+		return true
+	}
+
+	// Traverse to find and delete the node and its parents
+	current := l.head
+	for current.parentSnapshot != nil {
+		if current.parentSnapshot.BlcokHeight == blockHeight {
+			current.parentSnapshot = current.parentSnapshot.parentSnapshot // Delete the target node
+			l.length -= 1
+
+			return true
+		} else {
+			current = current.parentSnapshot
+		}
+	}
+
+	return false
+}
+
+func (l *SmtCacheList) getBlockList() []uint64 {
+	l.mutex.RLock() // Read lock for read-only operation
+	defer l.mutex.RUnlock()
+
+	if l.length == 0 {
+		return []uint64{}
+	}
+
+	blockNumberList := make([]uint64, l.length)
+	current := l.head
+	for current != nil {
+		blockNumberList = append(blockNumberList, current.BlcokHeight)
+		current = current.parentSnapshot
+	}
+
+	return blockNumberList
+}

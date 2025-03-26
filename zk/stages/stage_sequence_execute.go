@@ -96,6 +96,12 @@ func SpawnSequencingStage(
 
 		// enable split smt db
 		err = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase)
+	} else {
+		if !cfg.zk.XLayer.EnableAsyncCommit {
+			return err
+		}
+
+		//s.ResetCurrentBatchCache(s.BlockNumber)
 	}
 
 	return err

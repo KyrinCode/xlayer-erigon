@@ -27,9 +27,13 @@ func (h *Uint64MinHeap) Swap(i, j int) {
 	h.data[i], h.data[j] = h.data[j], h.data[i]
 }
 
-// Push adds an element to the heap (required by heap.Interface)
+// Push adds an element to the heap (required by heap.Interface), WARN: NEVER DIRECTLY USE IT
 func (h *Uint64MinHeap) Push(x interface{}) {
 	value := x.(uint64)
+	if _, exists := h.set[value]; exists {
+		return
+	}
+
 	h.data = append(h.data, value)
 	h.set[value] = struct{}{}
 }
@@ -39,7 +43,7 @@ func (h *Uint64MinHeap) Pop() interface{} {
 	n := len(h.data)
 	x := h.data[n-1] // Note: This removes the last element, but heap ensures it's the min value after adjustment
 	h.data = h.data[0 : n-1]
-	delete(h.set, x) // Clean up the set
+	//delete(h.set, x) // Clean up the set
 	return x
 }
 

@@ -49,6 +49,13 @@ func TestUint64MinHeap(t *testing.T) {
 		if h.Len() != 0 {
 			t.Errorf("Expected empty heap after pops, got size %d", h.Len())
 		}
+
+		h.ThreadSafePush(5) // already seen, will not accept it
+
+		// Check empty heap again
+		if h.Len() != 0 {
+			t.Errorf("Expected empty heap after pops, got size %d", h.Len())
+		}
 	})
 
 	// Test case 2: Concurrent operations

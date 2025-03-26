@@ -163,7 +163,7 @@ func (m *EriRoDb) GetLastHeight() (uint64, error) {
 		return 0, err
 	}
 
-	if data == nil {
+	if data == nil || len(data) == 0 {
 		return 0, nil
 	}
 
