@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -27,7 +30,7 @@ type txRequest struct {
 	encodedTx hexutility.Bytes
 }
 
-func (api *APIImpl) sendRawTransactionBatch(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
+func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
 	t := utils.StartTimer("rpc", "sendrawtransaction")
 	defer t.LogTimer()
 	tx, err := api.db.BeginRo(ctx)
@@ -73,6 +76,10 @@ func (api *APIImpl) sendRawTransactionBatch(ctx context.Context, encodedTx hexut
 
 func (api *APIImpl) worker() {
 	var txBatch []txRequest
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigc)
+
 	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
@@ -100,6 +107,8 @@ func (api *APIImpl) worker() {
 				txBatch = nil
 			}
 			ticker.Reset(api.BulkAddTxsWaitTime)
+		case <-sigc:
+			return
 		}
 	}
 }

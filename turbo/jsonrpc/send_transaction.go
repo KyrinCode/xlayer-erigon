@@ -24,7 +24,7 @@ func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility
 	if !api.BulkAddTxs {
 		return api.sendRawTransactionSingle(ctx, encodedTx)
 	}
-	return api.sendRawTransactionBatch(ctx, encodedTx)
+	return api.sendRawTransactionBulk(ctx, encodedTx)
 }
 
 func (api *APIImpl) sendRawTransactionSingle(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
