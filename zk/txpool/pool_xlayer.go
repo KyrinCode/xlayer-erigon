@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"fmt"
 	"math/big"
-	"sort"
 	"strings"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -13,6 +12,7 @@ import (
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/zkevm/hex"
 	"github.com/ledgerwatch/log/v3"
+	"github.com/psilva261/timsort/v2"
 )
 
 // free gas tx type
@@ -210,5 +210,5 @@ func (p *PendingPool) BulkAdd(mts []*metaTx) {
 		p.best.UnsafeAdd(mt)
 	}
 
-	sort.Sort(p.best)
+	timsort.TimSort(p.best)
 }
