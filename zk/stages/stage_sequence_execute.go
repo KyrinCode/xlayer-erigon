@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +33,9 @@ var shouldCheckForExecutionAndDataStreamAlignment = true
 var externalDataStreamServerCreated = false
 
 var supportAC = true
+
+var requireTxPoolLock atomic.Bool
+var once sync.Once
 
 func SpawnSequencingStage(
 	s *stagedsync.StageState,
@@ -92,6 +96,20 @@ func SpawnSequencingStage(
 		return nil
 	}
 
+	once.Do(
+		func() {
+			go func(requireTxPoolLock *atomic.Bool) {
+				for {
+					time.Sleep(5 * time.Millisecond)
+					if requireTxPoolLock.Load() {
+						continue
+					}
+					cfg.txPool.NotifySync()
+				}
+			}(&requireTxPoolLock)
+		},
+	)
+
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
 		if !supportAC {
 			return err
@@ -122,18 +140,6 @@ func sequencingBatchStep(
 		log.Info(fmt.Sprintf("[%s] Finished sequencing stage", logPrefix))
 		metrics.GetLogStatistics().Summary()
 	}()
-
-	var requireTxPoolLock atomic.Bool
-
-	go func(requireTxPoolLock *atomic.Bool) {
-		for {
-			time.Sleep(5 * time.Millisecond)
-			if requireTxPoolLock.Load() {
-				continue
-			}
-			cfg.txPool.NotifySync()
-		}
-	}(&requireTxPoolLock)
 
 	// For X Layer metrics
 	//log.Info("[PoolTxCount] Starting Getting Pending Tx Count")
@@ -905,7 +911,7 @@ func sequencingBatchStep(
 		if err := cfg.doneHook.AfterRun(batchContext.sdb.tx, block.NumberU64()-1, s.PrevUnwindPoint()); err != nil {
 			return err
 		}
-		
+
 		// For X Layer
 		metrics.GetLogStatistics().SetTag(metrics.FinalizeBlockNumber, strconv.Itoa(int(blockNumber)))
 		metrics.GetLogStatistics().SummaryCheckpoint()

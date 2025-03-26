@@ -74,8 +74,6 @@ func (api *APIImpl) sendRawTransactionBatch(ctx context.Context, encodedTx hexut
 
 func (api *APIImpl) worker() {
 	var txBatch []txRequest
-	//ticker := time.NewTicker(batchTimeout)
-	//defer ticker.Stop()
 	txBatchMtx := new(sync.Mutex)
 	go func() {
 		for req := range api.txChan {
@@ -85,54 +83,18 @@ func (api *APIImpl) worker() {
 		}
 	}()
 
-	for {
-		select {
-		//case req, ok := <-api.txChan:
-		//	if !ok {
-		//		if len(txBatch) > 0 {
-		//			api.processBatch(txBatch)
-		//		}
-		//		return
-		//	}
-		//	txBatch = append(txBatch, req)
-		case <-api.notifyChan:
-			var txBatchToProcess []txRequest
-			txBatchMtx.Lock()
-			if len(txBatch) > 0 {
-				txBatchToProcess, txBatch = txBatch, nil
-			}
-			txBatchMtx.Unlock()
-			if len(txBatchToProcess) > 0 {
-				api.processBatch(txBatchToProcess)
-				//txBatch = nil
-				//ticker.Reset(batchTimeout)
-			}
-			//case <-ticker.C:
-			//	if len(txBatch) > 0 {
-			//		log.Info("process batch", "len", len(txBatch))
-			//		err := api.processBatch(txBatch)
-			//		if err != nil {
-			//			log.Error("process batch failed", "err", err)
-			//		}
-			//		txBatch = nil
-			//	}
-			//	ticker.Reset(batchTimeout)
+	for range api.notifyChan {
+		var txBatchToProcess []txRequest
+		txBatchMtx.Lock()
+		if len(txBatch) > 0 {
+			txBatchToProcess, txBatch = txBatch, nil
 		}
-		// if len(txBatch) >= batchSize {
-		// 	api.processBatch(txBatch)
-		// 	txBatch = nil
-		// 	ticker.Reset(batchTimeout)
-		// }
-		// case <-ticker.C:
-		// 	if len(txBatch) > 0 {
-		// 		err := api.processBatch(txBatch)
-		// 		if err != nil {
-		// 			log.Error("process batch failed", "err", err)
-		// 		}
-		// 		txBatch = nil
-		// 	}
-		// 	ticker.Reset(batchTimeout)
+		txBatchMtx.Unlock()
+		if len(txBatchToProcess) > 0 {
+			api.processBatch(txBatchToProcess)
+		}
 	}
+
 }
 
 func (api *APIImpl) processBatch(batch []txRequest) error {
