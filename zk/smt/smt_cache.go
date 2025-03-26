@@ -104,23 +104,59 @@ func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) m
 	defer cache.PreBatchImageLock.RUnlock()
 
 	result := make(map[string]map[string][]byte, len(cache.PreBatchSnapshotImage))
-	for table, bucket := range cache.PreBatchSnapshotImage {
-		if _, exist := result[table]; !exist {
-			result[table] = make(map[string][]byte, len(bucket)*2)
-		}
-		for k, v := range bucket {
-			result[table][k] = v
-		}
-	}
 
-	for table, bucket := range cacheData {
-		if _, exist := result[table]; !exist {
-			result[table] = make(map[string][]byte, len(bucket))
-		}
-		for k, v := range bucket {
-			result[table][k] = v
-		}
+	// Use a wait group to synchronize goroutines
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// First process PreBatchSnapshotImage
+	for table, bucket := range cache.PreBatchSnapshotImage {
+		wg.Add(1)
+		go func(table string, bucket map[string][]byte) {
+			defer wg.Done()
+
+			// Create the inner map with appropriate size
+			innerMap := make(map[string][]byte, len(bucket)*2)
+			for k, v := range bucket {
+				if v != nil && len(v) > 0 {
+					innerMap[k] = v
+				}
+			}
+
+			mu.Lock()
+			result[table] = innerMap
+			mu.Unlock()
+		}(table, bucket)
 	}
+	wg.Wait() // Wait for all PreBatchSnapshotImage copies to complete
+
+	// Then process cacheData
+	for table, bucket := range cacheData {
+		wg.Add(1)
+		go func(table string, bucket map[string][]byte) {
+			defer wg.Done()
+
+			mu.Lock()
+			innerMap, exists := result[table]
+			if !exists {
+				innerMap = make(map[string][]byte, len(bucket))
+				result[table] = innerMap
+			}
+			mu.Unlock()
+
+			var tableMu sync.Mutex
+			tableMu.Lock()
+			for k, v := range bucket {
+				if v != nil && len(v) > 0 {
+					innerMap[k] = v
+				} else {
+					delete(innerMap, k) // the latest value is empty, means that this key has been deleted from cache
+				}
+			}
+			tableMu.Unlock()
+		}(table, bucket)
+	}
+	wg.Wait()
 
 	return result
 }
@@ -190,7 +226,7 @@ func (cache *SmtCache) FlushSmtCache(batchPush bool) error {
 		return err
 	}
 
-	if height-cache.LastResetHeight > 100 {
+	if height-cache.LastResetHeight > 1000 {
 		cache.SmtCacheSnapshotLock.RLock()
 		deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(true)
 		cache.SmtCacheSnapshotLock.RUnlock()
@@ -204,7 +240,7 @@ func (cache *SmtCache) FlushSmtCache(batchPush bool) error {
 		cache.LastResetHeight = height
 	}
 
-	if batchPush && (height-cache.LastPushedHeight < 20) {
+	if batchPush && (height-cache.LastPushedHeight < 100) {
 		return nil
 	}
 

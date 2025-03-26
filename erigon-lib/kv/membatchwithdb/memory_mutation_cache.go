@@ -221,3 +221,8 @@ func (m *MemoryMutationWithCache) ClearBucket(bucket string) error {
 	delete(m.modifyCache, bucket)
 	return nil
 }
+
+func (m *MemoryMutationWithCache) ResetDeleteInfo() {
+	m.MemoryMutation.deletedEntries = map[string]map[string]struct{}{}
+	m.MemoryMutation.clearedTables = map[string]struct{}{}
+}
