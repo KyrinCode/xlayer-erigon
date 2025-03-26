@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -121,6 +122,18 @@ func sequencingBatchStep(
 		log.Info(fmt.Sprintf("[%s] Finished sequencing stage", logPrefix))
 		metrics.GetLogStatistics().Summary()
 	}()
+
+	var requireTxPoolLock atomic.Bool
+
+	go func(requireTxPoolLock *atomic.Bool) {
+		for {
+			time.Sleep(5 * time.Millisecond)
+			if requireTxPoolLock.Load() {
+				continue
+			}
+			cfg.txPool.NotifySync()
+		}
+	}(&requireTxPoolLock)
 
 	// For X Layer metrics
 	//log.Info("[PoolTxCount] Starting Getting Pending Tx Count")
@@ -440,6 +453,8 @@ func sequencingBatchStep(
 			default:
 			}
 
+			requireTxPoolLock.Swap(true)
+
 			getTxTime := time.Now()
 			if batchState.isLimboRecovery() {
 				batchState.blockState.transactionsForInclusion, err = getLimboTransaction(ctx, cfg, batchState.limboRecoveryData.limboTxHash, executionAt)
@@ -487,6 +502,8 @@ func sequencingBatchStep(
 				}
 			}
 
+			requireTxPoolLock.Swap(false)
+
 			if len(batchState.blockState.transactionsForInclusion) == 0 {
 				pauseTime := time.Now()
 				time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
@@ -499,7 +516,7 @@ func sequencingBatchStep(
 			badTxHashes := make([]common.Hash, 0)
 			minedTxHashes := make([]common.Hash, 0)
 
-			cfg.txPool.Notify()
+			//cfg.txPool.Notify()
 		InnerLoopTransactions:
 			for i, transaction := range batchState.blockState.transactionsForInclusion {
 				// quick check if we should stop handling transactions
@@ -793,6 +810,8 @@ func sequencingBatchStep(
 			return fmt.Errorf("[%s] %w: %s = %s", s.LogPrefix(), zk.ErrLimboState, batchState.limboRecoveryData.limboTxHash.Hex(), stateRoot.Hex())
 		}
 
+		requireTxPoolLock.Swap(true)
+
 		if !batchState.isL1Recovery() {
 			commitTime := time.Now()
 			// commit block data here so it is accessible in other threads
@@ -815,7 +834,9 @@ func sequencingBatchStep(
 			return err
 		}
 
-		cfg.txPool.Notify()
+		requireTxPoolLock.Swap(false)
+
+		//cfg.txPool.Notify()
 
 		t.LogTimer()
 		gasPerSecond := float64(0)
