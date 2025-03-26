@@ -1,7 +1,10 @@
 package txpool
 
 import (
+	"container/heap"
+	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -9,6 +12,7 @@ import (
 	ecommon "github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/zkevm/hex"
+	"github.com/ledgerwatch/log/v3"
 )
 
 // free gas tx type
@@ -191,4 +195,20 @@ func (p *TxPool) setFreeGasList(freeGasList []ethconfig.FreeGasInfo) {
 		infoCopy := info
 		p.xlayerCfg.FreeGasList[info.Name] = &infoCopy
 	}
+}
+
+func (p *PendingPool) BulkAdd(mts []*metaTx) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	for _, mt := range mts {
+		if mt.Tx.Traced {
+			log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, mt.Tx.IDHash, mt.Tx.SenderID))
+		}
+		mt.currentSubPool = p.t
+		heap.Push(p.worst, mt)
+		p.best.UnsafeAdd(mt)
+	}
+
+	sort.Sort(p.best)
 }

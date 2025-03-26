@@ -103,6 +103,11 @@ var (
 		Name:  "txpool.freegaslist",
 		Usage: "FreeGasList Project in JSON Format",
 	}
+	TxPoolAutoSortBest = cli.BoolFlag{
+		Name:  "txpool.autosortbest",
+		Usage: "Enable txs sort when best is changed",
+		Value: false,
+	}
 	// Gas Pricer
 	GpoTypeFlag = cli.StringFlag{
 		Name:  "gpo.type",
