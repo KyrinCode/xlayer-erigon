@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	ecommon "github.com/ledgerwatch/erigon/common"
 	"strings"
 	"sync"
+
+	ecommon "github.com/ledgerwatch/erigon/common"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/holiman/uint256"

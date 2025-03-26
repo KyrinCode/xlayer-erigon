@@ -746,8 +746,8 @@ func (p *TxPool) AddNewGoodPeer(peerID types.PeerID) { p.recentlyConnectedPeers.
 func (p *TxPool) Started() bool                      { return p.started.Load() }
 
 func (p *TxPool) ResetYieldedStatus() {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	p.pending.mu.Lock()
+	defer p.pending.mu.Unlock()
 	best := p.pending.best
 	for i := 0; i < len(best.ms); i++ {
 		best.ms[i].alreadyYielded = false
@@ -2524,6 +2524,9 @@ func (p *PendingPool) IsFull() bool {
 	return len(p.best.ms) >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2560,6 +2563,9 @@ func (p *PendingPool) Add(i *metaTx) {
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
