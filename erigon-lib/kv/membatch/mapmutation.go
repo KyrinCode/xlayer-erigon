@@ -79,13 +79,10 @@ func NewHashBatchWithCache(tx kv.Tx, quit <-chan struct{}, tmpdir string, logger
 func (m *Mapmutation) getMem(table string, key []byte) ([]byte, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var putsTable map[string][]byte
-	var ok bool
-	if putsTable, ok = m.puts[table]; !ok {
-		return nil, false
-	}
-	if value, ok := putsTable[*(*string)(unsafe.Pointer(&key))]; ok {
-		return value, ok
+	if ptm, ok := m.puts[table]; ok {
+		if value, ok := ptm[*(*string)(unsafe.Pointer(&key))]; ok {
+			return value, ok
+		}
 	}
 
 	return nil, false
