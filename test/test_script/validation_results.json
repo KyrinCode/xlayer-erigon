@@ -1,0 +1,812 @@
+[
+  {
+    "index": 1,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 109,
+    "timestamp": "2025-03-26T03:47:37.700Z",
+    "beforePool": {
+      "pendingCount": 833726,
+      "queuedCount": 92522,
+      "totalCount": 926248,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 2,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 110,
+    "timestamp": "2025-03-26T03:47:37.701Z",
+    "beforePool": {
+      "pendingCount": 833726,
+      "queuedCount": 92522,
+      "totalCount": 926248,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 3,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 111,
+    "timestamp": "2025-03-26T03:47:37.702Z",
+    "beforePool": {
+      "pendingCount": 833726,
+      "queuedCount": 92522,
+      "totalCount": 926248,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 4,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 112,
+    "timestamp": "2025-03-26T04:00:14.623Z",
+    "beforePool": {
+      "pendingCount": 847079,
+      "queuedCount": 52688,
+      "totalCount": 899767,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 5,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 113,
+    "timestamp": "2025-03-26T04:00:14.623Z",
+    "beforePool": {
+      "pendingCount": 847079,
+      "queuedCount": 52688,
+      "totalCount": 899767,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 6,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 114,
+    "timestamp": "2025-03-26T04:00:14.624Z",
+    "beforePool": {
+      "pendingCount": 847079,
+      "queuedCount": 52688,
+      "totalCount": 899767,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 7,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 115,
+    "timestamp": "2025-03-26T04:00:20.101Z",
+    "beforePool": {
+      "pendingCount": 846847,
+      "queuedCount": 52688,
+      "totalCount": 899535,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 8,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 116,
+    "timestamp": "2025-03-26T04:00:20.101Z",
+    "beforePool": {
+      "pendingCount": 846847,
+      "queuedCount": 52688,
+      "totalCount": 899535,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 9,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 117,
+    "timestamp": "2025-03-26T04:00:20.101Z",
+    "beforePool": {
+      "pendingCount": 846847,
+      "queuedCount": 52688,
+      "totalCount": 899535,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 10,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 118,
+    "timestamp": "2025-03-26T04:12:59.251Z",
+    "beforePool": {
+      "pendingCount": 785438,
+      "queuedCount": 52688,
+      "totalCount": 838126,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 11,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 119,
+    "timestamp": "2025-03-26T04:12:59.252Z",
+    "beforePool": {
+      "pendingCount": 785438,
+      "queuedCount": 52688,
+      "totalCount": 838126,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 12,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 120,
+    "timestamp": "2025-03-26T04:12:59.252Z",
+    "beforePool": {
+      "pendingCount": 785438,
+      "queuedCount": 52688,
+      "totalCount": 838126,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 13,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 121,
+    "timestamp": "2025-03-26T04:13:04.398Z",
+    "beforePool": {
+      "pendingCount": 784814,
+      "queuedCount": 52688,
+      "totalCount": 837502,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 14,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 122,
+    "timestamp": "2025-03-26T04:13:04.399Z",
+    "beforePool": {
+      "pendingCount": 784814,
+      "queuedCount": 52688,
+      "totalCount": 837502,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 15,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 123,
+    "timestamp": "2025-03-26T04:13:04.399Z",
+    "beforePool": {
+      "pendingCount": 784814,
+      "queuedCount": 52688,
+      "totalCount": 837502,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 16,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 124,
+    "timestamp": "2025-03-26T04:13:09.491Z",
+    "beforePool": {
+      "pendingCount": 784558,
+      "queuedCount": 52688,
+      "totalCount": 837246,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 17,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 125,
+    "timestamp": "2025-03-26T04:13:09.491Z",
+    "beforePool": {
+      "pendingCount": 784558,
+      "queuedCount": 52688,
+      "totalCount": 837246,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 18,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 126,
+    "timestamp": "2025-03-26T04:13:09.492Z",
+    "beforePool": {
+      "pendingCount": 784558,
+      "queuedCount": 52688,
+      "totalCount": 837246,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 19,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 127,
+    "timestamp": "2025-03-26T04:13:15.389Z",
+    "beforePool": {
+      "pendingCount": 784182,
+      "queuedCount": 52688,
+      "totalCount": 836870,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Failed to check for transaction receipt:\n{\n  \"code\": \"ECONNRESET\"\n}"
+  },
+  {
+    "index": 20,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 128,
+    "timestamp": "2025-03-26T04:13:15.389Z",
+    "beforePool": {
+      "pendingCount": 784182,
+      "queuedCount": 52688,
+      "totalCount": 836870,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 21,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 129,
+    "timestamp": "2025-03-26T04:13:15.389Z",
+    "beforePool": {
+      "pendingCount": 784182,
+      "queuedCount": 52688,
+      "totalCount": 836870,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 22,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 130,
+    "timestamp": "2025-03-26T04:25:52.255Z",
+    "beforePool": {
+      "pendingCount": 719603,
+      "queuedCount": 52688,
+      "totalCount": 772291,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 23,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 131,
+    "timestamp": "2025-03-26T04:25:52.271Z",
+    "beforePool": {
+      "pendingCount": 719603,
+      "queuedCount": 52688,
+      "totalCount": 772291,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 24,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 132,
+    "timestamp": "2025-03-26T04:25:52.279Z",
+    "beforePool": {
+      "pendingCount": 719603,
+      "queuedCount": 52688,
+      "totalCount": 772291,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 25,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 133,
+    "timestamp": "2025-03-26T04:25:57.467Z",
+    "beforePool": {
+      "pendingCount": 718298,
+      "queuedCount": 52688,
+      "totalCount": 770986,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 26,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 134,
+    "timestamp": "2025-03-26T04:25:57.468Z",
+    "beforePool": {
+      "pendingCount": 718298,
+      "queuedCount": 52688,
+      "totalCount": 770986,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 27,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 135,
+    "timestamp": "2025-03-26T04:25:57.468Z",
+    "beforePool": {
+      "pendingCount": 718298,
+      "queuedCount": 52688,
+      "totalCount": 770986,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 28,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 136,
+    "timestamp": "2025-03-26T04:26:02.653Z",
+    "beforePool": {
+      "pendingCount": 717648,
+      "queuedCount": 52688,
+      "totalCount": 770336,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 29,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 137,
+    "timestamp": "2025-03-26T04:26:02.653Z",
+    "beforePool": {
+      "pendingCount": 717648,
+      "queuedCount": 52688,
+      "totalCount": 770336,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 30,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 138,
+    "timestamp": "2025-03-26T04:26:02.653Z",
+    "beforePool": {
+      "pendingCount": 717648,
+      "queuedCount": 52688,
+      "totalCount": 770336,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 31,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 139,
+    "timestamp": "2025-03-26T04:26:08.829Z",
+    "beforePool": {
+      "pendingCount": 717423,
+      "queuedCount": 52688,
+      "totalCount": 770111,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 32,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 140,
+    "timestamp": "2025-03-26T04:26:08.829Z",
+    "beforePool": {
+      "pendingCount": 717423,
+      "queuedCount": 52688,
+      "totalCount": 770111,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 33,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 141,
+    "timestamp": "2025-03-26T04:26:08.829Z",
+    "beforePool": {
+      "pendingCount": 717423,
+      "queuedCount": 52688,
+      "totalCount": 770111,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 34,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 142,
+    "timestamp": "2025-03-26T04:26:16.222Z",
+    "beforePool": {
+      "pendingCount": 717293,
+      "queuedCount": 52688,
+      "totalCount": 769981,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 35,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 143,
+    "timestamp": "2025-03-26T04:26:16.223Z",
+    "beforePool": {
+      "pendingCount": 717293,
+      "queuedCount": 52688,
+      "totalCount": 769981,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 36,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 144,
+    "timestamp": "2025-03-26T04:26:16.223Z",
+    "beforePool": {
+      "pendingCount": 717293,
+      "queuedCount": 52688,
+      "totalCount": 769981,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 37,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 145,
+    "timestamp": "2025-03-26T04:26:21.388Z",
+    "beforePool": {
+      "pendingCount": 716213,
+      "queuedCount": 52688,
+      "totalCount": 768901,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 38,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 146,
+    "timestamp": "2025-03-26T04:26:21.389Z",
+    "beforePool": {
+      "pendingCount": 716213,
+      "queuedCount": 52688,
+      "totalCount": 768901,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 39,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 147,
+    "timestamp": "2025-03-26T04:26:21.389Z",
+    "beforePool": {
+      "pendingCount": 716213,
+      "queuedCount": 52688,
+      "totalCount": 768901,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 40,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 148,
+    "timestamp": "2025-03-26T04:26:28.266Z",
+    "beforePool": {
+      "pendingCount": 715877,
+      "queuedCount": 52688,
+      "totalCount": 768565,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 41,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 149,
+    "timestamp": "2025-03-26T04:26:28.267Z",
+    "beforePool": {
+      "pendingCount": 715877,
+      "queuedCount": 52688,
+      "totalCount": 768565,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 42,
+    "gasPriceMultiplier": 0.5,
+    "category": "low",
+    "nonce": 150,
+    "timestamp": "2025-03-26T04:26:28.267Z",
+    "beforePool": {
+      "pendingCount": 715877,
+      "queuedCount": 52688,
+      "totalCount": 768565,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 43,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 151,
+    "timestamp": "2025-03-26T04:26:33.436Z",
+    "beforePool": {
+      "pendingCount": 715094,
+      "queuedCount": 52688,
+      "totalCount": 767782,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 44,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 152,
+    "timestamp": "2025-03-26T04:26:33.437Z",
+    "beforePool": {
+      "pendingCount": 715094,
+      "queuedCount": 52688,
+      "totalCount": 767782,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 45,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 153,
+    "timestamp": "2025-03-26T04:26:33.437Z",
+    "beforePool": {
+      "pendingCount": 715094,
+      "queuedCount": 52688,
+      "totalCount": 767782,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 46,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 154,
+    "timestamp": "2025-03-26T04:26:38.528Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 47,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 155,
+    "timestamp": "2025-03-26T04:26:38.528Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 48,
+    "gasPriceMultiplier": 0.75,
+    "category": "low",
+    "nonce": 156,
+    "timestamp": "2025-03-26T04:26:38.528Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 49,
+    "gasPriceMultiplier": 5,
+    "category": "high",
+    "nonce": 157,
+    "timestamp": "2025-03-26T04:26:43.982Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 50,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 158,
+    "timestamp": "2025-03-26T04:26:43.982Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 51,
+    "gasPriceMultiplier": 10,
+    "category": "high",
+    "nonce": 159,
+    "timestamp": "2025-03-26T04:26:43.982Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Returned error: RPC error response: INTERNAL_ERROR: nonce too low"
+  },
+  {
+    "index": 52,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 160,
+    "timestamp": "2025-03-26T04:26:49.066Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 53,
+    "gasPriceMultiplier": 15,
+    "category": "high",
+    "nonce": 161,
+    "timestamp": "2025-03-26T04:26:49.068Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  },
+  {
+    "index": 54,
+    "gasPriceMultiplier": 1,
+    "category": "low",
+    "nonce": 162,
+    "timestamp": "2025-03-26T04:26:49.068Z",
+    "beforePool": {
+      "pendingCount": 714544,
+      "queuedCount": 52688,
+      "totalCount": 767232,
+      "gasPrice": "500000000000"
+    },
+    "status": "failed",
+    "error": "Transaction was not mined within 750 seconds, please make sure your transaction was properly sent. Be aware that it might still be mined!"
+  }
+]

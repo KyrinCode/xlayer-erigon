@@ -1,0 +1,762 @@
+[
+  {
+    "index": 1,
+    "gasPriceMultiplier": 0.5,
+    "timestamp": "2025-03-26T09:28:38.911Z",
+    "beforePool": {
+      "pendingCount": 590846,
+      "queuedCount": 348052,
+      "totalCount": 938898,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 591176,
+      "queuedCount": 347730,
+      "totalCount": 938906,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 849580,
+      "queuedCount": 92522,
+      "totalCount": 942102,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981333,
+      "transactionCount": 809,
+      "blockNumber": 10051
+    },
+    "transactionDetails": {
+      "blockNumber": 10051,
+      "gasPrice": "250000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 24045,
+    "status": "confirmed",
+    "transactionHash": "0x64cc6fd77654d3adc652eacec27a9c7fa2282b672474472e47fbe071bb5ff749",
+    "hashGenerationTime": 3
+  },
+  {
+    "index": 2,
+    "gasPriceMultiplier": 0.75,
+    "timestamp": "2025-03-26T09:29:14.627Z",
+    "beforePool": {
+      "pendingCount": 849580,
+      "queuedCount": 92522,
+      "totalCount": 942102,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 849581,
+      "queuedCount": 92522,
+      "totalCount": 942103,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 846243,
+      "queuedCount": 92522,
+      "totalCount": 938765,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981374,
+      "transactionCount": 1479,
+      "blockNumber": 10054
+    },
+    "transactionDetails": {
+      "blockNumber": 10054,
+      "gasPrice": "375000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 27043,
+    "status": "confirmed",
+    "transactionHash": "0xc650ecb4fb86291268409a61b25ed381b783506b8df755b235587ba9d05d5fe1",
+    "hashGenerationTime": 10
+  },
+  {
+    "index": 3,
+    "gasPriceMultiplier": 1,
+    "timestamp": "2025-03-26T09:29:50.091Z",
+    "beforePool": {
+      "pendingCount": 845563,
+      "queuedCount": 92522,
+      "totalCount": 938085,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 845564,
+      "queuedCount": 92522,
+      "totalCount": 938086,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 844044,
+      "queuedCount": 92522,
+      "totalCount": 936566,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981396,
+      "transactionCount": 1520,
+      "blockNumber": 10056
+    },
+    "transactionDetails": {
+      "blockNumber": 10056,
+      "gasPrice": "500000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 5023,
+    "status": "confirmed",
+    "transactionHash": "0xf2c1a7d25cc334c1786e578ba325ae824c2a5c3279c2dc8ca45a873e3b1bfacd",
+    "hashGenerationTime": 8
+  },
+  {
+    "index": 4,
+    "gasPriceMultiplier": 1.25,
+    "timestamp": "2025-03-26T09:30:08.425Z",
+    "beforePool": {
+      "pendingCount": 843776,
+      "queuedCount": 92522,
+      "totalCount": 936298,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 843777,
+      "queuedCount": 92522,
+      "totalCount": 936299,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 841910,
+      "queuedCount": 92522,
+      "totalCount": 934432,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981430,
+      "transactionCount": 1280,
+      "blockNumber": 10059
+    },
+    "transactionDetails": {
+      "blockNumber": 10059,
+      "gasPrice": "625000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 30047,
+    "status": "confirmed",
+    "transactionHash": "0x6675dcff069b90e36ccf5912b3dc3c816c16123a15e6f821fbf83f2b22b5c4ae",
+    "hashGenerationTime": 5
+  },
+  {
+    "index": 5,
+    "gasPriceMultiplier": 1.5,
+    "timestamp": "2025-03-26T09:30:49.781Z",
+    "beforePool": {
+      "pendingCount": 841900,
+      "queuedCount": 92522,
+      "totalCount": 934422,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 841901,
+      "queuedCount": 92522,
+      "totalCount": 934423,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 841851,
+      "queuedCount": 92522,
+      "totalCount": 934373,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981453,
+      "transactionCount": 50,
+      "blockNumber": 10061
+    },
+    "transactionDetails": {
+      "blockNumber": 10061,
+      "gasPrice": "750000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 5013,
+    "status": "confirmed",
+    "transactionHash": "0x5ef059cab80a361c3aee2f6c47aea8e320ce8b4afb1b9512a932d6e3f1da7e86",
+    "hashGenerationTime": 3
+  },
+  {
+    "index": 6,
+    "gasPriceMultiplier": 1.75,
+    "timestamp": "2025-03-26T09:31:02.512Z",
+    "beforePool": {
+      "pendingCount": 841643,
+      "queuedCount": 92522,
+      "totalCount": 934165,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 841644,
+      "queuedCount": 92522,
+      "totalCount": 934166,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 838487,
+      "queuedCount": 92522,
+      "totalCount": 931009,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981496,
+      "transactionCount": 1588,
+      "blockNumber": 10065
+    },
+    "transactionDetails": {
+      "blockNumber": 10065,
+      "gasPrice": "875000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 44054,
+    "status": "confirmed",
+    "transactionHash": "0xf027100da55dc9f92d32295f88ef61fa876db2735ceff1a5f995a2a444aad104",
+    "hashGenerationTime": 9
+  },
+  {
+    "index": 7,
+    "gasPriceMultiplier": 2,
+    "timestamp": "2025-03-26T09:31:56.202Z",
+    "beforePool": {
+      "pendingCount": 838487,
+      "queuedCount": 92522,
+      "totalCount": 931009,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 838488,
+      "queuedCount": 92522,
+      "totalCount": 931010,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 838311,
+      "queuedCount": 92522,
+      "totalCount": 930833,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981522,
+      "transactionCount": 78,
+      "blockNumber": 10067
+    },
+    "transactionDetails": {
+      "blockNumber": 10067,
+      "gasPrice": "1000000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 11019,
+    "status": "confirmed",
+    "transactionHash": "0x2b7d6837f1e18f49ef96ff1942380445db9eb13cfaac7e61813ce7407fd3b851",
+    "hashGenerationTime": 4
+  },
+  {
+    "index": 8,
+    "gasPriceMultiplier": 3,
+    "timestamp": "2025-03-26T09:32:13.064Z",
+    "beforePool": {
+      "pendingCount": 836563,
+      "queuedCount": 92522,
+      "totalCount": 929085,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 836564,
+      "queuedCount": 92522,
+      "totalCount": 929086,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 834813,
+      "queuedCount": 92522,
+      "totalCount": 927335,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981552,
+      "transactionCount": 1443,
+      "blockNumber": 10071
+    },
+    "transactionDetails": {
+      "blockNumber": 10071,
+      "gasPrice": "1500000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 20040,
+    "status": "confirmed",
+    "transactionHash": "0x1c75149377948174d4aa6e58e9345b698ad8cfed1019bd5043e8f498dcdc0e31",
+    "hashGenerationTime": 7
+  },
+  {
+    "index": 9,
+    "gasPriceMultiplier": 4,
+    "timestamp": "2025-03-26T09:32:45.342Z",
+    "beforePool": {
+      "pendingCount": 834467,
+      "queuedCount": 92522,
+      "totalCount": 926989,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 834468,
+      "queuedCount": 92522,
+      "totalCount": 926990,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 834467,
+      "queuedCount": 92522,
+      "totalCount": 926989,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981570,
+      "transactionCount": 1,
+      "blockNumber": 10073
+    },
+    "transactionDetails": {
+      "blockNumber": 10073,
+      "gasPrice": "2000000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 2034,
+    "status": "confirmed",
+    "transactionHash": "0xbdfb8cce084e001547f83259aac31b2c2e1a589cd069b6fd02cd8a44a802cd20",
+    "hashGenerationTime": 15
+  },
+  {
+    "index": 10,
+    "gasPriceMultiplier": 5,
+    "timestamp": "2025-03-26T09:32:57.104Z",
+    "beforePool": {
+      "pendingCount": 832968,
+      "queuedCount": 92522,
+      "totalCount": 925490,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 832969,
+      "queuedCount": 92522,
+      "totalCount": 925491,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 831228,
+      "queuedCount": 92522,
+      "totalCount": 923750,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981592,
+      "transactionCount": 1593,
+      "blockNumber": 10077
+    },
+    "transactionDetails": {
+      "blockNumber": 10077,
+      "gasPrice": "2500000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 18028,
+    "status": "confirmed",
+    "transactionHash": "0x72d3a00efff7b6b768fb22d8b6f620e759283d7a9034bcd05da2304e1c939bdd",
+    "hashGenerationTime": 4
+  },
+  {
+    "index": 11,
+    "gasPriceMultiplier": 7.5,
+    "timestamp": "2025-03-26T09:33:25.785Z",
+    "beforePool": {
+      "pendingCount": 830311,
+      "queuedCount": 92522,
+      "totalCount": 922833,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 830312,
+      "queuedCount": 92522,
+      "totalCount": 922834,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 830138,
+      "queuedCount": 92522,
+      "totalCount": 922660,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981609,
+      "transactionCount": 174,
+      "blockNumber": 10079
+    },
+    "transactionDetails": {
+      "blockNumber": 10079,
+      "gasPrice": "3750000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 4036,
+    "status": "confirmed",
+    "transactionHash": "0xa522003182bf7a0fd68b46d81ca7fabcbed8a874b71a1c2c2558286ae810b472",
+    "hashGenerationTime": 15
+  },
+  {
+    "index": 12,
+    "gasPriceMultiplier": 10,
+    "timestamp": "2025-03-26T09:33:39.072Z",
+    "beforePool": {
+      "pendingCount": 829923,
+      "queuedCount": 92522,
+      "totalCount": 922445,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 829924,
+      "queuedCount": 92522,
+      "totalCount": 922446,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 829923,
+      "queuedCount": 92522,
+      "totalCount": 922445,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981619,
+      "transactionCount": 1,
+      "blockNumber": 10081
+    },
+    "transactionDetails": {
+      "blockNumber": 10081,
+      "gasPrice": "5000000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 2021,
+    "status": "confirmed",
+    "transactionHash": "0x08a7107ef1636a71ba9b74e8b33219f7959ac5e5b89d66566a6599feb5345eb7",
+    "hashGenerationTime": 13
+  },
+  {
+    "index": 13,
+    "gasPriceMultiplier": 15,
+    "timestamp": "2025-03-26T09:33:46.850Z",
+    "beforePool": {
+      "pendingCount": 828214,
+      "queuedCount": 92522,
+      "totalCount": 920736,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 828215,
+      "queuedCount": 92522,
+      "totalCount": 920737,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 827206,
+      "queuedCount": 92522,
+      "totalCount": 919728,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981645,
+      "transactionCount": 849,
+      "blockNumber": 10085
+    },
+    "transactionDetails": {
+      "blockNumber": 10085,
+      "gasPrice": "7500000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 19057,
+    "status": "confirmed",
+    "transactionHash": "0x37322b0e6da55c3324e95d3928dc6c9809a384409484c40454d41f5084af4ff3",
+    "hashGenerationTime": 1039
+  },
+  {
+    "index": 14,
+    "gasPriceMultiplier": 20,
+    "timestamp": "2025-03-26T09:34:16.009Z",
+    "beforePool": {
+      "pendingCount": 827165,
+      "queuedCount": 92522,
+      "totalCount": 919687,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 827166,
+      "queuedCount": 92522,
+      "totalCount": 919688,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 825868,
+      "queuedCount": 92522,
+      "totalCount": 918390,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981661,
+      "transactionCount": 972,
+      "blockNumber": 10088
+    },
+    "transactionDetails": {
+      "blockNumber": 10088,
+      "gasPrice": "10000000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 12028,
+    "status": "confirmed",
+    "transactionHash": "0x617c1638255bfb094a193d0789bc1404df0184199a85e1561dfbd08258545113",
+    "hashGenerationTime": 5
+  },
+  {
+    "index": 15,
+    "gasPriceMultiplier": 0.5,
+    "timestamp": "2025-03-26T09:34:36.496Z",
+    "beforePool": {
+      "pendingCount": 825573,
+      "queuedCount": 92522,
+      "totalCount": 918095,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 825574,
+      "queuedCount": 92522,
+      "totalCount": 918096,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 825417,
+      "queuedCount": 92522,
+      "totalCount": 917939,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981679,
+      "transactionCount": 157,
+      "blockNumber": 10090
+    },
+    "transactionDetails": {
+      "blockNumber": 10090,
+      "gasPrice": "250000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 3492,
+    "status": "confirmed",
+    "transactionHash": "0xef2b2f7c53a19990a6f87a2af7fa1324eac8b41db310fddb8f676a3b4adf8864",
+    "hashGenerationTime": 1485
+  },
+  {
+    "index": 16,
+    "gasPriceMultiplier": 0.75,
+    "timestamp": "2025-03-26T09:34:46.420Z",
+    "beforePool": {
+      "pendingCount": 824927,
+      "queuedCount": 92522,
+      "totalCount": 917449,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 824928,
+      "queuedCount": 92522,
+      "totalCount": 917450,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 823256,
+      "queuedCount": 92522,
+      "totalCount": 915778,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981708,
+      "transactionCount": 921,
+      "blockNumber": 10094
+    },
+    "transactionDetails": {
+      "blockNumber": 10094,
+      "gasPrice": "375000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 31042,
+    "status": "confirmed",
+    "transactionHash": "0x0e9d6950c9a05e2850a422d7a1edacd4fb623f1c1955eb3f2f787d94c1cabe40",
+    "hashGenerationTime": 7
+  },
+  {
+    "index": 17,
+    "gasPriceMultiplier": 1,
+    "timestamp": "2025-03-26T09:35:25.052Z",
+    "beforePool": {
+      "pendingCount": 823237,
+      "queuedCount": 92522,
+      "totalCount": 915759,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 823238,
+      "queuedCount": 92522,
+      "totalCount": 915760,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 822340,
+      "queuedCount": 92522,
+      "totalCount": 914862,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981727,
+      "transactionCount": 898,
+      "blockNumber": 10096
+    },
+    "transactionDetails": {
+      "blockNumber": 10096,
+      "gasPrice": "500000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 11033,
+    "status": "confirmed",
+    "transactionHash": "0xf987aeff169f456a0fcd3e4fe379800cf69be3a621f71053670a2bd3ed2b7389",
+    "hashGenerationTime": 11
+  },
+  {
+    "index": 18,
+    "gasPriceMultiplier": 1.25,
+    "timestamp": "2025-03-26T09:35:45.500Z",
+    "beforePool": {
+      "pendingCount": 822332,
+      "queuedCount": 92522,
+      "totalCount": 914854,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 822333,
+      "queuedCount": 92522,
+      "totalCount": 914855,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 821900,
+      "queuedCount": 92522,
+      "totalCount": 914422,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981748,
+      "transactionCount": 433,
+      "blockNumber": 10098
+    },
+    "transactionDetails": {
+      "blockNumber": 10098,
+      "gasPrice": "625000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 7018,
+    "status": "confirmed",
+    "transactionHash": "0xaf5ac53dcc1a62b9ee4619d4f934e2631824b7127b06ab508ac3ba483b103493",
+    "hashGenerationTime": 7
+  },
+  {
+    "index": 19,
+    "gasPriceMultiplier": 1.5,
+    "timestamp": "2025-03-26T09:35:58.711Z",
+    "beforePool": {
+      "pendingCount": 820270,
+      "queuedCount": 92522,
+      "totalCount": 912792,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 820271,
+      "queuedCount": 92522,
+      "totalCount": 912793,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 819917,
+      "queuedCount": 92522,
+      "totalCount": 912439,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981764,
+      "transactionCount": 354,
+      "blockNumber": 10100
+    },
+    "transactionDetails": {
+      "blockNumber": 10100,
+      "gasPrice": "750000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 4037,
+    "status": "confirmed",
+    "transactionHash": "0x9d0ae8581b5b3d829484a2c3b3857c907f7e1f242d607766e4cf45a170c9ce10",
+    "hashGenerationTime": 7
+  },
+  {
+    "index": 20,
+    "gasPriceMultiplier": 1.75,
+    "timestamp": "2025-03-26T09:36:13.402Z",
+    "beforePool": {
+      "pendingCount": 819622,
+      "queuedCount": 92522,
+      "totalCount": 912144,
+      "gasPrice": "500000000000"
+    },
+    "afterMempoolPool": {
+      "pendingCount": 819623,
+      "queuedCount": 92522,
+      "totalCount": 912145,
+      "gasPrice": "500000000000"
+    },
+    "afterConfirmationPool": {
+      "pendingCount": 817597,
+      "queuedCount": 92522,
+      "totalCount": 910119,
+      "gasPrice": "500000000000"
+    },
+    "blockInfo": {
+      "timestamp": 1742981798,
+      "transactionCount": 1322,
+      "blockNumber": 10104
+    },
+    "transactionDetails": {
+      "blockNumber": 10104,
+      "gasPrice": "875000000000",
+      "gasUsed": 21000,
+      "status": true
+    },
+    "confirmationTime": 35054,
+    "status": "confirmed",
+    "transactionHash": "0xbf676a835fcd3f8872151afabbeba5da06edec603cdf3ae8e822e669f534d612",
+    "hashGenerationTime": 15
+  }
+]

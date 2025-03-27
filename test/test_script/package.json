@@ -1,0 +1,1 @@
+{"name":"xlayer-transaction","version":"1.0.0","description":"Send transaction on XLayer","main":"send-tx.js","scripts":{"start":"node send-tx.js"},"dependencies":{"fs":"^0.0.1-security","request":"^2.88.2","web3":"^1.10.0"}}
