@@ -369,55 +369,34 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 }
 
 func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
-	cache := p._stateCache
-	toDelete := make([]*metaTx, 0, len(ids))
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		idsMap := make(map[common.Hash]struct{}, len(ids))
-		for _, id := range ids {
-			idsMap[id] = struct{}{}
-		}
-		toDelForPending := make([]*metaTx, 0, len(ids))
-		p.all.ascendAll(func(mt *metaTx) bool {
-			if _, ok := idsMap[mt.Tx.IDHash]; ok {
-				toDelete = append(toDelete, mt)
-				switch mt.currentSubPool {
-				case PendingSubPool:
-					// p.pending.Remove(mt)
-					toDelForPending = append(toDelForPending, mt)
-				case BaseFeeSubPool:
-					p.baseFee.Remove(mt)
-				case QueuedSubPool:
-					p.queued.Remove(mt)
-				default:
-					//already removed
-				}
-			}
-			return true
-		})
-
-		if len(toDelForPending) > 0 {
-			wg.Add(1)
-			wg.Done()
-			p.pending.BatchRemove(toDelForPending, &wg)
-		} else {
-			wg.Done()
-		}
-	}()
-
+	toDelForPending := make([]*metaTx, 0, len(ids))
 	sendersWithChangedState := make(map[uint64]struct{})
-	for _, mt := range toDelete {
-		p.discardLocked(mt, Mined)
-		sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
+	for _, id := range ids {
+		if vv, ok := p.byHash.Load(string(id[:])); ok {
+			mt := vv.(*metaTx)
+			sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
+			switch mt.currentSubPool {
+			case PendingSubPool:
+				toDelForPending = append(toDelForPending, mt)
+			case BaseFeeSubPool:
+				p.baseFee.Remove(mt)
+			case QueuedSubPool:
+				p.queued.Remove(mt)
+			default:
+				//already removed
+			}
+			p.discardLocked(mt, Mined)
+		}
 	}
+
+	p.pending.BatchRemove(toDelForPending)
 
 	baseFee := p.pendingBaseFee.Load()
 
-	cacheView, err := cache.View(ctx, tx)
+	cacheView, err := p._stateCache.View(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -430,8 +409,6 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
 	}
-
-	wg.Wait()
 
 	return nil
 }

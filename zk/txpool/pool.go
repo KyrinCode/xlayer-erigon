@@ -2535,11 +2535,9 @@ func (p *PendingPool) Remove(i *metaTx) {
 	}
 	i.currentSubPool = 0
 }
-func (p *PendingPool) BatchRemove(is []*metaTx, wg *sync.WaitGroup) {
+func (p *PendingPool) BatchRemove(is []*metaTx) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	wg.Done()
 
 	for _, i := range is {
 		if i.worstIndex >= 0 {
