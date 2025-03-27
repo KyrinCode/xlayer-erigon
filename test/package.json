@@ -1,0 +1,20 @@
+{
+  "name": "xlayer-gp-experiment",
+  "version": "1.0.0",
+  "description": "XLayer Gas Price实验",
+  "main": "high_gp_tx.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "fill": "node fill_txpool.js",
+    "send": "node high_gp_tx.js",
+    "experiment": "./run_gp_experiment.sh"
+  },
+  "dependencies": {
+    "@ethereumjs/common": "^4.4.0",
+    "@ethereumjs/tx": "^5.4.0",
+    "ethereumjs-util": "^7.1.5",
+    "ethers": "^5.7.2",
+    "node-fetch": "^2.7.0",
+    "web3": "^4.16.0"
+  }
+}

@@ -70,7 +70,7 @@ metrics.addr: "0.0.0.0"
 metrics.port: 9095
 
 db.read.concurrency: 20000
-txpool.globalslots: 100000
+txpool.globalslots: 1000000
 networkid: 195
 
 zkevm.pool-manager-url: http://xlayer-pool-manager:8545

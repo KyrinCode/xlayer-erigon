@@ -97,7 +97,7 @@ var DeprecatedDefaultTxPoolConfig = DeprecatedTxPoolConfig{
 	EnableWhitelist:      false,
 	WhiteList:            *common.NewOrderedListOfAddresses(1024),
 	FreeClaimGasAddrs:    *common.NewOrderedListOfAddresses(1024),
-	GasPriceMultiple:     2,
+	GasPriceMultiple:     10,
 	EnableFreeGasByNonce: false,
 	FreeGasExAddrs:       *common.NewOrderedListOfAddresses(1024),
 	FreeGasCountPerAddr:  3,

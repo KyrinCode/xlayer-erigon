@@ -1,4 +1,4 @@
-DOCKER_COMPOSE := docker compose -f docker-compose.yml
+DOCKER_COMPOSE := docker-compose -f docker-compose.yml
 DOCKER_STATELESS_EXECUTOR := xlayer-executor
 DOCKER_SEQ_SENDER := xlayer-seqs
 DOCKER_AGGREGATOR := xlayer-agg
@@ -51,7 +51,7 @@ RUN_DOCKER_DS := $(DOCKER_COMPOSE) up -d $(DOCKER_DS)
 RUN_DOCKER_PROMETHEUS := $(DOCKER_COMPOSE) up -d $(DOCKER_PROMETHEUS)
 RUN_DOCKER_GRAFANA := $(DOCKER_COMPOSE) up -d $(DOCKER_GRAFANA)
 
-STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; rm -rf data
+STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; #rm -rf data
 
 .PHONY: build-docker
 build-docker: ## Build cdk-erigoin for sequencer and rpc
