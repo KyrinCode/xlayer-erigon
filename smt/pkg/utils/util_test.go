@@ -852,6 +852,27 @@ func TestScalarToNodeValue(t *testing.T) {
 	}
 }
 
+func BenchmarkScalarToNodeValue(b *testing.B) {
+	seed := big.NewInt(rand.Int63())
+	seed.Mul(seed, seed)
+	seed.Mul(seed, seed)
+	var values [12]*big.Int
+	b.Run("Fast", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			var result [12]*big.Int
+			scalarToNodeValueFast(seed, &result)
+			values = result
+		}
+	})
+	b.Run("Slow", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			values = scalarToNodeValueSlow(seed)
+		}
+	})
+
+	_ = values
+}
+
 func TestScalarToNodeValue8(t *testing.T) {
 	// Define the array of original values
 	originalValues := [8]*big.Int{
