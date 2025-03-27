@@ -203,9 +203,6 @@ func (p *TxPool) setFreeGasList(freeGasList []ethconfig.FreeGasInfo) {
 }
 
 func (p *PendingPool) BulkAdd(mts []*metaTx) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	for _, mt := range mts {
 		if mt.Tx.Traced {
 			log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, mt.Tx.IDHash, mt.Tx.SenderID))
