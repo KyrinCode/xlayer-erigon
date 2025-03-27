@@ -289,10 +289,6 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 		prevStateRoot = block.Root()
 	}
 
-	if _, ok := txsmt.(*membatchwithdb.MemoryMutationWithCache); ok {
-		txsmt.(*membatchwithdb.MemoryMutationWithCache).ResetDeleteInfo()
-	}
-
 	witness, err := BuildWitnessFromTrieDbState(ctx, rwtx, rwtxsmt, tds, reader, g.forcedContracts, forcedInfoTreeUpdates, witnessFull)
 	if err != nil {
 		return nil, fmt.Errorf("BuildWitnessFromTrieDbState: %w", err)
