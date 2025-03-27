@@ -816,6 +816,11 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 				}
 			},
 		)
+
+		// For X Layer
+		if config.XLayer.BulkAddTxs && config.DeprecatedTxPool.EnableNotify {
+			go txpool2.NotifyLoop(ctx, config)
+		}
 	}
 
 	go func() {

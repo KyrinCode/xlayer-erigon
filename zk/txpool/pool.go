@@ -421,25 +421,6 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 	}
 	tp.setFreeGasList(ethCfg.DeprecatedTxPool.FreeGasList)
 
-	// For X Layer
-	notifyOnce.Do(
-		func() {
-			if ethCfg.XLayer.BulkAddTxs && ethCfg.DeprecatedTxPool.EnableNotify {
-				needNofity = true
-				go func(requireTxPoolLock *atomic.Bool) {
-					streams := &TxpoolNotificationPubSub{}
-					for {
-						time.Sleep(ethCfg.XLayer.BulkAddTxsWaitTime)
-						if requireTxPoolLock.Load() {
-							continue
-						}
-						streams.Pub(struct{}{})
-					}
-				}(&requireTxPoolLock)
-			}
-		},
-	)
-
 	return tp, nil
 }
 

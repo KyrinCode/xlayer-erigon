@@ -94,7 +94,7 @@ func (api *APIImpl) worker() {
 		cancel()
 	}()
 
-	if api.notificationStreams != nil {
+	if api.notifyChan != nil {
 		txBulkMtx := new(sync.Mutex)
 
 		go func() {
@@ -110,10 +110,7 @@ func (api *APIImpl) worker() {
 			}
 		}()
 
-		ch, remove := api.notificationStreams.Sub()
-		defer remove()
-
-		api.processNotification(ctx, txBulkMtx, &txBulk, ch)
+		api.processNotification(ctx, txBulkMtx, &txBulk, api.notifyChan)
 	} else {
 		api.processTx(ctx, txBulk)
 	}

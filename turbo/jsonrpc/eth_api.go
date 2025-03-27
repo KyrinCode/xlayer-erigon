@@ -389,15 +389,15 @@ type APIImpl struct {
 	DisableVirtualCounters        bool
 
 	// For X Layer
-	L2GasPricer         gasprice.L2GasPricer
-	EnableInnerTx       bool
-	PreRunList          map[common.Address]struct{}
-	preRunProcessor     *PreRunProcessor
-	BulkAddTxs          bool
-	BulkAddTxsSize      int
-	BulkAddTxsWaitTime  time.Duration
-	txChan              chan txRequest
-	notificationStreams *txpool2.TxpoolNotificationPubSub
+	L2GasPricer        gasprice.L2GasPricer
+	EnableInnerTx      bool
+	PreRunList         map[common.Address]struct{}
+	preRunProcessor    *PreRunProcessor
+	BulkAddTxs         bool
+	BulkAddTxsSize     int
+	BulkAddTxsWaitTime time.Duration
+	txChan             chan txRequest
+	notifyChan         chan struct{}
 }
 
 // NewEthAPI returns APIImpl instance
@@ -464,8 +464,8 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 			}
 		}
 	})
-	if txpool2.GetNoficationStreams() != nil {
-		apii.notificationStreams = txpool2.GetNoficationStreams()
+	if txpool2.GetNotifyChan() != nil {
+		apii.notifyChan = txpool2.GetNotifyChan()
 	}
 	if apii.BulkAddTxs {
 		go apii.worker()
