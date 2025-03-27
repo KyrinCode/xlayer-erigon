@@ -72,6 +72,7 @@ var (
 	freeGasLimit         uint64
 	enableFreeGasList    bool
 	freeGasList          string
+	enableNotify         bool
 
 	commitEvery   time.Duration
 	purgeEvery    time.Duration
@@ -117,6 +118,7 @@ func init() {
 	rootCmd.PersistentFlags().Uint64Var(&freeGasLimit, utils.TxPoolFreeGasLimit.Name, ethconfig.DeprecatedDefaultTxPoolConfig.FreeGasLimit, utils.TxPoolFreeGasLimit.Usage)
 	rootCmd.Flags().BoolVar(&enableFreeGasList, utils.TxPoolEnableFreeGasList.Name, ethconfig.DeprecatedDefaultTxPoolConfig.EnableFreeGasList, utils.TxPoolEnableFreeGasList.Usage)
 	rootCmd.PersistentFlags().StringVar(&freeGasList, utils.TxPoolFreeGasList.Name, "", utils.TxPoolFreeGasList.Usage)
+	rootCmd.Flags().BoolVar(&enableNotify, utils.TxPoolEnableNotify.Name, ethconfig.DeprecatedDefaultTxPoolConfig.EnableNotify, utils.TxPoolEnableNotify.Usage)
 }
 
 var rootCmd = &cobra.Command{

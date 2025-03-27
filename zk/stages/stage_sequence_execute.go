@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -22,6 +24,7 @@ import (
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
 	"github.com/ledgerwatch/erigon/zk/metrics"
 	zktx "github.com/ledgerwatch/erigon/zk/tx"
+	"github.com/ledgerwatch/erigon/zk/txpool"
 	"github.com/ledgerwatch/erigon/zk/utils"
 )
 
@@ -31,6 +34,9 @@ var shouldCheckForExecutionAndDataStreamAlignment = true
 var externalDataStreamServerCreated = false
 
 var supportAC = true
+var requireTxPoolLock atomic.Bool
+var once sync.Once
+var needNofity bool
 
 func SpawnSequencingStage(
 	s *stagedsync.StageState,
@@ -90,6 +96,24 @@ func SpawnSequencingStage(
 		time.Sleep(10 * time.Minute)
 		return nil
 	}
+
+	// For X Layer
+	once.Do(
+		func() {
+			if txpool.GetNoficationStreams() != nil {
+				go func(requireTxPoolLock *atomic.Bool) {
+					streams := txpool.GetNoficationStreams()
+					for {
+						time.Sleep(cfg.zk.XLayer.BulkAddTxsWaitTime)
+						if requireTxPoolLock.Load() {
+							continue
+						}
+						streams.Pub(struct{}{})
+					}
+				}(&requireTxPoolLock)
+			}
+		},
+	)
 
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
 		if !supportAC {
@@ -425,6 +449,11 @@ func sequencingBatchStep(
 			default:
 			}
 
+			// For X Layer
+			if needNofity {
+				requireTxPoolLock.Swap(true)
+			}
+
 			select {
 			case <-infoTreeTicker.C:
 				newLogs, err := cfg.infoTreeUpdater.CheckForInfoTreeUpdates(logPrefix, sdb.tx)
@@ -485,6 +514,11 @@ func sequencingBatchStep(
 				} else {
 					log.Trace(fmt.Sprintf("[%s] Yielded transactions from the pool", logPrefix), "txCount", len(batchState.blockState.transactionsForInclusion))
 				}
+			}
+
+			// For X Layer
+			if needNofity {
+				requireTxPoolLock.Swap(false)
 			}
 
 			if len(batchState.blockState.transactionsForInclusion) == 0 {
@@ -792,6 +826,11 @@ func sequencingBatchStep(
 			return fmt.Errorf("[%s] %w: %s = %s", s.LogPrefix(), zk.ErrLimboState, batchState.limboRecoveryData.limboTxHash.Hex(), stateRoot.Hex())
 		}
 
+		// For X Layer
+		if needNofity {
+			requireTxPoolLock.Swap(true)
+		}
+
 		if !batchState.isL1Recovery() {
 			commitTime := time.Now()
 			// commit block data here so it is accessible in other threads
@@ -812,6 +851,11 @@ func sequencingBatchStep(
 		// now trigger sender state changes in the pool where we encountered nonce issues during execution
 		if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
 			return err
+		}
+
+		// For X Layer
+		if needNofity {
+			requireTxPoolLock.Swap(false)
 		}
 
 		t.LogTimer()
@@ -881,7 +925,7 @@ func sequencingBatchStep(
 		if err := cfg.doneHook.AfterRun(batchContext.sdb.tx, block.NumberU64()-1, s.PrevUnwindPoint()); err != nil {
 			return err
 		}
-		
+
 		// For X Layer
 		metrics.GetLogStatistics().SetTag(metrics.FinalizeBlockNumber, strconv.Itoa(int(blockNumber)))
 		metrics.GetLogStatistics().SummaryCheckpoint()

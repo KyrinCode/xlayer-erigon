@@ -67,6 +67,8 @@ type DeprecatedTxPoolConfig struct {
 	EnableFreeGasList bool
 	// FreeGasList project name to FreeGasInfo
 	FreeGasList []FreeGasInfo
+	// EnableNotify enables txpool notifications to limit added transactions
+	EnableNotify bool
 }
 
 // FreeGasInfo contains the details for what tx should be free

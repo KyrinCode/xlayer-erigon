@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/types"
@@ -51,6 +52,7 @@ type XLayerConfig struct {
 	EnableFreeGasList  bool
 	FreeGasFromNameMap map[string]string                 // map[from]projectName
 	FreeGasList        map[string]*ethconfig.FreeGasInfo // map[projectName]FreeGasInfo
+	EnableNotify       bool
 }
 
 type GPCache interface {
@@ -211,4 +213,52 @@ func (p *PendingPool) BulkAdd(mts []*metaTx) {
 	}
 
 	sort.Sort(p.best)
+}
+
+var notificationStreams *TxpoolNotificationPubSub
+
+type TxpoolNotificationPubSub struct {
+	chans map[uint]chan struct{}
+	id    uint
+	mu    sync.RWMutex
+}
+
+func NewTxpoolNotificationStreams() *TxpoolNotificationPubSub {
+	return &TxpoolNotificationPubSub{}
+}
+
+func (ps *TxpoolNotificationPubSub) Sub() (ch chan struct{}, remove func()) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if ps.chans == nil {
+		ps.chans = make(map[uint]chan struct{})
+	}
+	ps.id++
+	id := ps.id
+	ch = make(chan struct{}, 8)
+	ps.chans[id] = ch
+	return ch, func() { ps.remove(id) }
+}
+
+func (ps *TxpoolNotificationPubSub) Pub(reply struct{}) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	for _, ch := range ps.chans {
+		common.PrioritizedSend(ch, reply)
+	}
+}
+
+func (ps *TxpoolNotificationPubSub) remove(id uint) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ch, ok := ps.chans[id]
+	if !ok { // double-unsubscribe support
+		return
+	}
+	close(ch)
+	delete(ps.chans, id)
+}
+
+func GetNoficationStreams() *TxpoolNotificationPubSub {
+	return notificationStreams
 }

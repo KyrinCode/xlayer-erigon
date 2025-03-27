@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -76,10 +77,42 @@ func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexuti
 
 func (api *APIImpl) worker() {
 	var txBulk []txRequest
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigc)
+	go func() {
+		<-sigc
+		cancel()
+	}()
 
+	if api.notificationStreams != nil {
+		txBulkMtx := new(sync.Mutex)
+
+		go func() {
+			for {
+				select {
+				case req := <-api.txChan:
+					txBulkMtx.Lock()
+					txBulk = append(txBulk, req)
+					txBulkMtx.Unlock()
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		ch, remove := api.notificationStreams.Sub()
+		defer remove()
+
+		api.processNotification(ctx, txBulkMtx, &txBulk, ch)
+	} else {
+		api.processTx(ctx, txBulk)
+	}
+}
+
+func (api *APIImpl) processTx(ctx context.Context, txBulk []txRequest) {
 	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
@@ -107,7 +140,26 @@ func (api *APIImpl) worker() {
 				txBulk = nil
 			}
 			ticker.Reset(api.BulkAddTxsWaitTime)
-		case <-sigc:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (api *APIImpl) processNotification(ctx context.Context, txBulkMtx *sync.Mutex, txBulk *[]txRequest, ch chan struct{}) {
+	for {
+		select {
+		case <-ch:
+			var txBulkToProcess []txRequest
+			txBulkMtx.Lock()
+			if len(*txBulk) > 0 {
+				txBulkToProcess, *txBulk = *txBulk, nil
+			}
+			txBulkMtx.Unlock()
+			if len(txBulkToProcess) > 0 {
+				api.processBulk(txBulkToProcess)
+			}
+		case <-ctx.Done():
 			return
 		}
 	}

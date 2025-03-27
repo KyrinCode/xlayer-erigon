@@ -103,6 +103,11 @@ var (
 		Name:  "txpool.freegaslist",
 		Usage: "FreeGasList Project in JSON Format",
 	}
+	TxPoolEnableNotify = cli.BoolFlag{
+		Name:  "txpool.enablenotify",
+		Usage: "Enable Txpool notifications to limit added transactions",
+		Value: false,
+	}
 	TxPoolAutoSortBest = cli.BoolFlag{
 		Name:  "txpool.autosortbest",
 		Usage: "Enable txs sort when best is changed",
@@ -406,6 +411,9 @@ func setTxPoolXLayer(ctx *cli.Context, cfg *ethconfig.DeprecatedTxPoolConfig) {
 				panic("unable to unmarshal freeGasList:" + err.Error())
 			}
 		}
+	}
+	if ctx.IsSet(TxPoolEnableNotify.Name) {
+		cfg.EnableNotify = ctx.Bool(TxPoolEnableNotify.Name)
 	}
 }
 
