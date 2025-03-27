@@ -26,8 +26,14 @@ import (
 )
 
 type txRequest struct {
-	ctx       context.Context
-	encodedTx hexutility.Bytes
+	ctx        context.Context
+	encodedTx  hexutility.Bytes
+	resultChan chan txResult
+}
+
+type txResult struct {
+	hash common.Hash
+	err  error
 }
 
 func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
@@ -55,20 +61,21 @@ func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexuti
 		return api.sendTxZk(api.l2RpcUrl, encodedTx, chainId.Uint64())
 	}
 
-	txn, err := types.DecodeWrappedTransaction(encodedTx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	hash := txn.Hash()
-
+	resultChan := make(chan txResult, 1)
 	req := txRequest{
-		ctx:       ctx,
-		encodedTx: encodedTx,
+		ctx:        ctx,
+		encodedTx:  encodedTx,
+		resultChan: resultChan,
 	}
 
 	select {
 	case api.txChan <- req:
-		return hash, nil
+		select {
+		case res := <-resultChan:
+			return res.hash, res.err
+		case <-ctx.Done():
+			return common.Hash{}, ctx.Err()
+		}
 	case <-ctx.Done():
 		return common.Hash{}, ctx.Err()
 	}
@@ -143,18 +150,44 @@ func (api *APIImpl) processBulk(bulk []txRequest) error {
 	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
 
 	var rlpTxs [][]byte
+	var results []txResult
 	for _, req := range bulk {
-		_, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
+		hash, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
 		if err != nil {
 			log.Error("validateTransaction failed", "err", err)
+			if req.resultChan != nil {
+				req.resultChan <- txResult{hash: common.Hash{}, err: err}
+			}
 			continue
 		}
 		rlpTxs = append(rlpTxs, req.encodedTx)
+		results = append(results, txResult{hash: hash, err: nil})
 	}
 
 	if len(rlpTxs) > 0 {
-		api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: rlpTxs})
+		res, err := api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: rlpTxs})
+		if err != nil {
+			for i := range rlpTxs {
+				if results[i].err == nil && results[i].hash != (common.Hash{}) {
+					results[i].err = err
+				}
+				if bulk[i].resultChan != nil {
+					bulk[i].resultChan <- results[i]
+				}
+			}
+			return err
+		}
+
+		for i, result := range res.Imported {
+			if result != txPoolProto.ImportResult_SUCCESS {
+				results[i].err = fmt.Errorf("%s: %s", txPoolProto.ImportResult_name[int32(result)], res.Errors[i])
+			}
+			if bulk[i].resultChan != nil {
+				bulk[i].resultChan <- results[i]
+			}
+		}
 	}
+
 	return nil
 }
 
