@@ -108,6 +108,16 @@ var (
 		Usage: "Enable Txpool notifications to limit added transactions",
 		Value: false,
 	}
+	TxPoolAutoSortBest = cli.BoolFlag{
+		Name:  "txpool.autosortbest",
+		Usage: "Enable txs sort when best is changed",
+		Value: false,
+	}
+	TxPoolEnableTimsort = cli.BoolFlag{
+		Name:  "txpool.enabletimsort",
+		Usage: "EnableTimsort enable timsort to instead of built-in sorting",
+		Value: false,
+	}
 	// Gas Pricer
 	GpoTypeFlag = cli.StringFlag{
 		Name:  "gpo.type",
@@ -409,6 +419,9 @@ func setTxPoolXLayer(ctx *cli.Context, cfg *ethconfig.DeprecatedTxPoolConfig) {
 	}
 	if ctx.IsSet(TxPoolEnableNotify.Name) {
 		cfg.EnableNotify = ctx.Bool(TxPoolEnableNotify.Name)
+	}
+	if ctx.IsSet(TxPoolEnableTimsort.Name) {
+		cfg.EnableTimsort = ctx.Bool(TxPoolEnableTimsort.Name)
 	}
 }
 

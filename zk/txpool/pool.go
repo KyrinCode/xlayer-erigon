@@ -42,6 +42,7 @@ import (
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/eth/gasprice/gaspricecfg"
 	"github.com/ledgerwatch/log/v3"
+	"github.com/psilva261/timsort/v2"
 	"github.com/status-im/keycard-go/hexutils"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -387,7 +388,7 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 		discardReasonsLRU:       discardHistory,
 		all:                     byNonce,
 		recentlyConnectedPeers:  &recentlyConnectedPeers{},
-		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit),
+		pending:                 NewPendingSubPool(PendingSubPool, cfg.PendingSubPoolLimit, ethCfg.DeprecatedTxPool.EnableTimsort, ethCfg.XLayer.AutoSortBest), // For X Layer
 		baseFee:                 NewSubPool(BaseFeeSubPool, cfg.BaseFeeSubPoolLimit),
 		queued:                  NewSubPool(QueuedSubPool, cfg.QueuedSubPoolLimit),
 		newPendingTxs:           newTxs,
@@ -427,13 +428,13 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 			if ethCfg.XLayer.BulkAddTxs && ethCfg.DeprecatedTxPool.EnableNotify {
 				needNofity = true
 				go func(requireTxPoolLock *atomic.Bool) {
-					streams := &TxpoolNotificationPubSub{}
+					notificationStreams = &TxpoolNotificationPubSub{}
 					for {
 						time.Sleep(ethCfg.XLayer.BulkAddTxsWaitTime)
 						if requireTxPoolLock.Load() {
 							continue
 						}
-						streams.Pub(struct{}{})
+						notificationStreams.Pub(struct{}{})
 					}
 				}(&requireTxPoolLock)
 			}
@@ -481,10 +482,8 @@ func (p *TxPool) OnNewBlock(ctx context.Context, stateChanges *remote.StateChang
 	pendingBaseFee, baseFeeChanged := p.setBaseFee(stateChanges.PendingBlockBaseFee, p.ethCfg.AllowFreeTransactions)
 	// Update pendingBase for all pool queues and slices
 	if baseFeeChanged {
-		p.pending.mtx.Lock()
 		p.pending.best.pendingBaseFee = pendingBaseFee
 		p.pending.worst.pendingBaseFee = pendingBaseFee
-		p.pending.mtx.Unlock()
 		p.baseFee.best.pendingBastFee = pendingBaseFee
 		p.baseFee.worst.pendingBaseFee = pendingBaseFee
 		p.queued.best.pendingBastFee = pendingBaseFee
@@ -723,8 +722,8 @@ func (p *TxPool) AddNewGoodPeer(peerID types.PeerID) { p.recentlyConnectedPeers.
 func (p *TxPool) Started() bool                      { return p.started.Load() }
 
 func (p *TxPool) ResetYieldedStatus() {
-	p.pending.mtx.Lock()
-	defer p.pending.mtx.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	best := p.pending.best
 	for i := 0; i < len(best.ms); i++ {
 		best.ms[i].alreadyYielded = false
@@ -1423,14 +1422,30 @@ func promote(pending *PendingPool, baseFee, queued *SubPool, pendingBaseFee uint
 		}
 	}
 
-	// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
-	for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
-		if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
-			tx := queued.PopBest()
-			announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
-			pending.Add(tx)
-		} else {
-			baseFee.Add(queued.PopBest())
+	// For X Layer
+	if pending.autoSort {
+		var toAdd = []*metaTx{}
+		// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
+		for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
+			if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
+				tx := queued.PopBest()
+				announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
+				toAdd = append(toAdd, tx)
+			} else {
+				baseFee.Add(queued.PopBest())
+			}
+		}
+		pending.BulkAdd(toAdd)
+	} else {
+		// Promote best transactions from the queued pool to either pending or base fee pool, while they qualify
+		for best := queued.Best(); queued.Len() > 0 && best.subPool >= BaseFeePoolBits; best = queued.Best() {
+			if best.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) >= 0 {
+				tx := queued.PopBest()
+				announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
+				pending.Add(tx)
+			} else {
+				baseFee.Add(queued.PopBest())
+			}
 		}
 	}
 
@@ -2280,17 +2295,20 @@ func (b *BySenderAndNonce) replaceOrInsert(mt *metaTx) *metaTx {
 // It's more expensive to maintain "slice sort" invariant, but it allow do cheap copy of
 // pending.best slice for mining (because we consider txs and metaTx are immutable)
 type PendingPool struct {
-	sorted atomic.Bool // means `PendingPool.best` is sorted or not
+	sorted bool // means `PendingPool.best` is sorted or not
 	best   *bestSlice
 	worst  *WorstQueue
 	limit  int
 	t      SubPoolType
-	mtx    sync.RWMutex
+
+	// For X Layer
+	autoSort      bool
+	enbaleTimsort bool
 }
 
-func NewPendingSubPool(t SubPoolType, limit int) *PendingPool {
-	log.Info("new sub pool", "SubPoolType", PendingSubPool, "limit", limit)
-	return &PendingPool{limit: limit, t: t, best: &bestSlice{ms: []*metaTx{}}, worst: &WorstQueue{ms: []*metaTx{}}}
+func NewPendingSubPool(t SubPoolType, limit int, autoSort bool, enableTimsort bool) *PendingPool {
+	log.Info("new sub pool", "SubPoolType", PendingSubPool, "limit", limit, "autoSort", autoSort, "enableTimsort", enableTimsort)
+	return &PendingPool{limit: limit, t: t, best: &bestSlice{ms: []*metaTx{}}, worst: &WorstQueue{ms: []*metaTx{}}, autoSort: autoSort, enbaleTimsort: enableTimsort}
 }
 
 // bestSlice - is similar to best queue, but with O(n log n) complexity and
@@ -2306,7 +2324,7 @@ func (s *bestSlice) Swap(i, j int) {
 	s.ms[i].bestIndex, s.ms[j].bestIndex = i, j
 }
 func (s *bestSlice) Less(i, j int) bool {
-	return s.ms[i].better(s.ms[j], *uint256.NewInt(s.pendingBaseFee))
+	return s.ms[i].better(s.ms[j], s.pendingBaseFee)
 }
 func (s *bestSlice) UnsafeRemove(i *metaTx) {
 	s.Swap(i.bestIndex, len(s.ms)-1)
@@ -2320,71 +2338,58 @@ func (s *bestSlice) UnsafeAdd(i *metaTx) {
 }
 
 func (p *PendingPool) EnforceWorstInvariants() {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	heap.Init(p.worst)
 }
 func (p *PendingPool) EnforceBestInvariants() {
-	if !p.sorted.Load() {
-		p.mtx.Lock()
-		defer p.mtx.Unlock()
+	// For X Layer
+	if p.autoSort {
+		return
+	}
 
-		sort.Sort(p.best)
-		p.sorted.Swap(true)
+	if !p.sorted {
+		if p.enbaleTimsort {
+			timsort.TimSort(p.best)
+		} else {
+			sort.Sort(p.best)
+		}
+		p.sorted = true
 	}
 }
 
 func (p *PendingPool) Best() *metaTx { //nolint
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
 	if len(p.best.ms) == 0 {
 		return nil
 	}
 	return p.best.ms[0]
 }
 func (p *PendingPool) Worst() *metaTx { //nolint
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
 	if len(p.worst.ms) == 0 {
 		return nil
 	}
 	return (p.worst.ms)[0]
 }
 func (p *PendingPool) PopWorst() *metaTx { //nolint
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	i := heap.Pop(p.worst).(*metaTx)
 	if i.bestIndex >= 0 {
 		p.best.UnsafeRemove(i)
+
+		// For X Layer
+		if p.autoSort {
+			sort.Sort(p.best)
+		}
 	}
 	return i
 }
 func (p *PendingPool) Updated(mt *metaTx) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	heap.Fix(p.worst, mt.worstIndex)
 }
 func (p *PendingPool) Len() int {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
 	return len(p.best.ms)
 }
 func (p *PendingPool) IsFull() bool {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
 	return p.Len() >= p.limit
 }
 func (p *PendingPool) Remove(i *metaTx) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	if i.worstIndex >= 0 {
 		heap.Remove(p.worst, i.worstIndex)
 	}
@@ -2392,7 +2397,12 @@ func (p *PendingPool) Remove(i *metaTx) {
 		p.best.UnsafeRemove(i)
 	}
 	if i.bestIndex != p.best.Len()-1 {
-		p.sorted.Swap(false)
+		p.sorted = false
+
+		// For X Layer
+		if p.autoSort {
+			sort.Sort(p.best)
+		}
 	}
 	i.currentSubPool = 0
 }
@@ -2401,18 +2411,18 @@ func (p *PendingPool) Add(i *metaTx) {
 	if i.Tx.Traced {
 		log.Info(fmt.Sprintf("TX TRACING: moved to subpool %s, IdHash=%x, sender=%d", p.t, i.Tx.IDHash, i.Tx.SenderID))
 	}
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
 
 	i.currentSubPool = p.t
 	heap.Push(p.worst, i)
 	p.best.UnsafeAdd(i)
-	p.sorted.Swap(false)
+	p.sorted = false
+
+	// For X Layer
+	if p.autoSort {
+		sort.Sort(p.best)
+	}
 }
 func (p *PendingPool) DebugPrint(prefix string) {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
 	for i, it := range p.best.ms {
 		fmt.Printf("%s.best: %d, %d, %d,%d\n", prefix, i, it.subPool, it.bestIndex, it.Tx.Nonce)
 	}
@@ -2494,13 +2504,20 @@ type BestQueue struct {
 	pendingBastFee uint64
 }
 
-func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
+func (mt *metaTx) better(than *metaTx, pendingBaseFee uint64) bool {
 	subPool := mt.subPool
 	thanSubPool := than.subPool
-	if mt.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
+
+	difference := &uint256.Int{}
+	difference.SubUint64(&mt.minFeeCap, pendingBaseFee)
+
+	if difference.Sign() >= 0 {
 		subPool |= EnoughFeeCapBlock
 	}
-	if than.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
+
+	thanDifference := &uint256.Int{}
+	thanDifference.SubUint64(&than.minFeeCap, pendingBaseFee)
+	if thanDifference.Sign() >= 0 {
 		thanSubPool |= EnoughFeeCapBlock
 	}
 	if subPool != thanSubPool {
@@ -2511,21 +2528,17 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 	case PendingSubPool:
 		var effectiveTip, thanEffectiveTip uint256.Int
 		if (subPool & EnoughFeeCapBlock) == EnoughFeeCapBlock {
-			difference := &uint256.Int{}
-			difference.Sub(&mt.minFeeCap, &pendingBaseFee)
-			if difference.Cmp(uint256.NewInt(mt.minTip)) <= 0 {
+			if difference.CmpUint64(mt.minTip) <= 0 {
 				effectiveTip = *difference
 			} else {
-				effectiveTip = *uint256.NewInt(mt.minTip)
+				effectiveTip[0] = mt.minTip
 			}
 		}
 		if (thanSubPool & EnoughFeeCapBlock) == EnoughFeeCapBlock {
-			difference := &uint256.Int{}
-			difference.Sub(&than.minFeeCap, &pendingBaseFee)
-			if difference.Cmp(uint256.NewInt(than.minTip)) <= 0 {
-				thanEffectiveTip = *difference
+			if thanDifference.CmpUint64(than.minTip) <= 0 {
+				thanEffectiveTip = *thanDifference
 			} else {
-				thanEffectiveTip = *uint256.NewInt(than.minTip)
+				thanEffectiveTip[0] = than.minTip
 			}
 		}
 		if !effectiveTip.Eq(&thanEffectiveTip) {
@@ -2556,13 +2569,13 @@ func (mt *metaTx) better(than *metaTx, pendingBaseFee uint256.Int) bool {
 	return mt.timestamp < than.timestamp
 }
 
-func (mt *metaTx) worse(than *metaTx, pendingBaseFee uint256.Int) bool {
+func (mt *metaTx) worse(than *metaTx, pendingBaseFee uint64) bool {
 	subPool := mt.subPool
 	thanSubPool := than.subPool
-	if mt.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
+	if mt.minFeeCap.CmpUint64(pendingBaseFee) >= 0 {
 		subPool |= EnoughFeeCapBlock
 	}
-	if than.minFeeCap.Cmp(&pendingBaseFee) >= 0 {
+	if than.minFeeCap.CmpUint64(pendingBaseFee) >= 0 {
 		thanSubPool |= EnoughFeeCapBlock
 	}
 	if subPool != thanSubPool {
@@ -2593,7 +2606,7 @@ func (mt *metaTx) worse(than *metaTx, pendingBaseFee uint256.Int) bool {
 
 func (p BestQueue) Len() int { return len(p.ms) }
 func (p BestQueue) Less(i, j int) bool {
-	return p.ms[i].better(p.ms[j], *uint256.NewInt(p.pendingBastFee))
+	return p.ms[i].better(p.ms[j], p.pendingBastFee)
 }
 func (p BestQueue) Swap(i, j int) {
 	p.ms[i], p.ms[j] = p.ms[j], p.ms[i]
@@ -2625,7 +2638,7 @@ type WorstQueue struct {
 
 func (p WorstQueue) Len() int { return len(p.ms) }
 func (p WorstQueue) Less(i, j int) bool {
-	return p.ms[i].worse(p.ms[j], *uint256.NewInt(p.pendingBaseFee))
+	return p.ms[i].worse(p.ms[j], p.pendingBaseFee)
 }
 func (p WorstQueue) Swap(i, j int) {
 	p.ms[i], p.ms[j] = p.ms[j], p.ms[i]

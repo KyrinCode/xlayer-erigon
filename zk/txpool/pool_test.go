@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/exp/rand"
 	"google.golang.org/grpc"
 )
 
@@ -243,4 +244,99 @@ func TestOnNewBlock(t *testing.T) {
 	err := fetch.handleStateChanges(ctx, stateChanges)
 	assert.ErrorIs(t, io.EOF, err)
 	assert.Equal(t, 3, len(minedTxs.Txs))
+}
+
+// For X Layer
+
+func generateRandomMetaTx(id int, senderNonceMap map[uint64]uint64) *metaTx {
+	senderID := uint64(rand.Intn(1000))
+	nonce, exists := senderNonceMap[senderID]
+	if !exists {
+		nonce = 0
+	}
+	senderNonceMap[senderID] = nonce + 1
+
+	var idHash [32]byte
+	_, err := rand.Read(idHash[:])
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate random IDHash: %v", err))
+	}
+
+	return &metaTx{
+		Tx: &types.TxSlot{
+			IDHash:   idHash,
+			SenderID: senderID,
+			Nonce:    nonce,
+		},
+		minFeeCap:                 *uint256.NewInt(uint64(rand.Intn(1000000))),
+		nonceDistance:             uint64(rand.Intn(100)),
+		cumulativeBalanceDistance: uint64(rand.Intn(1000)),
+		minTip:                    uint64(rand.Intn(100)),
+		bestIndex:                 -1,
+		worstIndex:                -1,
+		timestamp:                 uint64(time.Now().UnixNano()),
+		created:                   uint64(time.Now().Unix()),
+		subPool:                   0,
+		currentSubPool:            PendingSubPool,
+	}
+}
+
+func isSorted(slice *bestSlice) bool {
+	for i := 1; i < slice.Len(); i++ {
+		if !slice.Less(i-1, i) {
+			return false
+		}
+	}
+	return true
+}
+
+func TestEnforceBestInvariantsAfterRemoveBestTxs(t *testing.T) {
+	const txCount = 1_000_000
+	rand.Seed(uint64(time.Now().UnixNano()))
+
+	poolSort := NewPendingSubPool(PendingSubPool, txCount+1, false)
+	poolTimSort := NewPendingSubPool(PendingSubPool, txCount+1, true)
+
+	senderNonceMap := make(map[uint64]uint64)
+	for i := 0; i < txCount; i++ {
+		tx := generateRandomMetaTx(i, senderNonceMap)
+		txCopy := *tx
+		txCopy.Tx = &types.TxSlot{
+			IDHash:   tx.Tx.IDHash,
+			SenderID: tx.Tx.SenderID,
+			Nonce:    tx.Tx.Nonce,
+		}
+		poolSort.Add(tx)
+		poolTimSort.Add(&txCopy)
+	}
+
+	poolSort.EnforceBestInvariants()
+	poolTimSort.EnforceBestInvariants()
+
+	assert.True(t, isSorted(poolSort.best), "sort.Sort failed to sort bestSlice")
+	assert.True(t, isSorted(poolTimSort.best), "timsort.TimSort failed to sort bestSlice")
+
+	assert.Equal(t, poolSort.best.ms[0].Tx.IDHash, poolTimSort.best.ms[0].Tx.IDHash, "Best tx IDHash differs before removing best txs")
+	assert.Equal(t, poolSort.best.ms[txCount-1].Tx.IDHash, poolTimSort.best.ms[txCount-1].Tx.IDHash, "Worst tx IDHash differs before removing best txs")
+
+	for i := 0; i < 30; i++ {
+		poolSort.Remove(poolSort.Best())
+		poolTimSort.Remove(poolSort.Best())
+	}
+
+	start := time.Now()
+	poolSort.EnforceBestInvariants()
+	sortDuration := time.Since(start)
+
+	start = time.Now()
+	poolTimSort.EnforceBestInvariants()
+	timSortDuration := time.Since(start)
+
+	assert.True(t, isSorted(poolSort.best), "sort.Sort failed to sort bestSlice")
+	assert.True(t, isSorted(poolTimSort.best), "timsort.TimSort failed to sort bestSlice")
+	assert.Equal(t, poolSort.best.ms[0].Tx.IDHash, poolTimSort.best.ms[0].Tx.IDHash, "Best tx IDHash differs after removing best txs")
+	assert.Greaterf(t, sortDuration, timSortDuration, "sort.Sort cost less time than timsort.TimSort")
+
+	t.Logf("sort.Sort duration(After BestRead): %v", sortDuration)
+	t.Logf("timsort.TimSort duration(After BestRead): %v", timSortDuration)
 }

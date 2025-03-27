@@ -34,6 +34,7 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		BulkAddTxs:                        ctx.Bool(utils.BulkAddTxsFlag.Name),
 		BulkAddTxsSize:                    ctx.Int(utils.BulkAddTxsFlag.Name),
 		BulkAddTxsWaitTime:                ctx.Duration(utils.BulkAddTxsWaitTimeFlag.Name),
+		AutoSortBest:                      ctx.Bool(utils.TxPoolAutoSortBest.Name),
 	}
 	if cfg.XLayer.BlockInfoConcurrent {
 		blockinfo.InitUseBlockInfoTreeTrue()
