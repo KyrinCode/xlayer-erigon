@@ -540,9 +540,11 @@ func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
 
 	outData := [12]big.Int{}
 	words := scalarIn.Bits()
+	outDataBits := make([][1]big.Word, len(words))
 	for i := 0; i < 12; i++ {
 		if i < len(words) {
-			out[i] = (&outData[i]).SetUint64(uint64(words[i]))
+			outDataBits[i][0] = words[i]
+			out[i] = (&outData[i]).SetBits(outDataBits[i][:])
 		} else {
 			out[i] = &outData[i]
 		}
