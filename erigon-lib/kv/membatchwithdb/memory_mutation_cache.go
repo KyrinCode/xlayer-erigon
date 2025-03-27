@@ -2,11 +2,11 @@ package membatchwithdb
 
 import (
 	"bytes"
+
 	"github.com/ledgerwatch/erigon-lib/common"
 
 	"github.com/c2h5oh/datasize"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/log/v3"
 )
 
 // MemoryMutationWithCache extends MemoryMutation with a caching layer
@@ -14,34 +14,6 @@ type MemoryMutationWithCache struct {
 	*MemoryMutation
 	cache       map[string]map[string][]byte // Read-only cache, passed externally
 	modifyCache map[string]map[string][]byte // Writable cache for modifications
-}
-
-// NewMemoryBatchWithCache creates a MemoryMutation with caching
-func NewMemoryBatchWithCache(tx kv.Tx, tmpDir string, logger log.Logger, cache map[string]map[string][]byte) *MemoryMutationWithCache {
-	base := NewMemoryBatch(tx, tmpDir, logger)
-	if cache == nil {
-		cache = make(map[string]map[string][]byte) // Ensure cache is never nil
-	}
-
-	return &MemoryMutationWithCache{
-		MemoryMutation: base,
-		cache:          cache,
-		modifyCache:    make(map[string]map[string][]byte), // Initialize modifyCache from scratch
-	}
-}
-
-// NewMemoryBatchNoSequenceWithCache creates a cached version without sequence initialization
-func NewMemoryBatchNoSequenceWithCache(tx kv.Tx, tmpDir string, logger log.Logger, cache map[string]map[string][]byte) *MemoryMutationWithCache {
-	base := NewMemoryBatchNoSequence(tx, tmpDir, logger)
-	if cache == nil {
-		cache = make(map[string]map[string][]byte)
-	}
-
-	return &MemoryMutationWithCache{
-		MemoryMutation: base,
-		cache:          cache,
-		modifyCache:    make(map[string]map[string][]byte),
-	}
 }
 
 // NewMemoryBatchWithSizeNoSequenceWithCache creates a cached version with custom size
@@ -58,26 +30,8 @@ func NewMemoryBatchWithSizeNoSequenceWithCache(tx kv.Tx, tmpDir string, mapSize 
 	}
 }
 
-// NewMemoryBatchWithCustomDBWithCache creates a cached version with a custom DB
-func NewMemoryBatchWithCustomDBWithCache(tx kv.Tx, db kv.RwDB, uTx kv.RwTx, tmpDir string, cache map[string]map[string][]byte) *MemoryMutationWithCache {
-	base := NewMemoryBatchWithCustomDB(tx, db, uTx, tmpDir)
-	if cache == nil {
-		cache = make(map[string]map[string][]byte)
-	}
-
-	return &MemoryMutationWithCache{
-		MemoryMutation: base,
-		cache:          cache,
-		modifyCache:    make(map[string]map[string][]byte),
-	}
-}
-
 // GetOne with cache support, prioritizes modifyCache, then cache, then MemoryMutation
 func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, error) {
-	if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
-		return nil, nil
-	}
-
 	keyStr := string(key)
 
 	// 1. Check modifyCache first
@@ -112,10 +66,6 @@ func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, erro
 
 // Has with cache support, prioritizes modifyCache, then cache, then MemoryMutation
 func (m *MemoryMutationWithCache) Has(table string, key []byte) (bool, error) {
-	if m.isTableCleared(table) || m.isEntryDeleted(table, key) {
-		return false, nil
-	}
-
 	keyStr := string(key)
 
 	// 1. Check modifyCache first
@@ -182,15 +132,11 @@ func (m *MemoryMutationWithCache) Append(table string, key []byte, value []byte)
 
 // Delete with cache support, modifies modifyCache only
 func (m *MemoryMutationWithCache) Delete(table string, k []byte) error {
-	err := m.MemoryMutation.Delete(table, k)
-	if err != nil {
-		return err
-	}
 	// Update modifyCache only
 	if modKeys, ok := m.modifyCache[table]; ok {
 		delete(modKeys, string(k))
 	}
-	return nil
+	return m.MemoryMutation.Delete(table, k)
 }
 
 // Commit with cache support, clears modifyCache
@@ -220,9 +166,4 @@ func (m *MemoryMutationWithCache) ClearBucket(bucket string) error {
 	// Clear from modifyCache only
 	delete(m.modifyCache, bucket)
 	return nil
-}
-
-func (m *MemoryMutationWithCache) ResetDeleteInfo() {
-	m.MemoryMutation.deletedEntries = map[string]map[string]struct{}{}
-	m.MemoryMutation.clearedTables = map[string]struct{}{}
 }
