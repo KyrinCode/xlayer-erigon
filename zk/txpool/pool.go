@@ -428,7 +428,7 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 			if ethCfg.XLayer.BulkAddTxs && ethCfg.DeprecatedTxPool.EnableNotify {
 				needNofity = true
 				go func(requireTxPoolLock *atomic.Bool) {
-					streams := notificationStreams
+					streams := &TxpoolNotificationPubSub{}
 					for {
 						time.Sleep(ethCfg.XLayer.BulkAddTxsWaitTime)
 						if requireTxPoolLock.Load() {
