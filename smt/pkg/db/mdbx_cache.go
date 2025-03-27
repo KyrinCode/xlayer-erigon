@@ -22,7 +22,7 @@ type EriCacheDb struct {
 }
 
 func NewEriCacheDb(ctx context.Context, txsmt kv.Tx, txcdb kv.RwTx) *EriCacheDb {
-	batch := membatch.NewHashBatch(txsmt, ctx.Done(), "./tempdb-cache", log.New())
+	batch := membatch.NewHashCacheBatch(txsmt, ctx.Done(), "./tempdb-cache", log.New())
 	defer func() {
 		batch.Close()
 	}()
