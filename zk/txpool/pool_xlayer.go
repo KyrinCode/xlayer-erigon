@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/types"
@@ -216,6 +217,9 @@ func (p *PendingPool) BulkAdd(mts []*metaTx) {
 }
 
 var notificationStreams *TxpoolNotificationPubSub
+var requireTxPoolLock atomic.Bool
+var notifyOnce sync.Once
+var needNofity bool
 
 type TxpoolNotificationPubSub struct {
 	chans map[uint]chan struct{}
@@ -261,4 +265,10 @@ func (ps *TxpoolNotificationPubSub) remove(id uint) {
 
 func GetNoficationStreams() *TxpoolNotificationPubSub {
 	return notificationStreams
+}
+
+func ArquireTxPoolLock(acquire bool) {
+	if needNofity {
+		requireTxPoolLock.Swap(acquire)
+	}
 }

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -34,9 +32,6 @@ var shouldCheckForExecutionAndDataStreamAlignment = true
 var externalDataStreamServerCreated = false
 
 var supportAC = true
-var requireTxPoolLock atomic.Bool
-var once sync.Once
-var needNofity bool
 
 func SpawnSequencingStage(
 	s *stagedsync.StageState,
@@ -96,24 +91,6 @@ func SpawnSequencingStage(
 		time.Sleep(10 * time.Minute)
 		return nil
 	}
-
-	// For X Layer
-	once.Do(
-		func() {
-			if txpool.GetNoficationStreams() != nil {
-				go func(requireTxPoolLock *atomic.Bool) {
-					streams := txpool.GetNoficationStreams()
-					for {
-						time.Sleep(cfg.zk.XLayer.BulkAddTxsWaitTime)
-						if requireTxPoolLock.Load() {
-							continue
-						}
-						streams.Pub(struct{}{})
-					}
-				}(&requireTxPoolLock)
-			}
-		},
-	)
 
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
 		if !supportAC {
@@ -450,9 +427,7 @@ func sequencingBatchStep(
 			}
 
 			// For X Layer
-			if needNofity {
-				requireTxPoolLock.Swap(true)
-			}
+			txpool.ArquireTxPoolLock(true)
 
 			select {
 			case <-infoTreeTicker.C:
@@ -517,9 +492,7 @@ func sequencingBatchStep(
 			}
 
 			// For X Layer
-			if needNofity {
-				requireTxPoolLock.Swap(false)
-			}
+			txpool.ArquireTxPoolLock(false)
 
 			if len(batchState.blockState.transactionsForInclusion) == 0 {
 				pauseTime := time.Now()
@@ -827,9 +800,7 @@ func sequencingBatchStep(
 		}
 
 		// For X Layer
-		if needNofity {
-			requireTxPoolLock.Swap(true)
-		}
+		txpool.ArquireTxPoolLock(true)
 
 		if !batchState.isL1Recovery() {
 			commitTime := time.Now()
@@ -854,9 +825,7 @@ func sequencingBatchStep(
 		}
 
 		// For X Layer
-		if needNofity {
-			requireTxPoolLock.Swap(false)
-		}
+		txpool.ArquireTxPoolLock(false)
 
 		t.LogTimer()
 		gasPerSecond := float64(0)
