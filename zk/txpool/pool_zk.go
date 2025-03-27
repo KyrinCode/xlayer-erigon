@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
-	"time"
-
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -18,6 +15,7 @@ import (
 	"github.com/ledgerwatch/erigon/common/math"
 	"github.com/ledgerwatch/erigon/zk/utils"
 	"github.com/ledgerwatch/log/v3"
+	"sync"
 )
 
 /*
@@ -47,8 +45,6 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 	senderAddr := common.Address{}
 	freeType, gpMul := p.checkFreeGasSenderXLayer(senderID, &senderAddr)
 	findSenderOk := senderAddr == [20]byte{}
-
-	pending.mtx.Lock()
 	byNonce.ascend(senderID, func(mt *metaTx) bool {
 		if mt.Tx.Traced {
 			log.Info(fmt.Sprintf("TX TRACING: onSenderStateChange loop iteration idHash=%x senderID=%d, senderNonce=%d, txn.nonce=%d, currentSubPool=%s", mt.Tx.IDHash, senderID, senderNonce, mt.Tx.Nonce, mt.currentSubPool))
@@ -60,7 +56,7 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 			// del from sub-pool
 			switch mt.currentSubPool {
 			case PendingSubPool:
-				pending.RemoveNoLock(mt)
+				pending.Remove(mt)
 			case BaseFeeSubPool:
 				baseFee.Remove(mt)
 			case QueuedSubPool:
@@ -97,7 +93,7 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 			// use the max uint64 as default because the remain claimTx should handle first
 			var newGpBig uint64 = math.MaxUint64
 			if p.gpCache != nil {
-				dGp := p.gpCache.GetLatestPriceReadOnly()
+				_, dGp := p.gpCache.GetLatest()
 				if dGp != nil {
 					newGpBig = dGp.Uint64() * gpMul
 					// newGpBig = newGpBig.Mul(dGp, big.NewInt(int64(gpMul)))
@@ -170,7 +166,7 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 		// Some fields of mt might have changed, need to fix the invariants in the subpool best and worst queues
 		switch mt.currentSubPool {
 		case PendingSubPool:
-			pending.UpdatedNoLock(mt)
+			pending.Updated(mt)
 		case BaseFeeSubPool:
 			baseFee.Updated(mt)
 		case QueuedSubPool:
@@ -178,7 +174,6 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 		}
 		return true
 	})
-	pending.mtx.Unlock()
 	for _, mt := range toDel {
 		discard(mt, NonceTooLow)
 	}
@@ -191,51 +186,23 @@ var (
 // zk: the implementation of best here is changed only to not take into account block gas limits as we don't care about
 // these in zk.  Instead we do a quick check on the transaction maximum gas in zk
 func (p *TxPool) best(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, error) {
-	removeWG.Wait()
-	ok, count, toRemove, err := p.bestRead(n, txs, tx, onTopOf, availableGas, availableBlobGas, toSkip)
-	if err != nil {
-		return ok, count, err
-	}
-	if !ok {
-		return false, count, nil
-	}
-	txs.Resize(uint(count))
-	if len(toRemove) > 0 {
-		removeWG.Add(1)
-		go func() {
-			p.lock.Lock()
-			defer p.lock.Unlock()
-			removeWG.Done()
-			for _, mt := range toRemove {
-				p.pending.Remove(mt)
-				p.discardLocked(mt, UnsupportedTx)
-				//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
-			}
-		}()
-		time.Sleep(1 * time.Nanosecond)
-	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	return true, count, nil
-}
-
-func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availableGas, availableBlobGas uint64, toSkip mapset.Set[[32]byte]) (bool, int, []*metaTx, error) {
 	if p.isDeniedYieldingTransactions() {
 		//log.Trace("Denied yielding transactions, cannot proceed")
-		return false, 0, nil, nil
+		return false, 0, nil
 	}
 
 	// First wait for the corresponding block to arrive
 	if p.lastSeenBlock.Load() < onTopOf {
 		//log.Trace("Block not yet arrived, too early to process", "lastSeenBlock", p.lastSeenBlock.Load(), "requiredBlock", onTopOf)
-		return false, 0, nil, nil
+		return false, 0, nil
 	}
 
 	isShanghai := p.isShanghai()
 	isLondon := p.isLondon()
-
-	p.lock.RLock()
-	defer p.lock.RUnlock()
-
+	_ = isLondon
 	best := p.pending.best
 
 	txs.Resize(uint(cmp.Min(int(n), len(best.ms))))
@@ -275,7 +242,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 		rlpTx, sender, isLocal, err := p.getRlpLocked(tx, mt.Tx.IDHash[:])
 		if err != nil {
 			//log.Trace("Error getting RLP of transaction", "txID", mt.Tx.IDHash, "error", err)
-			return false, count, toRemove, err
+			return false, count, err
 		}
 		if len(rlpTx) == 0 {
 			toRemove = append(toRemove, mt)
@@ -314,7 +281,15 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 		count++
 	}
 
-	return true, count, toRemove, nil
+	txs.Resize(uint(count))
+	if len(toRemove) > 0 {
+		for _, mt := range toRemove {
+			p.pending.Remove(mt)
+			p.discardLocked(mt, UnsupportedTx)
+			//log.Debug("Removed transaction from pending pool", "txID", mt.Tx.IDHash)
+		}
+	}
+	return true, count, nil
 }
 
 func (p *TxPool) ForceUpdateLatestBlock(blockNumber uint64) {
