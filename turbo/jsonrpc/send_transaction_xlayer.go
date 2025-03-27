@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -27,7 +30,7 @@ type txRequest struct {
 	encodedTx hexutility.Bytes
 }
 
-func (api *APIImpl) sendRawTransactionBatch(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
+func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
 	t := utils.StartTimer("rpc", "sendrawtransaction")
 	defer t.LogTimer()
 	tx, err := api.db.BeginRo(ctx)
@@ -72,7 +75,11 @@ func (api *APIImpl) sendRawTransactionBatch(ctx context.Context, encodedTx hexut
 }
 
 func (api *APIImpl) worker() {
-	var txBatch []txRequest
+	var txBulk []txRequest
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigc)
+
 	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
@@ -80,31 +87,33 @@ func (api *APIImpl) worker() {
 		select {
 		case req, ok := <-api.txChan:
 			if !ok {
-				if len(txBatch) > 0 {
-					api.processBatch(txBatch)
+				if len(txBulk) > 0 {
+					api.processBulk(txBulk)
 				}
 				return
 			}
-			txBatch = append(txBatch, req)
-			if len(txBatch) >= api.BulkAddTxsSize {
-				api.processBatch(txBatch)
-				txBatch = nil
+			txBulk = append(txBulk, req)
+			if len(txBulk) >= api.BulkAddTxsSize {
+				api.processBulk(txBulk)
+				txBulk = nil
 				ticker.Reset(api.BulkAddTxsWaitTime)
 			}
 		case <-ticker.C:
-			if len(txBatch) > 0 {
-				err := api.processBatch(txBatch)
+			if len(txBulk) > 0 {
+				err := api.processBulk(txBulk)
 				if err != nil {
-					log.Error("process batch failed", "err", err)
+					log.Error("process bulk failed", "err", err)
 				}
-				txBatch = nil
+				txBulk = nil
 			}
 			ticker.Reset(api.BulkAddTxsWaitTime)
+		case <-sigc:
+			return
 		}
 	}
 }
 
-func (api *APIImpl) processBatch(batch []txRequest) error {
+func (api *APIImpl) processBulk(bulk []txRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -134,7 +143,7 @@ func (api *APIImpl) processBatch(batch []txRequest) error {
 	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
 
 	var rlpTxs [][]byte
-	for _, req := range batch {
+	for _, req := range bulk {
 		_, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
 		if err != nil {
 			log.Error("validateTransaction failed", "err", err)
@@ -209,7 +218,7 @@ func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutilit
 		return common.Hash{}, err
 	}
 	if badTxHashCounter >= api.BadTxAllowance {
-		return common.Hash{}, errors.New("transaction uses too many counters to fit into a batch")
+		return common.Hash{}, errors.New("transaction uses too many counters to fit into a bulk")
 	}
 
 	if len(api.PreRunList) > 0 && utils2.CheckAddressExists(api.PreRunList, sender) {
