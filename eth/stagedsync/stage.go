@@ -48,6 +48,9 @@ type StageState struct {
 }
 
 func (s *StageState) GetSmtCache() map[string]map[string][]byte { return s.state.GetSmtCache() }
+func (s *StageState) GetDeltaSmtCache() map[string]map[string][]byte {
+	return s.state.GetDeltaSmtCache()
+}
 
 func (s *StageState) SetSmtCache(cache, deltaCache map[string]map[string][]byte) {
 	s.state.SetSmtCache(cache, deltaCache)

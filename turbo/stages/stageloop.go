@@ -82,6 +82,7 @@ func AsyncFlushSmtData(ctx context.Context,
 
 func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte) {
 	defer wg.Done()
+	log.Info("-----FlushDataToDB-----")
 
 	err := db.Batch(func(tx kv.RwTx) error {
 		batch := membatch.NewHashBatchWithCache(tx, ctx.Done(), "", logger, smtCache)
@@ -89,6 +90,7 @@ func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, log
 
 		return batch.Flush(ctx, tx)
 	})
+	log.Info("-----FlushDataToDB done-----")
 
 	if err != nil {
 		logger.Error("failed to flush data to DB", "error", err)

@@ -123,10 +123,10 @@ func (g *Generator) GetWitnessByBadBatch(tx kv.Tx, txsmt kv.Tx, ctx context.Cont
 		blocks[i] = block
 	}
 
-	return g.generateWitness(tx, txsmt, ctx, batchNum, blocks, debug, witnessFull, nil)
+	return g.generateWitness(tx, txsmt, ctx, batchNum, blocks, debug, witnessFull, nil, nil)
 }
 
-func (g *Generator) GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, cache map[string]map[string][]byte) ([]byte, error) {
+func (g *Generator) GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, lastCache, cache map[string]map[string][]byte) ([]byte, error) {
 	t := zkUtils.StartTimer("witness", "getwitnessbyblockrange")
 	defer t.LogTimer()
 
@@ -155,10 +155,10 @@ func (g *Generator) GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Co
 		idx++
 	}
 
-	return g.generateWitness(tx, txsmt, ctx, firstBatch, blocks, debug, witnessFull, cache)
+	return g.generateWitness(tx, txsmt, ctx, firstBatch, blocks, debug, witnessFull, lastCache, cache)
 }
 
-func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, batchNum uint64, blocks []*eritypes.Block, debug, witnessFull bool, cache map[string]map[string][]byte) ([]byte, error) {
+func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, batchNum uint64, blocks []*eritypes.Block, debug, witnessFull bool, lastCache, cache map[string]map[string][]byte) ([]byte, error) {
 	now := time.Now()
 	defer func() {
 		diff := time.Since(now)
@@ -201,11 +201,41 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 		}
 		if cache != nil {
 			// TODO: set the cached value to memdb
+			applyStartTime := time.Now()
+			if batchNum%50 == 1 && len(blocks) == 1 {
+				log.Info("------LastDeltaSmtCache-----", "last cache length", len(lastCache))
+				for table, bucket := range lastCache {
+					log.Info("------LastDeltaSmtCache-----", "table", table, "bucket length", len(bucket))
+					for key, value := range bucket {
+						if value == nil {
+							if err := rwtxsmt.Delete(table, []byte(key)); err != nil {
+								return nil, err
+							}
+						} else {
+							if err := rwtxsmt.Put(table, []byte(key), value); err != nil {
+								return nil, err
+							}
+						}
+					}
+				}
+				log.Info("------DeltaSmtCache-----", "apply time", time.Since(applyStartTime))
+			}
+			log.Info("------DeltaSmtCache-----", "cache length", len(cache))
 			for table, bucket := range cache {
-				for k, v := range bucket {
-					rwtxsmt.Put(table, []byte(k), v)
+				log.Info("------DeltaSmtCache-----", "table", table, "bucket length", len(bucket))
+				for key, value := range bucket {
+					if value == nil {
+						if err := rwtxsmt.Delete(table, []byte(key)); err != nil {
+							return nil, err
+						}
+					} else {
+						if err := rwtxsmt.Put(table, []byte(key), value); err != nil {
+							return nil, err
+						}
+					}
 				}
 			}
+			log.Info("------DeltaSmtCache-----", "apply time", time.Since(applyStartTime))
 		}
 	} else {
 		// if there is no standalone smt db, we PopulateMemoryMutationTablesSmt on main db
@@ -219,11 +249,13 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 		return nil, nil
 	}
 
+	log.Info("-----Unwinding if needed-----", "startBlock", startBlock, "latestBlock", latestBlock)
 	if startBlock-1 < latestBlock {
 		if latestBlock-startBlock > g.witnessUnwindLimit {
 			return nil, fmt.Errorf("requested block is too old, block must be within %d blocks of the head block number (currently %d)", g.witnessUnwindLimit, latestBlock)
 		}
 
+		log.Info("-----Unwinding-----")
 		if err := UnwindForWitness(ctx, rwtx, rwtxsmt, startBlock, latestBlock, g.dirs, g.historyV3, g.agg); err != nil {
 			return nil, fmt.Errorf("UnwindForWitness: %w", err)
 		}

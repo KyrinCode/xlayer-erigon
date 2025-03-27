@@ -91,6 +91,7 @@ func updateStreamAndCheckRollback(
 	batchState *BatchState,
 	streamWriter *SequencerBatchStreamWriter,
 	u stagedsync.Unwinder,
+	lastCache map[string]map[string][]byte,
 	cache map[string]map[string][]byte,
 ) (bool, error) {
 	checkedVerifierBundles, verifierBundleForUnwind, err := streamWriter.CommitNewUpdates()
@@ -120,7 +121,7 @@ func updateStreamAndCheckRollback(
 			infiniteLoop(verifierBundle.Request.BatchNumber)
 		}
 
-		if err = handleLimbo(batchContext, batchState, verifierBundle, cache); err != nil {
+		if err = handleLimbo(batchContext, batchState, verifierBundle, lastCache, cache); err != nil {
 			return false, err
 		}
 

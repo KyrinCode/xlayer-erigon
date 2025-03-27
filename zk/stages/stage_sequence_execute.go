@@ -30,6 +30,8 @@ var shouldCheckForExecutionAndDataStreamAlignment = true
 // For X Layer, for local replay feature
 var externalDataStreamServerCreated = false
 
+var lastDeltaSmtCache = map[string]map[string][]byte{}
+
 func SpawnSequencingStage(
 	s *stagedsync.StageState,
 	u stagedsync.Unwinder,
@@ -94,12 +96,7 @@ func SpawnSequencingStage(
 			return err
 		}
 
-		// enable split smt db
-		if cfg.zk.XLayer.StandaloneSMTDatabase {
-			if s.BlockNumber%50 == 0 {
-				err = s.FlushSmtCache()
-			}
-		} else {
+		if (lastBatch+1)%50 == 0 {
 			err = s.FlushSmtCache()
 		}
 	}
@@ -140,7 +137,7 @@ func sequencingBatchStep(
 	}
 	defer sdb.Rollback()
 
-	oldCache := s.GetSmtCache()
+	// oldCache := s.GetSmtCache()
 	if sdb.supportAC {
 		sdb.eridb.SetCache(s.GetSmtCache())
 	}
@@ -225,7 +222,7 @@ func sequencingBatchStep(
 		shouldCheckForExecutionAndDataStreamAlignment = false
 	}
 
-	needsUnwind, exitStage, err := tryHaltSequencer(batchContext, batchState, streamWriter, u, executionAt, oldCache)
+	needsUnwind, exitStage, err := tryHaltSequencer(batchContext, batchState, streamWriter, u, executionAt, lastDeltaSmtCache, s.GetDeltaSmtCache())
 	if needsUnwind || err != nil {
 		return err
 	}
@@ -756,7 +753,7 @@ func sequencingBatchStep(
 		if batchContext.sdb.supportAC {
 			quit := batchContext.ctx.Done()
 			batchContext.sdb.eridb.OpenBatch(quit) // do nothing...
-			oldCache = s.GetSmtCache()
+			// oldCache = s.GetSmtCache()
 			batchContext.sdb.eridb.SetCache(s.GetSmtCache())
 			if block, err = doFinishBlockAndUpdateState(batchContext, ibs, header, parentBlock, batchState, ger, l1BlockHash, l1TreeUpdateIndex, infoTreeIndexProgress, batchCounters); err != nil {
 				batchContext.sdb.eridb.RollbackBatch()
@@ -837,7 +834,7 @@ func sequencingBatchStep(
 		if err != nil {
 			return err
 		}
-		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.XLayer.ExecutorMock, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries, oldCache)
+		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.XLayer.ExecutorMock, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries, lastDeltaSmtCache, s.GetDeltaSmtCache())
 
 		// For X Layer, local replay's feature of stateroot mismatch detection
 		if cfg.zk.XLayer.SequencerReplay {
@@ -854,7 +851,8 @@ func sequencingBatchStep(
 		}
 
 		// check for new responses from the verifier
-		needsUnwind, err := updateStreamAndCheckRollback(batchContext, batchState, streamWriter, u, oldCache)
+		needsUnwind, err := updateStreamAndCheckRollback(batchContext, batchState, streamWriter, u, lastDeltaSmtCache, s.GetDeltaSmtCache())
+		lastDeltaSmtCache = s.GetDeltaSmtCache()
 
 		// lets commit everything after updateStreamAndCheckRollback no matter of its result unless
 		// we're in L1 recovery where losing some blocks on restart doesn't matter
@@ -882,7 +880,7 @@ func sequencingBatchStep(
 		if err := cfg.doneHook.AfterRun(batchContext.sdb.tx, block.NumberU64()-1, s.PrevUnwindPoint()); err != nil {
 			return err
 		}
-		
+
 		// For X Layer
 		metrics.GetLogStatistics().SetTag(metrics.FinalizeBlockNumber, strconv.Itoa(int(blockNumber)))
 		metrics.GetLogStatistics().SummaryCheckpoint()

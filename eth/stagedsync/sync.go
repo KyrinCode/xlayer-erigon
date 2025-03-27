@@ -49,6 +49,8 @@ type Timing struct {
 
 func (s *Sync) GetSmtCache() map[string]map[string][]byte { return s.SmtCache }
 
+func (s *Sync) GetDeltaSmtCache() map[string]map[string][]byte { return s.DeltaSmtCache }
+
 func (s *Sync) SetSmtCache(cache, deltaCache map[string]map[string][]byte) {
 	if s.SmtCache == nil {
 		s.SmtCache = make(map[string]map[string][]byte)
