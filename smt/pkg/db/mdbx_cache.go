@@ -22,7 +22,7 @@ type EriCacheDb struct {
 }
 
 func NewEriCacheDb(ctx context.Context, txsmt kv.Tx, txcdb kv.RwTx) *EriCacheDb {
-	batch := membatch.NewHashBatch(txsmt, ctx.Done(), "./tempdb", log.New())
+	batch := membatch.NewHashCacheBatch(txsmt, ctx.Done(), "./tempdb", log.New())
 	defer func() {
 		batch.Close()
 	}()
@@ -42,33 +42,21 @@ func (m *EriCacheDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {
 		smtCachedMapValue = make(map[string]map[string][]byte)
 	}
 
-	mapCache, ok := m.cacheTx.(*membatch.Mapmutation)
+	mapCache, ok := m.cacheTx.(*membatch.MapmutationWithDoubleCache)
 	if !ok {
 		return // don't roll back a kvRw tx
 	}
 
 	mapCache.SetCache(smtCachedMapValue)
-
-	//batch := membatch.NewHashBatchWithCache(m.kvTx, quitCh, "./tempdb", log.New(), smtCachedMapValue)
-	// WARN: cannnot close batch here, or it will clean all the cache value
-	//defer func() {
-	//	batch.Close()
-	//}()
-
-	//m.cacheTx = batch
-	//m.kvTxRoSMT = batch
 }
 
-func (m *EriCacheDb) RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte) {
-	mapCache, ok := m.cacheTx.(*membatch.Mapmutation)
+func (m *EriCacheDb) RetriveAndCleanCache() map[string]map[string][]byte {
+	mapCache, ok := m.cacheTx.(*membatch.MapmutationWithDoubleCache)
 	if !ok {
-		return nil, nil // don't roll back a kvRw tx
+		return nil // don't roll back a kvRw tx
 	}
 
-	smtCache, deltaSmtCache := mapCache.RetrieveAndCleanSmtCache(HermezSmtTables)
-	mapCache.ResetCacheContent()
-
-	return smtCache, deltaSmtCache
+	return mapCache.RetrieveAndCleanSmtCache(HermezSmtTables)
 }
 
 func (m *EriCacheDb) CommitBatch() error {
@@ -116,10 +104,6 @@ func (m *EriCacheDb) GetLastHeight() (uint64, error) {
 	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaLastHeight))
 	if err != nil {
 		return 0, err
-	}
-
-	if data == nil || len(data) == 0 {
-		return 0, nil
 	}
 
 	return utils.ConvertBytesToUint64(data)

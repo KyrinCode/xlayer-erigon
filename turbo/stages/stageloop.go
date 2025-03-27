@@ -114,8 +114,9 @@ func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, log
 	defer wg.Done()
 
 	err := db.Batch(func(tx kv.RwTx) error {
-		batch := membatch.NewHashBatchWithCache(tx, ctx.Done(), "", logger, smtCache)
+		batch := membatch.NewHashBatch(tx, ctx.Done(), "", logger)
 		defer batch.Close()
+		batch.SetCache(smtCache)
 
 		return batch.Flush(ctx, tx)
 	})

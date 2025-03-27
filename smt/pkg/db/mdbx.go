@@ -106,8 +106,8 @@ func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {
 	mapCache.SetCache(smtCachedMapValue)
 }
 
-func (m *EriDb) RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte) {
-	return nil, nil
+func (m *EriDb) RetriveAndCleanCache() map[string]map[string][]byte {
+	return nil
 }
 
 func (m *EriDb) CommitBatch() error {
@@ -161,10 +161,6 @@ func (m *EriRoDb) GetLastHeight() (uint64, error) {
 	data, err := m.kvTxRoSMT.GetOne(TableStats, []byte(MetaLastHeight))
 	if err != nil {
 		return 0, err
-	}
-
-	if data == nil || len(data) == 0 {
-		return 0, nil
 	}
 
 	return utils.ConvertBytesToUint64(data)

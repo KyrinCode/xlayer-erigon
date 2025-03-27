@@ -55,8 +55,8 @@ func (s *StageState) GetSmtHistorySnapshotCache(blockNumber uint64) map[string]m
 	return s.state.GetSmtSnapshotCache(blockNumber)
 }
 
-func (s *StageState) SetSmtCache(blockNumber uint64, longLivedSmtCache, blockCache map[string]map[string][]byte) {
-	s.state.SetSmtCache(blockNumber, longLivedSmtCache, blockCache)
+func (s *StageState) SetSmtCache(blockNumber uint64, blockCache map[string]map[string][]byte) {
+	s.state.SetSmtCache(blockNumber, blockCache)
 }
 
 func (s *StageState) FlushSmtCache(batchPush bool) error {

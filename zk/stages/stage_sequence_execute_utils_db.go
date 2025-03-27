@@ -138,8 +138,8 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 
 func (sdb *stageDb) Commit(s *stagedsync.StageState, blockNumber uint64, flushSmt bool) error {
 	if sdb.supportAC && flushSmt {
-		smtCache, blockCache := sdb.eridb.RetriveAndCleanCache()
-		s.SetSmtCache(blockNumber, smtCache, blockCache)
+		blockCache := sdb.eridb.RetriveAndCleanCache()
+		s.SetSmtCache(blockNumber, blockCache)
 	}
 
 	err := sdb.tx.Commit()

@@ -34,7 +34,7 @@ type DB interface {
 	OpenBatch(quitCh <-chan struct{})
 	RollbackBatch()
 	SetCache(cache map[string]map[string][]byte)
-	RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte)
+	RetriveAndCleanCache() map[string]map[string][]byte
 	RoDB
 }
 

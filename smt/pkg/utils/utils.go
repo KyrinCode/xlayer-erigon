@@ -938,9 +938,10 @@ func ConvertUint64ToBytes(n uint64) []byte {
 }
 
 func ConvertBytesToUint64(bytes []byte) (uint64, error) {
-	if len(bytes) < 8 {
-		return 0, fmt.Errorf("byte slice too short: need 8, got %d", len(bytes))
+	if bytes == nil || len(bytes) == 0 {
+		return 0, nil
 	}
+
 	n := binary.BigEndian.Uint64(bytes)
 	// or use binary.LittleEndian.Uint64(bytes)
 	return n, nil

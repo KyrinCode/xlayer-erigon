@@ -761,11 +761,11 @@ func sequencingBatchStep(
 				batchContext.sdb.eridb.RollbackBatch()
 				return err
 			}
-			smtCache, blockCache := batchContext.sdb.eridb.RetriveAndCleanCache()
+			blockCache := batchContext.sdb.eridb.RetriveAndCleanCache()
 			if err := batchContext.sdb.eridb.CommitBatch(); err != nil {
 				return err
 			}
-			s.SetSmtCache(blockNumber, smtCache, blockCache)
+			s.SetSmtCache(blockNumber, blockCache)
 		} else {
 			quit := batchContext.ctx.Done()
 			batchContext.sdb.eridb.OpenBatch(quit)

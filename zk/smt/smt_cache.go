@@ -161,7 +161,7 @@ func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) m
 	return result
 }
 
-func (cache *SmtCache) SetSmtCache(blockNumber uint64, longLivedCache, blockCache map[string]map[string][]byte) {
+func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map[string][]byte) {
 	cache.SmtCacheSnapshotLock.Lock()
 	cache.SmtCacheSnapshotList.Push(blockNumber, blockCache)
 	cache.SmtCacheSnapshotLock.Unlock()
@@ -176,14 +176,16 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, longLivedCache, blockCach
 			cache.DeltaSmtCache[table] = make(map[string][]byte, len(bucket))
 		}
 
+		if _, exists := cache.LongLivedSmtCache[table]; !exists {
+			cache.LongLivedSmtCache[table] = make(map[string][]byte, len(bucket))
+		}
+
 		for k, v := range bucket {
 			cache.DeltaSmtCache[table][k] = v
+			cache.LongLivedSmtCache[table][k] = v
 		}
 	}
 
-	for table, bucket := range longLivedCache {
-		cache.LongLivedSmtCache[table] = bucket
-	}
 }
 
 func (cache *SmtCache) FlushSmtCache(batchPush bool) error {
@@ -228,7 +230,7 @@ func (cache *SmtCache) FlushSmtCache(batchPush bool) error {
 
 	if height-cache.LastResetHeight > 1000 {
 		cache.SmtCacheSnapshotLock.RLock()
-		deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(true)
+		deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(false)
 		cache.SmtCacheSnapshotLock.RUnlock()
 
 		if deltaSmtCache == nil {
@@ -272,7 +274,7 @@ func (cache *SmtCache) ResetCurrentBatch(lastBlockHeight uint64) {
 	}
 
 	// 3. reset longLive cache
-	deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(true)
+	deltaSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot(false)
 	cache.SmtCacheSnapshotLock.Unlock()
 
 	if deltaSmtCache == nil {
