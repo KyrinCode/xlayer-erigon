@@ -47,6 +47,8 @@ type XLayerConfig struct {
 	EnableFreeGasList  bool
 	FreeGasFromNameMap map[string]string                 // map[from]projectName
 	FreeGasList        map[string]*ethconfig.FreeGasInfo // map[projectName]FreeGasInfo
+	// EnableTimsort is the switch to use timsort on the best slice of txpool
+	EnableTimsort bool
 }
 
 type GPCache interface {
