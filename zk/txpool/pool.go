@@ -415,10 +415,16 @@ func New(newTxs chan types.Announcements, coreDB kv.RoDB, cfg txpoolcfg.Config, 
 			FreeGasExAddrs:       ethCfg.DeprecatedTxPool.FreeGasExAddrs,
 			FreeGasCountPerAddr:  ethCfg.DeprecatedTxPool.FreeGasCountPerAddr,
 			FreeGasLimit:         ethCfg.DeprecatedTxPool.FreeGasLimit,
-			EnableFreeGasList:    ethCfg.DeprecatedTxPool.EnableFreeGasList},
+			EnableFreeGasList:    ethCfg.DeprecatedTxPool.EnableFreeGasList,
+			EnableNotify:         ethCfg.DeprecatedTxPool.EnableNotify},
 		freeGasAddrs: map[string]bool{},
 	}
 	tp.setFreeGasList(ethCfg.DeprecatedTxPool.FreeGasList)
+
+	// For X Layer
+	if ethCfg.XLayer.BulkAddTxs && ethCfg.DeprecatedTxPool.EnableNotify {
+		notificationStreams = NewTxpoolNotificationStreams()
+	}
 
 	return tp, nil
 }

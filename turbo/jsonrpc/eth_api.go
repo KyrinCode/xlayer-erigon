@@ -42,6 +42,7 @@ import (
 	"github.com/ledgerwatch/erigon/turbo/rpchelper"
 	"github.com/ledgerwatch/erigon/turbo/services"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
+	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
 	"github.com/ledgerwatch/erigon/zk/utils"
 )
 
@@ -388,14 +389,15 @@ type APIImpl struct {
 	DisableVirtualCounters        bool
 
 	// For X Layer
-	L2GasPricer        gasprice.L2GasPricer
-	EnableInnerTx      bool
-	PreRunList         map[common.Address]struct{}
-	preRunProcessor    *PreRunProcessor
-	BulkAddTxs         bool
-	BulkAddTxsSize     int
-	BulkAddTxsWaitTime time.Duration
-	txChan             chan txRequest
+	L2GasPricer         gasprice.L2GasPricer
+	EnableInnerTx       bool
+	PreRunList          map[common.Address]struct{}
+	preRunProcessor     *PreRunProcessor
+	BulkAddTxs          bool
+	BulkAddTxsSize      int
+	BulkAddTxsWaitTime  time.Duration
+	txChan              chan txRequest
+	notificationStreams *txpool2.TxpoolNotificationPubSub
 }
 
 // NewEthAPI returns APIImpl instance
@@ -462,6 +464,9 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 			}
 		}
 	})
+	if txpool2.GetNoficationStreams() != nil {
+		apii.notificationStreams = txpool2.GetNoficationStreams()
+	}
 	if apii.BulkAddTxs {
 		go apii.worker()
 	}
