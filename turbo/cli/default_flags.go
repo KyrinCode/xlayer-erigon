@@ -331,6 +331,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.TxPoolFreeGasList,
 	&utils.TxPoolEnableNotify,
 	&utils.TxPoolAutoSortBest,
+	&utils.TxPoolEnableTimsort,
 	&utils.HTTPApiKeysFlag,
 	&utils.MethodRateLimitFlag,
 	&utils.SequencerReplay,
