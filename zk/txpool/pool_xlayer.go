@@ -188,10 +188,6 @@ type TxpoolNotificationPubSub struct {
 	mu    sync.RWMutex
 }
 
-func NewTxpoolNotificationStreams() *TxpoolNotificationPubSub {
-	return &TxpoolNotificationPubSub{}
-}
-
 func (ps *TxpoolNotificationPubSub) Sub() (ch chan struct{}, remove func()) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
