@@ -59,8 +59,8 @@ func (s *StageState) SetSmtCache(blockNumber uint64, blockCache map[string]map[s
 	s.state.SetSmtCache(blockNumber, blockCache)
 }
 
-func (s *StageState) FlushSmtCache(batchPush bool) error {
-	return s.state.FlushSmtCache(batchPush)
+func (s *StageState) FlushSmtCache(batchPush, grace bool) error {
+	return s.state.FlushSmtCache(batchPush, grace)
 }
 
 func (s *StageState) ResetCurrentBatchCache(blockNumber uint64) {

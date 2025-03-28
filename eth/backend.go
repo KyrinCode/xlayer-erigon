@@ -193,6 +193,9 @@ type Ethereum struct {
 	sentriesClient *sentry_multi_client.MultiClient
 	sentryServers  []*sentry.GrpcServer
 
+	smtFlushCtx    context.Context
+	smtFlushCancel context.CancelFunc
+
 	stagedSync         *stagedsync.Sync
 	verifier           *legacy_executor_verifier.LegacyExecutorVerifier
 	pipelineStagedSync *stagedsync.Sync
@@ -334,10 +337,14 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
+	smtFlushCtx, smtFlushCancel := context.WithCancel(context.Background())
+
 	// kv_remote architecture does blocks on stream.Send - means current architecture require unlimited amount of txs to provide good throughput
 	backend := &Ethereum{
 		sentryCtx:            ctx,
 		sentryCancel:         ctxCancel,
+		smtFlushCtx:          smtFlushCtx,
+		smtFlushCancel:       smtFlushCancel,
 		config:               config,
 		chainDB:              chainKv,
 		smtDB:                smtdb,
@@ -1979,7 +1986,7 @@ func (s *Ethereum) Start() error {
 		if s.smtDB == nil {
 			smtdb = s.chainDB
 		}
-		go stages2.AsyncFlushSmtData(s.sentryCtx, smtdb, s.stagedSync, s.config.Zk.XLayer, s.logger)
+		go stages2.AsyncFlushSmtData(s.smtFlushCtx, smtdb, s.stagedSync, s.config.Zk.XLayer, s.logger)
 		go stages2.StageLoop(s.sentryCtx, s.chainDB, s.stagedSync, s.sentriesClient.Hd, s.waitForStageLoopStop, s.config.Sync.LoopThrottle, s.logger, s.blockReader, hook, s.config.ForcePartialCommit)
 	}
 
@@ -2056,6 +2063,11 @@ func (s *Ethereum) Stop() error {
 	if s.agg != nil {
 		s.agg.Close()
 	}
+
+	s.logger.Info("Stopping SMT flush service...")
+	s.smtFlushCancel()
+	time.Sleep(3 * time.Second)
+
 	s.chainDB.Close()
 
 	s.gasTracker.Stop()

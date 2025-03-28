@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 	"runtime"
 	"sync"
 	"time"
+
+	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv/membatch"
@@ -69,8 +70,11 @@ func AsyncFlushSmtData(ctx context.Context,
 	}
 
 	var wg sync.WaitGroup
-	defer wg.Wait()
-
+	defer func() {
+		logger.Info("Waiting for all flush operations to complete...")
+		wg.Wait()
+		logger.Info("All flush operations completed, exiting...")
+	}()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -105,6 +109,22 @@ func AsyncFlushSmtData(ctx context.Context,
 			}
 		case <-ctx.Done():
 			logger.Info("AsyncFlushSmtData received stop signal", "reason", ctx.Err())
+			s.FlushSmtCache(config.StandaloneSMTDatabase, true)
+			for {
+				select {
+				case smtCacheData, ok := <-cache.SmtCacheDataCh:
+					if !ok {
+						logger.Info("SmtCacheCh closed during shutdown")
+						break
+					}
+					log.Info("---Get from channel---")
+					wg.Add(1)
+					go FlushDataToDB(&wg, context.Background(), db, logger, smtCacheData)
+				default:
+					goto waitAndExit
+				}
+			}
+		waitAndExit:
 			return
 		}
 	}
