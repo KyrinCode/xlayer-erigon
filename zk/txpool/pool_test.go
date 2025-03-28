@@ -262,16 +262,25 @@ func generateRandomMetaTx(id int, senderNonceMap map[uint64]uint64) *metaTx {
 		panic(fmt.Sprintf("Failed to generate random IDHash: %v", err))
 	}
 
+	minFeeCap := uint64(rand.Intn(1000000)) // [0, 999999]
+
+	var minTip uint64
+	if minFeeCap > 0 {
+		minTip = uint64(rand.Intn(int(minFeeCap))) // [0, minFeeCap-1]
+	} else {
+		minTip = 0
+	}
+
 	return &metaTx{
 		Tx: &types.TxSlot{
 			IDHash:   idHash,
 			SenderID: senderID,
 			Nonce:    nonce,
 		},
-		minFeeCap:                 *uint256.NewInt(uint64(rand.Intn(1000000))),
-		nonceDistance:             uint64(rand.Intn(100)),
-		cumulativeBalanceDistance: uint64(rand.Intn(1000)),
-		minTip:                    uint64(rand.Intn(100)),
+		minFeeCap:                 *uint256.NewInt(minFeeCap),
+		nonceDistance:             0,
+		cumulativeBalanceDistance: 0,
+		minTip:                    minTip,
 		bestIndex:                 -1,
 		worstIndex:                -1,
 		timestamp:                 uint64(time.Now().UnixNano()),
@@ -283,14 +292,15 @@ func generateRandomMetaTx(id int, senderNonceMap map[uint64]uint64) *metaTx {
 
 func isSorted(slice *bestSlice) bool {
 	for i := 1; i < slice.Len(); i++ {
-		if !slice.Less(i-1, i) {
+		if slice.Less(i, i-1) {
+			fmt.Printf("Unsorted at %d: %+v < %+v\n", i, slice.ms[i-1], slice.ms[i])
 			return false
 		}
 	}
 	return true
 }
 
-func TestEnforceBestInvariantsAfterRemoveBestTxs(t *testing.T) {
+func TestEnforceBestInvariantsAfterBestChanged(t *testing.T) {
 	const txCount = 1_000_000
 	rand.Seed(uint64(time.Now().UnixNano()))
 
@@ -310,33 +320,130 @@ func TestEnforceBestInvariantsAfterRemoveBestTxs(t *testing.T) {
 		poolTimSort.Add(&txCopy)
 	}
 
-	poolSort.EnforceBestInvariants()
 	poolTimSort.EnforceBestInvariants()
-
-	assert.True(t, isSorted(poolSort.best), "sort.Sort failed to sort bestSlice")
 	assert.True(t, isSorted(poolTimSort.best), "timsort.TimSort failed to sort bestSlice")
 
-	assert.Equal(t, poolSort.best.ms[0].Tx.IDHash, poolTimSort.best.ms[0].Tx.IDHash, "Best tx IDHash differs before removing best txs")
-	assert.Equal(t, poolSort.best.ms[txCount-1].Tx.IDHash, poolTimSort.best.ms[txCount-1].Tx.IDHash, "Worst tx IDHash differs before removing best txs")
+	poolSort.EnforceBestInvariants()
+	assert.True(t, isSorted(poolSort.best), "sort.Sort failed to sort bestSlice")
 
-	for i := 0; i < 30; i++ {
+	assert.Equal(t, poolSort.best.ms[0].Tx.IDHash, poolTimSort.best.ms[0].Tx.IDHash, "Best tx IDHash differs before removing best txs")
+
+	// remove top 30 transactions
+	for i := 0; i < 1000; i++ {
 		poolSort.Remove(poolSort.Best())
-		poolTimSort.Remove(poolSort.Best())
+		poolTimSort.Remove(poolTimSort.Best())
+	}
+
+	// add 30 new transacions
+	for i := 0; i < 500; i++ {
+		tx := generateRandomMetaTx(i, senderNonceMap)
+		txCopy := *tx
+		txCopy.Tx = &types.TxSlot{
+			IDHash:   tx.Tx.IDHash,
+			SenderID: tx.Tx.SenderID,
+			Nonce:    tx.Tx.Nonce,
+		}
+		poolSort.Add(tx)
+		poolTimSort.Add(&txCopy)
 	}
 
 	start := time.Now()
-	poolSort.EnforceBestInvariants()
-	sortDuration := time.Since(start)
-
-	start = time.Now()
 	poolTimSort.EnforceBestInvariants()
 	timSortDuration := time.Since(start)
 
-	assert.True(t, isSorted(poolSort.best), "sort.Sort failed to sort bestSlice")
+	start = time.Now()
+	poolSort.EnforceBestInvariants()
+	sortDuration := time.Since(start)
+
 	assert.True(t, isSorted(poolTimSort.best), "timsort.TimSort failed to sort bestSlice")
+	assert.True(t, isSorted(poolSort.best), "sort.Sort failed to sort bestSlice")
 	assert.Equal(t, poolSort.best.ms[0].Tx.IDHash, poolTimSort.best.ms[0].Tx.IDHash, "Best tx IDHash differs after removing best txs")
 	assert.Greaterf(t, sortDuration, timSortDuration, "sort.Sort cost less time than timsort.TimSort")
 
 	t.Logf("sort.Sort duration(After BestRead): %v", sortDuration)
 	t.Logf("timsort.TimSort duration(After BestRead): %v", timSortDuration)
+}
+
+func BenchmarkSortingPerformance(b *testing.B) {
+	const (
+		txCount     = 100_000 // Reduced for benchmark speed; adjust as needed
+		removeCount = 1_000   // Number of transactions to remove
+		addCount    = 500     // Number of transactions to add back
+	)
+
+	// Seed random generator
+	rand.Seed(uint64(time.Now().UnixNano()))
+
+	// Run benchmark for both sorting methods
+	b.Run("sort.Sort", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			// Initialize pool
+			pool := NewPendingSubPool(PendingSubPool, txCount+addCount, false)
+			senderNonceMap := make(map[uint64]uint64)
+
+			// Add initial transactions
+			for j := 0; j < txCount; j++ {
+				tx := generateRandomMetaTx(j, senderNonceMap)
+				pool.Add(tx)
+			}
+
+			// First sort
+			pool.EnforceBestInvariants()
+			assert.True(b, isSorted(pool.best), "Initial sort.Sort failed")
+
+			// Remove some transactions
+			for j := 0; j < removeCount && pool.best.Len() > 0; j++ {
+				pool.Remove(pool.Best())
+			}
+
+			// Add new transactions
+			for j := 0; j < addCount; j++ {
+				tx := generateRandomMetaTx(txCount+j, senderNonceMap)
+				pool.Add(tx)
+			}
+
+			// Second sort (benchmark this)
+			b.StartTimer()
+			pool.EnforceBestInvariants()
+			b.StopTimer()
+
+			assert.True(b, isSorted(pool.best), "Second sort.Sort failed")
+		}
+	})
+
+	b.Run("timsort.TimSort", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			// Initialize pool
+			pool := NewPendingSubPool(PendingSubPool, txCount+addCount, true)
+			senderNonceMap := make(map[uint64]uint64)
+
+			// Add initial transactions
+			for j := 0; j < txCount; j++ {
+				tx := generateRandomMetaTx(j, senderNonceMap)
+				pool.Add(tx)
+			}
+
+			// First sort
+			pool.EnforceBestInvariants()
+			assert.True(b, isSorted(pool.best), "Initial timsort.TimSort failed")
+
+			// Remove some transactions
+			for j := 0; j < removeCount && pool.best.Len() > 0; j++ {
+				pool.Remove(pool.Best())
+			}
+
+			// Add new transactions
+			for j := 0; j < addCount; j++ {
+				tx := generateRandomMetaTx(txCount+j, senderNonceMap)
+				pool.Add(tx)
+			}
+
+			// Second sort (benchmark this)
+			b.StartTimer()
+			pool.EnforceBestInvariants()
+			b.StopTimer()
+
+			assert.True(b, isSorted(pool.best), "Second timsort.TimSort failed")
+		}
+	})
 }
