@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,7 +13,58 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func SpawnWorkDirectory(path, commitID string, processCount int) (string, *LRPConfig, error) {
+func SpawnWorkDirectoryByDefault(path, commitID string, processCount, batchFrom, batchTo int) (string, *LRPConfig, error) {
+	timestamp := time.Now().Format("20060102-150405")
+	portDiff, _ := getFreePortDiff()
+
+	config := &LRPConfig{
+		User:                   DEFAULT_USER,
+		GitCommit:              commitID,
+		PortDiff:               int64(portDiff),
+		BatchFrom:              uint64(batchFrom),
+		BatchTo:                uint64(batchTo),
+		UseExternalDatastream:  DEFAULT_USE_EXTERNAL_DATASTREAM,
+		ExternalDataStreamPath: filepath.Join(GetDefaultPath(""), DEFAULT_EXTERNAL_DATASTREAM_PATH),
+		SrcMainnetDataPath:     filepath.Join(GetDefaultPath(""), DEFAULT_SOURCE_MAINNET_DATA_PATH),
+		ProcessCount:           processCount,
+	}
+
+	workDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s-%s-%d-%d", timestamp, commitID, config.User, config.BatchFrom, config.BatchTo))
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return "", nil, fmt.Errorf("failed to create work folder: %v", err)
+	}
+
+	makefilePath := filepath.Join(workDir, "Makefile")
+	dockerFilePath := filepath.Join(workDir, "docker-compose.yml")
+
+	if err := createFileIfNotExist(makefilePath, testscripts.MakefileContent); err != nil {
+		return "", nil, err
+	}
+
+	if err := createFileIfNotExist(dockerFilePath, testscripts.DockerComposeFileContent); err != nil {
+		return "", nil, err
+	}
+
+	rpcKeyFile := filepath.Join(path, "rpc.key")
+	rpcKey, err := os.ReadFile(rpcKeyFile)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if err := createXlayerConfigFile(string(rpcKey), workDir); err != nil {
+		return "", nil, err
+	}
+
+	configPath := filepath.Join(workDir, LRP_CONFIG_FILE)
+	data, _ := yaml.Marshal(&config)
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return "", nil, fmt.Errorf("failed to write config file: %v", err)
+	}
+
+	return workDir, config, nil
+}
+
+func SpawnWorkDirectoryCustomized(path, commitID string, processCount int) (string, *LRPConfig, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	workDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s", timestamp, commitID))
 	if err := os.MkdirAll(workDir, 0755); err != nil {
@@ -106,6 +158,40 @@ func createXlayerConfigFile(rpcKey, path string) error {
 		return fmt.Errorf("failed to write config file: %v", err)
 	}
 	return nil
+}
+
+func getFreePortDiff() (int, error) {
+	basePorts := []int{
+		6060,  // PPROF_PORT
+		8545,  // RPC_PORT
+		6900,  // DS_PORT
+		9095,  // METRICS_PORT
+		16900, // EXTERNAL_DS_PORT
+	}
+
+	for portDiff := 0; portDiff <= 65535; portDiff++ {
+		allFree := true
+		for _, base := range basePorts {
+			port := base + portDiff
+			if port > 65535 {
+				return -1, fmt.Errorf("port %d exceeds maximum port number 65535", port)
+			}
+			// Check if the port is free by attempting to listen on it
+			addr := fmt.Sprintf(":%d", port)
+			listener, err := net.Listen("tcp", addr)
+			if err != nil {
+				// Port is in use
+				allFree = false
+				break
+			}
+			// Close the listener immediately since we only need to test availability
+			listener.Close()
+		}
+		if allFree {
+			return portDiff, nil
+		}
+	}
+	return -1, fmt.Errorf("no PORT_DIFF found with all five ports free")
 }
 
 func RunMainnetUnwind(workDir string, config *LRPConfig) (string, error) {

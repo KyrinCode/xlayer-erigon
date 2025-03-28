@@ -56,10 +56,24 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Step 2-1: prepare - create a work directory
-		workDir, config, err := utils.SpawnWorkDirectory(path, commitID, parallel)
-		if err != nil {
-			fmt.Printf("Creating work directory returns an error: %v\n", err)
-			return
+		var workDir string
+		var config *utils.LRPConfig
+
+		if custom {
+			if workDir, config, err = utils.SpawnWorkDirectoryCustomized(path, commitID, parallel); err != nil {
+				fmt.Printf("Creating customized work directory returns an error: %v\n", err)
+				return
+			}
+		} else {
+			selected, err := selectBatchRange(path)
+			if err != nil {
+				fmt.Printf("Got an error while selecting batch range: %v\n", err)
+				return
+			}
+			if workDir, config, err = utils.SpawnWorkDirectoryByDefault(path, commitID, parallel, selected.BatchFrom, selected.BatchTo); err != nil {
+				fmt.Printf("Creating work directory returns an error: %v\n", err)
+				return
+			}
 		}
 
 		if !vmtouch {
@@ -167,7 +181,7 @@ var rootCmd = &cobra.Command{
 		fmt.Println("The replay container is stopped, now prepared to show test result")
 
 		// Step 4: show test report
-		showReport(workDir)
+		showReport(path, workDir, commitID)
 		fmt.Println("LRP test completed!")
 		fmt.Println("Now is stopping and cleaning the containers, please wait for seconds...")
 	},

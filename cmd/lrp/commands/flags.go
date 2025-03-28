@@ -21,6 +21,7 @@ var (
 	vmtouch    bool
 	parallel   int
 	sampleIntv time.Duration
+	custom     bool
 )
 
 func WithPathFlags(cmd *cobra.Command) {
@@ -40,4 +41,5 @@ func WithExtraFlags(cmd *cobra.Command) {
 	cmd.Flags().DurationVar(&sampleIntv, "sample", utils.DEFAULT_SAMPLE_INTERVAL, "set the sampling interval for the Docker container, the minimum value is 1 second")
 	cmd.Flags().BoolVar(&vmtouch, "vmtouch", false, "when enabled, the replay container will run on vmtouch mode")
 	cmd.Flags().IntVar(&parallel, "parallel", utils.DEFAULT_PROCESS_COUNT, "determine how many process will run for multi-process test")
+	cmd.Flags().BoolVar(&custom, "custom", false, "if true, you can customize the playback range, otherwise use the preset range. The default is false")
 }

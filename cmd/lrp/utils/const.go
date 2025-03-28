@@ -3,19 +3,26 @@ package utils
 import "time"
 
 const (
-	DEFAULT_DESTINATION_DIR          = ".lrp"
+	DEFAULT_DESTINATION_DIR = ".lrp"
+
+	DEFAULT_SAMPLE_INTERVAL = 10 * time.Second
+	MIN_SMAPLE_INTERVAL     = time.Second
+	DEFAULT_CHAINDATA_LIMIT = 100 * 1024 * 1024 * 1024
+
+	// default test params
+	DEFAULT_PROCESS_COUNT            = 1
+	DEFAULT_USER                     = "default"
+	DEFAULT_USE_EXTERNAL_DATASTREAM  = true
 	DEFAULT_SOURCE_MAINNET_DATA_PATH = "mainnet"
 	DEFAULT_EXTERNAL_DATASTREAM_PATH = "mainnet/seq/data-stream"
-	DEFAULT_SAMPLE_INTERVAL          = 10 * time.Second
-	MIN_SMAPLE_INTERVAL              = time.Second
-	DEFAULT_CHAINDATA_LIMIT          = 100 * 1024 * 1024 * 1024
-	DEFAULT_PROCESS_COUNT            = 1
 
 	REPO_NAME       = "xlayer-erigon"
 	LRP_CONFIG_FILE = "lrp.config.yaml"
 	UNWIND_LOG      = "unwind.log"
 	REPLAY_LOG      = "replay.log"
 	UNWOUND_REPO    = "unwound-repo"
+	HISTORY_FOLDER  = "history"
+	OPTIONS_JSON    = "options.json"
 
 	// commands
 	LRP_CONFIG                 = "lrp-config"

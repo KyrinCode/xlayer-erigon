@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,17 +23,30 @@ import (
 	"github.com/docker/docker/client"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
+	"github.com/ledgerwatch/erigon/cmd/lrp/utils"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 var StatsCmd = &cobra.Command{
-	Use:   "stats [file]",
-	Short: "Specify a file to display the test report",
-	Long:  `Specify a file path as an argument to display a test report in a table.`,
-	Args:  cobra.ExactArgs(1),
+	Use:   "stats [batchStart] [batchEnd]",
+	Short: "Display the test report for a specified batch range",
+	Long:  `Specify batchStart and batchEnd as arguments to display the top 5 historical test reports for that batch range in a table.`,
+	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		filePath := args[0]
-		err := showReport(filePath)
+		// Parse batchStart and batchEnd from arguments
+		batchStart, err := strconv.Atoi(args[0])
+		if err != nil {
+			log.Fatalf("Invalid batchStart: %v", err)
+		}
+		batchEnd, err := strconv.Atoi(args[1])
+		if err != nil {
+			log.Fatalf("Invalid batchEnd: %v", err)
+		}
+
+		// Call showHistoryReport with the parsed batch range
+		err = showHistoryReport(path, batchStart, batchEnd)
 		if err != nil {
 			log.Fatalf("Failed to display test report: %v", err)
 		}
@@ -605,8 +620,23 @@ func calculateBlockIO(blkioStats types.BlkioStats) (rx float64, tx float64) {
 	return rx, tx
 }
 
-// showReport displays a report based on CSV data using termui
-func showReport(workDir string) error {
+// TestResult defines the structure for storing test result data
+type TestResult struct {
+	FromBatch           int       `json:"from_batch"`
+	ToBatch             int       `json:"to_batch"`
+	StartTime           time.Time `json:"start_time"`
+	EndTime             time.Time `json:"end_time"`
+	TotalTxCount        int       `json:"total_tx_count"`
+	Duration            float64   `json:"duration"`
+	AverageTPS          float64   `json:"average_tps"`
+	StateRootMismatch   bool      `json:"state_root_mismatch"`
+	MismatchBlockHeight int       `json:"mismatch_block_height"`
+	GitCommitID         string    `json:"git_commit_id"`
+	TestTime            time.Time `json:"test_time"`
+}
+
+// showReport generates and displays the current replay report with history below
+func showReport(path, workDir, commitID string) error {
 	replayTPSCSV := filepath.Join(workDir, "replay-container-stats-tps.csv")
 	replayLog := filepath.Join(workDir, "replay.log")
 
@@ -624,23 +654,22 @@ func showReport(workDir string) error {
 		return fmt.Errorf("failed to read CSV: %v", err)
 	}
 
-	if len(records) < 2 { // At least header + 1 row
+	if len(records) < 2 {
 		return fmt.Errorf("CSV file is empty or invalid")
 	}
 
-	// Parse header
+	// Validate CSV header
 	header := records[0]
 	expectedHeader := []string{"Timestamp", "CPUUsage", "MemoryUsage", "DiskRead", "DiskWrite", "NetRx", "NetTx", "Batch", "TxCount", "Duration", "TPS"}
 	if len(header) != len(expectedHeader) {
 		return fmt.Errorf("invalid CSV header")
 	}
 
-	// Variables for computation
 	var startTime, endTime time.Time
 	var totalTxCount int
 	var firstNonZeroBatch, lastNonZeroBatch int
 
-	// Process data rows
+	// Process CSV rows
 	for i, row := range records[1:] {
 		timestamp, err := time.Parse("2006-01-02 15:04:05", row[0])
 		if err != nil {
@@ -672,56 +701,181 @@ func showReport(workDir string) error {
 		}
 	}
 
-	// Calculate duration and average TPS
+	// Calculate duration and TPS
 	duration := endTime.Sub(startTime).Seconds()
 	avgTPS := float64(totalTxCount) / duration
 	if duration <= 0 {
 		avgTPS = 0
 	}
 
-	// check State Root
+	// Check state root mismatch
 	stateRootMismatch, mismatchBlockHeight := checkStateRootMismatch(replayLog)
+
+	// Create current test result
+	currentResult := TestResult{
+		FromBatch:           firstNonZeroBatch,
+		ToBatch:             lastNonZeroBatch,
+		StartTime:           startTime,
+		EndTime:             endTime,
+		TotalTxCount:        totalTxCount,
+		Duration:            duration,
+		AverageTPS:          avgTPS,
+		StateRootMismatch:   stateRootMismatch,
+		MismatchBlockHeight: mismatchBlockHeight,
+		GitCommitID:         commitID,
+		TestTime:            time.Now(),
+	}
+
+	// Determine batch range file
+	batchRangeFile := filepath.Join(path, utils.HISTORY_FOLDER, fmt.Sprintf("batch_%d-%d.json", firstNonZeroBatch, lastNonZeroBatch))
+
+	// Save current result to batch-specific file
+	err = saveTestResult(batchRangeFile, currentResult)
+	if err != nil {
+		log.Printf("Failed to save test result: %v", err)
+	}
+
+	// Load history results
+	historyResults, err := loadTestHistory(batchRangeFile)
+	if err != nil {
+		log.Printf("Failed to load history: %v", err)
+		historyResults = []TestResult{}
+	}
+	log.Printf("Loaded %d historical results", len(historyResults))
 
 	// Initialize termui
 	if err := ui.Init(); err != nil {
 		return fmt.Errorf("failed to initialize termui: %v", err)
 	}
 	defer ui.Close()
-	defer ui.Clear()
 
-	// Create report table
-	table := widgets.NewTable()
-	table.Title = "Replay Report"
-	table.Rows = [][]string{
+	var misMatchBlockResult string
+	if mismatchBlockHeight == 0 {
+		misMatchBlockResult = "N/A"
+	} else {
+		misMatchBlockResult = fmt.Sprintf("%d", mismatchBlockHeight)
+	}
+
+	// Create current result table
+	currentTable := widgets.NewTable()
+	currentTable.Title = "Replay Report"
+	currentTable.Rows = [][]string{
 		{"From Batch:", fmt.Sprintf("%d", firstNonZeroBatch)},
 		{"To Batch:", fmt.Sprintf("%d", lastNonZeroBatch)},
+		{"Git Commit ID:", commitID},
 		{"Start Time:", startTime.Format("2006-01-02 15:04:05")},
 		{"End Time:", endTime.Format("2006-01-02 15:04:05")},
 		{"Total Transactions:", fmt.Sprintf("%d", totalTxCount)},
 		{"Replay Duration:", fmt.Sprintf("%.2f seconds", duration)},
 		{"Average TPS:", fmt.Sprintf("%.2f", avgTPS)},
 		{"State Root Mismatch:", fmt.Sprintf("%t", stateRootMismatch)},
-		{"Mismatch Block Height:", fmt.Sprintf("%d", mismatchBlockHeight)},
+		{"Mismatch Block Height:", misMatchBlockResult},
 	}
 	if !stateRootMismatch {
-		table.Rows[8][1] = "N/A"
+		currentTable.Rows[8][1] = "N/A"
 	}
-	table.TextStyle = ui.NewStyle(ui.ColorWhite)
-	table.RowSeparator = true
-	table.BorderStyle = ui.NewStyle(ui.ColorCyan)
-	table.SetRect(0, 0, 50, 20)
+	currentTable.TextStyle = ui.NewStyle(ui.ColorWhite)
+	currentTable.RowSeparator = true
+	currentTable.BorderStyle = ui.NewStyle(ui.ColorCyan)
 
-	// Create key hint
+	// Create history table
+	p := message.NewPrinter(language.English)
+	historyTable := widgets.NewTable()
+	historyTable.Title = fmt.Sprintf("Historical Results (Top 3 TPS for Batch %d-%d)", firstNonZeroBatch, lastNonZeroBatch)
+	historyTable.TextStyle = ui.NewStyle(ui.ColorWhite)
+	historyTable.RowSeparator = true
+	historyTable.BorderStyle = ui.NewStyle(ui.ColorCyan)
+	historyTable.Rows = [][]string{
+		{"Batch Range", "Start Time", "End Time", "Tx Count", "Duration (s)", "TPS", "State Root Mismatch", "Mismatch Block Height", "Git Commit ID"},
+	}
+	sort.Slice(historyResults, func(i, j int) bool {
+		return historyResults[i].AverageTPS > historyResults[j].AverageTPS
+	})
+	maxHistory := 5 // Show up to 3 historical entries (4 rows total with header)
+	historyCount := 0
+	for i, result := range historyResults {
+		if historyCount >= maxHistory {
+			break
+		}
+		// Only skip if this is the exact current result (last added)
+		if i == len(historyResults)-1 && result.TestTime.Equal(currentResult.TestTime) && result.GitCommitID == currentResult.GitCommitID {
+			log.Printf("Skipping current result: TestTime=%v, GitCommitID=%s", result.TestTime, result.GitCommitID)
+			continue
+		}
+		var misMatchBlockResult string
+		if result.MismatchBlockHeight == 0 {
+			misMatchBlockResult = "N/A"
+		} else {
+			misMatchBlockResult = fmt.Sprintf("%d", result.MismatchBlockHeight)
+		}
+
+		row := []string{
+			fmt.Sprintf("%d - %d", result.FromBatch, result.ToBatch),
+			result.GitCommitID,
+			result.StartTime.Format("2006-01-02 15:04:05"),
+			result.EndTime.Format("2006-01-02 15:04:05"),
+			p.Sprintf("%d", result.TotalTxCount),
+			p.Sprintf("%.2f", result.Duration),
+			p.Sprintf("%.2f", result.AverageTPS),
+			fmt.Sprintf("%t", result.StateRootMismatch),
+			misMatchBlockResult,
+		}
+		historyTable.Rows = append(historyTable.Rows, row)
+		historyCount++
+		log.Printf("Added history row %d: %v", historyCount, row)
+	}
+	log.Printf("History table has %d rows (including header)", len(historyTable.Rows))
+
+	// Create quit hint
 	keyHint := widgets.NewParagraph()
 	keyHint.Text = "q/Ctrl+C: Quit"
 	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
 	keyHint.Border = false
-	keyHint.SetRect(0, 22, 50, 24)
 
-	// Render initial UI
-	ui.Render(table, keyHint)
+	// Function to update table sizes based on terminal dimensions
+	updateLayout := func() {
+		termWidth, termHeight := ui.TerminalDimensions()
+		log.Printf("Terminal dimensions: width=%d, height=%d", termWidth, termHeight)
 
-	// Event loop
+		// Current table: Half width, full height for 10 rows
+		currentFullHeight := len(currentTable.Rows)*2 + 1 // 10 rows * 2 (with separator) + 1 for title
+		currentHeight := currentFullHeight
+		minHistoryHeight := 6 // Header + 3 rows + title + border
+		minKeyHeight := 2     // Key hint
+		minTotalHeight := currentFullHeight + minHistoryHeight + minKeyHeight
+		if termHeight < minTotalHeight {
+			// Allocate 60% to current table if terminal is too small
+			currentHeight = int(float64(termHeight) * 0.6)
+			if currentHeight < 4 {
+				currentHeight = 4
+			}
+			if currentHeight > currentFullHeight {
+				currentHeight = currentFullHeight
+			}
+		}
+		currentTable.SetRect(0, 0, termWidth/2, currentHeight)
+
+		// History table: Full width, ensure enough height for 3 rows + header
+		historyFullHeight := (len(historyTable.Rows)+1)*2 + 1
+		historyHeight := historyFullHeight
+		availableHeight := termHeight - currentHeight - minKeyHeight
+		if availableHeight < minHistoryHeight {
+			historyHeight = minHistoryHeight
+		} else if historyHeight > availableHeight {
+			historyHeight = availableHeight
+		}
+		historyTable.SetRect(0, currentHeight+2, termWidth, currentHeight+historyHeight)
+
+		// Key hint: Below history table
+		keyHint.SetRect(0, currentHeight+historyHeight, termWidth/2, currentHeight+historyHeight+4)
+
+		ui.Render(currentTable, historyTable, keyHint)
+	}
+
+	// Initial layout
+	updateLayout()
+
+	// Event loop with resize handling
 	uiEvents := ui.PollEvents()
 	for {
 		select {
@@ -729,11 +883,118 @@ func showReport(workDir string) error {
 			switch e.ID {
 			case "q", "<C-c>":
 				return nil
+			case "<Resize>":
+				ui.Clear()
+				updateLayout()
 			}
 		}
 	}
 }
 
+// showHistoryReport displays historical results for a specific batch range
+func showHistoryReport(path string, fromBatch, toBatch int) error {
+	// Initialize termui
+	if err := ui.Init(); err != nil {
+		return fmt.Errorf("failed to initialize termui: %v", err)
+	}
+	defer ui.Close()
+
+	// Determine batch range file
+	batchRangeFile := filepath.Join(path, fmt.Sprintf("batch_%d-%d.json", fromBatch, toBatch))
+
+	// Load history results
+	historyResults, err := loadTestHistory(batchRangeFile)
+	if err != nil {
+		log.Printf("Failed to load history: %v", err)
+		historyResults = []TestResult{}
+	}
+
+	// Create history table
+	p := message.NewPrinter(language.English)
+	historyTable := widgets.NewTable()
+	historyTable.Title = fmt.Sprintf("Historical Results (Top 3 TPS for Batch %d-%d)", fromBatch, toBatch)
+	historyTable.TextStyle = ui.NewStyle(ui.ColorWhite)
+	historyTable.RowSeparator = true
+	historyTable.BorderStyle = ui.NewStyle(ui.ColorCyan)
+	historyTable.Rows = [][]string{
+		{"Batch Range", "Git Commit ID", "Start Time", "End Time", "Tx Count", "Duration (s)", "TPS", "State Root Mismatch", "Mismatch Block Height"},
+	}
+	sort.Slice(historyResults, func(i, j int) bool {
+		return historyResults[i].AverageTPS > historyResults[j].AverageTPS
+	})
+	maxHistory := 5 // Show up to 5 historical entries (4 rows total with header)
+	historyCount := 0
+	for _, result := range historyResults {
+		if historyCount >= maxHistory {
+			break
+		}
+		var misMatchBlockResult string
+		if result.MismatchBlockHeight == 0 {
+			misMatchBlockResult = "N/A"
+		} else {
+			misMatchBlockResult = fmt.Sprintf("%d", result.MismatchBlockHeight)
+		}
+		row := []string{
+			fmt.Sprintf("%d - %d", result.FromBatch, result.ToBatch),
+			result.GitCommitID,
+			result.StartTime.Format("2006-01-02 15:04:05"),
+			result.EndTime.Format("2006-01-02 15:04:05"),
+			p.Sprintf("%d", result.TotalTxCount),
+			p.Sprintf("%.2f", result.Duration),
+			p.Sprintf("%.2f", result.AverageTPS),
+			fmt.Sprintf("%t", result.StateRootMismatch),
+			misMatchBlockResult,
+		}
+		historyTable.Rows = append(historyTable.Rows, row)
+		historyCount++
+	}
+
+	// Create quit hint
+	keyHint := widgets.NewParagraph()
+	keyHint.Text = "q/Ctrl+C: Quit"
+	keyHint.TextStyle = ui.NewStyle(ui.ColorCyan)
+	keyHint.Border = false
+
+	// Function to update table size based on terminal dimensions
+	updateLayout := func() {
+		termWidth, termHeight := ui.TerminalDimensions()
+
+		// History table: Full width, height based on rows, capped by terminal height
+		historyHeight := (len(historyTable.Rows) * 2) + 1 // +2 for title and border
+		if historyHeight > termHeight-2 {                 // Leave space for key hint
+			historyHeight = termHeight - 2
+		}
+		if historyHeight < 4 { // Minimum height to show title and header
+			historyHeight = 4
+		}
+		historyTable.SetRect(0, 0, termWidth, historyHeight)
+
+		// Key hint: Below history table
+		keyHint.SetRect(0, historyHeight+2, termWidth/2, historyHeight+6)
+
+		ui.Render(historyTable, keyHint)
+	}
+
+	// Initial layout
+	updateLayout()
+
+	// Event loop with resize handling
+	uiEvents := ui.PollEvents()
+	for {
+		select {
+		case e := <-uiEvents:
+			switch e.ID {
+			case "q", "<C-c>":
+				return nil
+			case "<Resize>":
+				ui.Clear()
+				updateLayout()
+			}
+		}
+	}
+}
+
+// checkStateRootMismatch checks for state root mismatch in the log file
 func checkStateRootMismatch(logPath string) (bool, int) {
 	file, err := os.Open(logPath)
 	if err != nil {
@@ -743,22 +1004,74 @@ func checkStateRootMismatch(logPath string) (bool, int) {
 	defer file.Close()
 
 	re := regexp.MustCompile(`State root mismatch of block (\d+) after resequencing`)
-
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if matches := re.FindStringSubmatch(line); matches != nil {
 			blockNumber, err := strconv.Atoi(matches[1])
 			if err != nil {
-				log.Printf("Failed to parse block number from log: %v", err)
+				log.Printf("Failed to parse block number: %v", err)
 				continue
 			}
 			return true, blockNumber
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		log.Printf("Error reading log file %s: %v", logPath, err)
 	}
 	return false, 0
+}
+
+// saveTestResult saves a test result to a batch-specific file
+func saveTestResult(filePath string, result TestResult) error {
+	var history []TestResult
+
+	// Ensure parent directory exists
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create parent directory %s: %v", dir, err)
+	}
+
+	// Load existing history if file exists
+	if _, err := os.Stat(filePath); err == nil {
+		data, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to read history file: %v", err)
+		}
+		if err := json.Unmarshal(data, &history); err != nil {
+			return fmt.Errorf("failed to unmarshal history: %v", err)
+		}
+	} else if !os.IsNotExist(err) {
+		// If the error is not "file does not exist," return it
+		return fmt.Errorf("failed to stat file %s: %v", filePath, err)
+	}
+
+	// Append new result
+	history = append(history, result)
+
+	// Write back to file
+	data, err := json.MarshalIndent(history, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal history: %v", err)
+	}
+	if err := ioutil.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write to file %s: %v", filePath, err)
+	}
+	return nil
+}
+
+// loadTestHistory loads test history from a batch-specific file
+func loadTestHistory(filePath string) ([]TestResult, error) {
+	var history []TestResult
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return history, nil // Return empty slice if file doesn't exist
+		}
+		return nil, fmt.Errorf("failed to read history file: %v", err)
+	}
+	if err := json.Unmarshal(data, &history); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal history: %v", err)
+	}
+	return history, nil
 }
