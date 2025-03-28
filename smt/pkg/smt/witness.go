@@ -55,10 +55,6 @@ func (s *RoSMT) BuildWitness(rd trie.RetainDecider, ctx context.Context) (*trie.
 			}
 		}
 
-		//if v.IsNil() {
-		//	return false, nil
-		//}
-
 		if v.IsFinalNode() {
 			actualK, err := s.DbRo.GetHashKey(k)
 			if err == db.ErrNotFound {

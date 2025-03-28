@@ -71,7 +71,7 @@ func AsyncFlushSmtData(ctx context.Context,
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	cache := s.GetCache()
