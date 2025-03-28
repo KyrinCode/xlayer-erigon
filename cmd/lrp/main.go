@@ -13,7 +13,7 @@ func main() {
 	rootCmd.AddCommand(commands.StatsCmd)
 	rootCmd.AddCommand(commands.AddCmd)
 	// rootCmd.AddCommand(commands.RenderCmd)
-	rootCmd.AddCommand(commands.DockerCmd)
+	// rootCmd.AddCommand(commands.DockerCmd)
 
 	commands.WithPathFlags(rootCmd)
 	commands.WithGitFlags(rootCmd)
