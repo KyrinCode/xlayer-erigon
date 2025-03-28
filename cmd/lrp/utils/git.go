@@ -35,24 +35,30 @@ func pullCode(path string) error {
 		fmt.Println("Repository already exists, skipping clone")
 	}
 
-	// Change to the repository directory
+	// Check for Git lock
+	lockFile := filepath.Join(repoPath, ".git", "index.lock")
+	if _, err := os.Stat(lockFile); err == nil {
+		if err := os.Remove(lockFile); err != nil {
+			return fmt.Errorf("failed to remove git lock file %s: %v", lockFile, err)
+		}
+		fmt.Println("Removed stale git lock file")
+	}
+
 	originalDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %v", err)
 	}
-	defer os.Chdir(originalDir) // Ensure the original directory is restored when the program exits
+	defer os.Chdir(originalDir)
 
 	if err := os.Chdir(repoPath); err != nil {
 		return fmt.Errorf("failed to change to directory %s: %v", repoPath, err)
 	}
 
-	// Fetch the latest code for all branches
-	cmd := exec.Command("git", "fetch", "--all")
-	cmd.Dir = repoPath
+	cmd := exec.Command("git", "fetch", "origin", "--prune")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to fetch all branches: %v", err)
+		return fmt.Errorf("failed to fetch origin: %v", err)
 	}
 
 	return nil
