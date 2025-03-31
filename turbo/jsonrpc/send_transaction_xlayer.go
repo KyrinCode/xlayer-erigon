@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
+
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
@@ -27,8 +29,14 @@ import (
 )
 
 type txRequest struct {
-	ctx       context.Context
-	encodedTx hexutility.Bytes
+	ctx        context.Context
+	encodedTx  hexutility.Bytes
+	resultChan chan txResult
+}
+
+type txResult struct {
+	hash common.Hash
+	err  error
 }
 
 func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
@@ -56,20 +64,21 @@ func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexuti
 		return api.sendTxZk(api.l2RpcUrl, encodedTx, chainId.Uint64())
 	}
 
-	txn, err := types.DecodeWrappedTransaction(encodedTx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	hash := txn.Hash()
-
+	resultChan := make(chan txResult, 1)
 	req := txRequest{
-		ctx:       ctx,
-		encodedTx: encodedTx,
+		ctx:        ctx,
+		encodedTx:  encodedTx,
+		resultChan: resultChan,
 	}
 
 	select {
 	case api.txChan <- req:
-		return hash, nil
+		select {
+		case res := <-resultChan:
+			return res.hash, res.err
+		case <-ctx.Done():
+			return common.Hash{}, ctx.Err()
+		}
 	case <-ctx.Done():
 		return common.Hash{}, ctx.Err()
 	}
@@ -87,78 +96,52 @@ func (api *APIImpl) worker() {
 		cancel()
 	}()
 
-	if api.notificationStreams != nil {
-		txBulkMtx := new(sync.Mutex)
+	txBulkMtx := new(sync.Mutex)
+	bulkProcessCh := make(chan struct{})
 
-		go func() {
-			for {
-				select {
-				case req := <-api.txChan:
-					txBulkMtx.Lock()
-					txBulk = append(txBulk, req)
-					txBulkMtx.Unlock()
-				case <-ctx.Done():
-					return
-				}
+	getTxAndBulkProcess := func() {
+		var txBulkToProcess []txRequest
+		txBulkMtx.Lock()
+		if len(txBulk) > 0 {
+			txBulkToProcess, txBulk = txBulk, nil
+		}
+		txBulkMtx.Unlock()
+		if len(txBulkToProcess) > 0 {
+			err := api.processBulk(txBulk)
+			if err != nil {
+				log.Error("process bulk failed", "err", err)
 			}
-		}()
-
-		ch, remove := api.notificationStreams.Sub()
-		defer remove()
-
-		api.processNotification(ctx, txBulkMtx, &txBulk, ch)
-	} else {
-		api.processTx(ctx, txBulk)
+		}
 	}
-}
 
-func (api *APIImpl) processTx(ctx context.Context, txBulk []txRequest) {
+	go func() {
+		for {
+			select {
+			case req := <-api.txChan:
+				txBulkMtx.Lock()
+				txBulk = append(txBulk, req)
+				txBulkMtx.Unlock()
+				if !api.EnableNotify && len(txBulk) >= api.BulkAddTxsSize {
+					bulkProcessCh <- struct{}{}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case req, ok := <-api.txChan:
-			if !ok {
-				if len(txBulk) > 0 {
-					api.processBulk(txBulk)
-				}
-				return
-			}
-			txBulk = append(txBulk, req)
-			if len(txBulk) >= api.BulkAddTxsSize {
-				api.processBulk(txBulk)
-				txBulk = nil
-				ticker.Reset(api.BulkAddTxsWaitTime)
-			}
 		case <-ticker.C:
-			if len(txBulk) > 0 {
-				err := api.processBulk(txBulk)
-				if err != nil {
-					log.Error("process bulk failed", "err", err)
-				}
-				txBulk = nil
+			if api.EnableNotify && txpool2.IsAcquireTxPoolLock() {
+				continue
 			}
-			ticker.Reset(api.BulkAddTxsWaitTime)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (api *APIImpl) processNotification(ctx context.Context, txBulkMtx *sync.Mutex, txBulk *[]txRequest, ch chan struct{}) {
-	for {
-		select {
-		case <-ch:
-			var txBulkToProcess []txRequest
-			txBulkMtx.Lock()
-			if len(*txBulk) > 0 {
-				txBulkToProcess, *txBulk = *txBulk, nil
-			}
-			txBulkMtx.Unlock()
-			if len(txBulkToProcess) > 0 {
-				api.processBulk(txBulkToProcess)
-			}
+			getTxAndBulkProcess()
+		case <-bulkProcessCh:
+			getTxAndBulkProcess()
 		case <-ctx.Done():
 			return
 		}
@@ -195,18 +178,44 @@ func (api *APIImpl) processBulk(bulk []txRequest) error {
 	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
 
 	var rlpTxs [][]byte
+	var results []txResult
 	for _, req := range bulk {
-		_, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
+		hash, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
 		if err != nil {
 			log.Error("validateTransaction failed", "err", err)
+			if req.resultChan != nil {
+				req.resultChan <- txResult{hash: common.Hash{}, err: err}
+			}
 			continue
 		}
 		rlpTxs = append(rlpTxs, req.encodedTx)
+		results = append(results, txResult{hash: hash, err: nil})
 	}
 
 	if len(rlpTxs) > 0 {
-		api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: rlpTxs})
+		res, err := api.txPool.Add(ctx, &txPoolProto.AddRequest{RlpTxs: rlpTxs})
+		if err != nil {
+			for i := range rlpTxs {
+				if results[i].err == nil && results[i].hash != (common.Hash{}) {
+					results[i].err = err
+				}
+				if bulk[i].resultChan != nil {
+					bulk[i].resultChan <- results[i]
+				}
+			}
+			return err
+		}
+
+		for i, result := range res.Imported {
+			if result != txPoolProto.ImportResult_SUCCESS {
+				results[i].err = fmt.Errorf("%s: %s", txPoolProto.ImportResult_name[int32(result)], res.Errors[i])
+			}
+			if bulk[i].resultChan != nil {
+				bulk[i].resultChan <- results[i]
+			}
+		}
 	}
+
 	return nil
 }
 

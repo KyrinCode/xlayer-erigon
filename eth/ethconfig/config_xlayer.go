@@ -34,6 +34,7 @@ type XLayerConfig struct {
 	BulkAddTxs         bool
 	BulkAddTxsSize     int
 	BulkAddTxsWaitTime time.Duration
+	EnableAddTxNotify  bool
 
 	// Txpool
 	AutoSortBest bool

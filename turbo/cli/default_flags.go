@@ -329,7 +329,6 @@ var DefaultFlags = []cli.Flag{
 	&utils.TxPoolFreeGasLimit,
 	&utils.TxPoolEnableFreeGasList,
 	&utils.TxPoolFreeGasList,
-	&utils.TxPoolEnableNotify,
 	&utils.TxPoolAutoSortBest,
 	&utils.TxPoolEnableTimsort,
 	&utils.HTTPApiKeysFlag,
@@ -348,6 +347,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.BulkAddTxsFlag,
 	&utils.BulkAddTxsSizeFlag,
 	&utils.BulkAddTxsWaitTimeFlag,
+	&utils.EnableAddTxNotify,
 
 	&utils.ACLPrintHistory,
 	&utils.InfoTreeUpdateInterval,
