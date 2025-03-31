@@ -47,7 +47,7 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 
 	senderAddr := common.Address{}
 	freeType, gpMul := p.checkFreeGasSenderXLayer(senderID, &senderAddr)
-	findSenderOk := senderAddr == [20]byte{}
+	findSenderOk := senderAddr != [20]byte{}
 
 	byNonce.ascend(senderID, func(mt *metaTx) bool {
 		if mt.Tx.Traced {
