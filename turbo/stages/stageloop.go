@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 	"runtime"
 	"sync"
 	"time"
+
+	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
+
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
+	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 
 	lru "github.com/hashicorp/golang-lru/arc/v2"
 	"github.com/ledgerwatch/log/v3"
@@ -50,8 +53,16 @@ import (
 func AsyncFlushSmtData(ctx context.Context,
 	_db kv.RwDB,
 	s *stagedsync.Sync,
+	config ethconfig.XLayerConfig,
 	logger log.Logger,
 ) {
+	if !sequencer.IsSequencer() {
+		return
+	}
+	if !config.EnableAsyncCommit {
+		return
+	}
+
 	db, ok := _db.(*mdbx.MdbxKV)
 	if !ok {
 		logger.Error("invalid database type, expected *mdbx.MdbxKV")
@@ -59,21 +70,60 @@ func AsyncFlushSmtData(ctx context.Context,
 	}
 
 	var wg sync.WaitGroup
-	defer wg.Wait() // 等待所有 FlushDataToDB goroutine 完成
+	defer func() {
+		logger.Info("Waiting for all flush operations to complete...")
+		wg.Wait()
+		logger.Info("All flush operations completed, exiting...")
+	}()
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 
+	cache := s.GetCache()
 	for {
 		select {
-		case smtCache, ok := <-s.SmtCacheCh:
+		case smtCacheData, ok := <-cache.SmtCacheDataCh:
 			if !ok {
 				logger.Info("SmtCacheCh closed, stopping AsyncFlushSmtData")
 				return
 			}
 
 			wg.Add(1)
-			go FlushDataToDB(&wg, ctx, db, logger, smtCache)
+			go FlushDataToDB(&wg, ctx, db, logger, smtCacheData)
+		case <-ticker.C:
+			tx, err := db.BeginRo(ctx)
+			if err != nil {
+				logger.Error("fail to open read only tx")
+				return
+			}
+			defer tx.Rollback()
 
+			EriRoDb := db2.NewRoEriDb(tx, nil)
+			height, err := EriRoDb.GetLastHeight()
+			if err != nil {
+				logger.Error("Periodic check failed to get last height", "error", err)
+				return
+			}
+
+			if height > 0 {
+				cache.TruncateSmtCacheList(height)
+			}
 		case <-ctx.Done():
 			logger.Info("AsyncFlushSmtData received stop signal", "reason", ctx.Err())
+			s.FlushSmtCache(config.StandaloneSMTDatabase, true)
+			for {
+				select {
+				case smtCacheData, ok := <-cache.SmtCacheDataCh:
+					if !ok {
+						logger.Info("SmtCacheCh closed during shutdown")
+						break
+					}
+					wg.Add(1)
+					go FlushDataToDB(&wg, context.Background(), db, logger, smtCacheData)
+				default:
+					goto waitAndExit
+				}
+			}
+		waitAndExit:
 			return
 		}
 	}
@@ -83,8 +133,9 @@ func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, log
 	defer wg.Done()
 
 	err := db.Batch(func(tx kv.RwTx) error {
-		batch := membatch.NewHashBatchWithCache(tx, ctx.Done(), "", logger, smtCache)
+		batch := membatch.NewHashBatch(tx, ctx.Done(), "", logger)
 		defer batch.Close()
+		batch.SetCache(smtCache)
 
 		return batch.Flush(ctx, tx)
 	})

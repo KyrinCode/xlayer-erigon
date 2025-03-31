@@ -29,11 +29,13 @@ func ApplyFlagsForEthXLayerConfig(ctx *cli.Context, cfg *ethconfig.Config) {
 		SequencerReplayHaltOnBatchNumber:  ctx.Uint64(utils.SequencerReplayHaltOnBatchNumber.Name),
 		SequencerReplayExternalDatastream: ctx.Bool(utils.SequencerReplayExternalDatastream.Name),
 		SequencerReplayL1SyncOnly:         ctx.Bool(utils.SequencerReplayL1SyncOnly.Name),
+		StandaloneSMTDatabase:             ctx.Bool(utils.StandaloneSMTDatabase.Name),
 		ExecutorMock:                      ctx.Bool(utils.ExecutorMock.Name),
 		BlockInfoConcurrent:               ctx.Bool(utils.BlockInfoConcurrent.Name),
 		BulkAddTxs:                        ctx.Bool(utils.BulkAddTxsFlag.Name),
 		BulkAddTxsSize:                    ctx.Int(utils.BulkAddTxsFlag.Name),
 		BulkAddTxsWaitTime:                ctx.Duration(utils.BulkAddTxsWaitTimeFlag.Name),
+		EnableAsyncCommit:                 ctx.Bool(utils.EnableAsyncCommit.Name),
 	}
 	if cfg.XLayer.BlockInfoConcurrent {
 		blockinfo.InitUseBlockInfoTreeTrue()
