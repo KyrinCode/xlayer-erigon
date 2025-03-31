@@ -16,6 +16,8 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/length"
 	poseidon "github.com/okx/poseidongold/go"
+
+	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -346,6 +348,46 @@ func ArrayToScalar(array []uint64) *big.Int {
 	}
 }
 
+const hextable = "0123456789abcdef"
+
+func ArrayToHex[T constraints.Unsigned](array []T) string {
+	if len(array) == 0 {
+		return "0x0"
+	}
+	byteLen := len(array) * int(unsafe.Sizeof(array[0]))
+	byteArray := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(array))), byteLen)
+
+	nonZeroPos := len(byteArray)
+	for i := len(byteArray) - 1; i >= 0; i-- {
+		if byteArray[i] == 0 {
+			nonZeroPos -= 1
+		} else {
+			break
+		}
+	}
+	byteArray = byteArray[:nonZeroPos]
+	if len(byteArray) == 0 {
+		return "0x0"
+	}
+
+	buf := make([]byte, len(byteArray)*2+2)
+
+	j := len(buf) - 2
+	for _, v := range byteArray {
+		buf[j] = hextable[v>>4]
+		buf[j+1] = hextable[v&0x0f]
+		j -= 2
+	}
+
+	if buf[2] == '0' {
+		buf = buf[1:]
+	}
+	buf[0] = '0'
+	buf[1] = 'x'
+
+	return unsafe.String(&buf[0], len(buf))
+}
+
 func ScalarToArray(scalar *big.Int) []uint64 {
 	scalar = new(big.Int).Set(scalar)
 	mask := new(big.Int)
@@ -498,9 +540,11 @@ func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
 
 	outData := [12]big.Int{}
 	words := scalarIn.Bits()
+	outDataBits := make([][1]big.Word, len(words))
 	for i := 0; i < 12; i++ {
 		if i < len(words) {
-			out[i] = (&outData[i]).SetUint64(uint64(words[i]))
+			outDataBits[i][0] = words[i]
+			out[i] = (&outData[i]).SetBits(outDataBits[i][:])
 		} else {
 			out[i] = &outData[i]
 		}
@@ -966,4 +1010,12 @@ func DecodeKeySource(keySource []byte) (int, common.Address, common.Hash, error)
 		storagePosition = common.BytesToHash(keySource[length.Addr+1 : length.Addr+length.Hash+1])
 	}
 	return t, accountAddr, storagePosition, nil
+}
+
+func UnsafeBytesToString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+func UnsafeStringToBytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
