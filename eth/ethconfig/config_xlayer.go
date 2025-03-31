@@ -29,6 +29,11 @@ type XLayerConfig struct {
 	// Executor
 	ExecutorMock        bool
 	BlockInfoConcurrent bool
+
+	// Bulk Add Txs
+	BulkAddTxs         bool
+	BulkAddTxsSize     int
+	BulkAddTxsWaitTime time.Duration
 }
 
 var DefaultXLayerConfig = XLayerConfig{}
