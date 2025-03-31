@@ -1,17 +1,14 @@
 package txpool
 
 import (
-	"context"
-	"math/big"
-	"strings"
-	"sync/atomic"
-	"time"
-
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/types"
 	ecommon "github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/zkevm/hex"
+	"math/big"
+	"strings"
+	"sync/atomic"
 )
 
 // free gas tx type
@@ -178,35 +175,15 @@ func (p *TxPool) setFreeGasList(freeGasList []ethconfig.FreeGasInfo) {
 	}
 }
 
-func NotifyLoop(ctx context.Context, ethCfg *ethconfig.Config) {
-	notifyChan = make(chan struct{})
-	notifyEvery := time.NewTicker(ethCfg.XLayer.BulkAddTxsWaitTime)
-	defer notifyEvery.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			close(notifyChan)
-			return
-		case <-notifyEvery.C:
-			if requireTxPoolLock.Load() {
-				continue
-			}
-			notifyChan <- struct{}{}
-		}
-	}
-}
-
-var notifyChan chan struct{}
 var requireTxPoolLock atomic.Bool
 var needNofity bool
-
-func GetNotifyChan() chan struct{} {
-	return notifyChan
-}
 
 func ArquireTxPoolLock(acquire bool) {
 	if needNofity {
 		requireTxPoolLock.Swap(acquire)
 	}
+}
+
+func IsAcquireTxPoolLock() bool {
+	return requireTxPoolLock.Load()
 }

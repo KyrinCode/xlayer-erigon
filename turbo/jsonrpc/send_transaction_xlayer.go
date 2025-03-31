@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
 	"math/big"
 	"os"
 	"os/signal"
@@ -94,75 +95,52 @@ func (api *APIImpl) worker() {
 		cancel()
 	}()
 
-	if api.notifyChan != nil {
-		txBulkMtx := new(sync.Mutex)
+	txBulkMtx := new(sync.Mutex)
+	bulkProcessCh := make(chan struct{})
 
-		go func() {
-			for {
-				select {
-				case req := <-api.txChan:
-					txBulkMtx.Lock()
-					txBulk = append(txBulk, req)
-					txBulkMtx.Unlock()
-				case <-ctx.Done():
-					return
-				}
+	getTxAndBulkProcess := func() {
+		var txBulkToProcess []txRequest
+		txBulkMtx.Lock()
+		if len(txBulk) > 0 {
+			txBulkToProcess, txBulk = txBulk, nil
+		}
+		txBulkMtx.Unlock()
+		if len(txBulkToProcess) > 0 {
+			err := api.processBulk(txBulk)
+			if err != nil {
+				log.Error("process bulk failed", "err", err)
 			}
-		}()
-
-		api.processNotification(ctx, txBulkMtx, &txBulk, api.notifyChan)
-	} else {
-		api.processTx(ctx, txBulk)
+		}
 	}
-}
 
-func (api *APIImpl) processTx(ctx context.Context, txBulk []txRequest) {
+	go func() {
+		for {
+			select {
+			case req := <-api.txChan:
+				txBulkMtx.Lock()
+				txBulk = append(txBulk, req)
+				txBulkMtx.Unlock()
+				if !api.enableNotify && len(txBulk) >= api.BulkAddTxsSize {
+					bulkProcessCh <- struct{}{}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case req, ok := <-api.txChan:
-			if !ok {
-				if len(txBulk) > 0 {
-					api.processBulk(txBulk)
-				}
-				return
-			}
-			txBulk = append(txBulk, req)
-			if len(txBulk) >= api.BulkAddTxsSize {
-				api.processBulk(txBulk)
-				txBulk = nil
-				ticker.Reset(api.BulkAddTxsWaitTime)
-			}
 		case <-ticker.C:
-			if len(txBulk) > 0 {
-				err := api.processBulk(txBulk)
-				if err != nil {
-					log.Error("process bulk failed", "err", err)
-				}
-				txBulk = nil
+			if txpool2.IsAcquireTxPoolLock() {
+				continue
 			}
-			ticker.Reset(api.BulkAddTxsWaitTime)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (api *APIImpl) processNotification(ctx context.Context, txBulkMtx *sync.Mutex, txBulk *[]txRequest, ch chan struct{}) {
-	for {
-		select {
-		case <-ch:
-			var txBulkToProcess []txRequest
-			txBulkMtx.Lock()
-			if len(*txBulk) > 0 {
-				txBulkToProcess, *txBulk = *txBulk, nil
-			}
-			txBulkMtx.Unlock()
-			if len(txBulkToProcess) > 0 {
-				api.processBulk(txBulkToProcess)
-			}
+			getTxAndBulkProcess()
+		case <-bulkProcessCh:
+			getTxAndBulkProcess()
 		case <-ctx.Done():
 			return
 		}

@@ -42,7 +42,6 @@ import (
 	"github.com/ledgerwatch/erigon/turbo/rpchelper"
 	"github.com/ledgerwatch/erigon/turbo/services"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
-	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
 	"github.com/ledgerwatch/erigon/zk/utils"
 )
 
@@ -397,7 +396,7 @@ type APIImpl struct {
 	BulkAddTxsSize     int
 	BulkAddTxsWaitTime time.Duration
 	txChan             chan txRequest
-	notifyChan         chan struct{}
+	enableNotify       bool
 }
 
 // NewEthAPI returns APIImpl instance
@@ -464,9 +463,6 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 			}
 		}
 	})
-	if txpool2.GetNotifyChan() != nil {
-		apii.notifyChan = txpool2.GetNotifyChan()
-	}
 	if apii.BulkAddTxs {
 		go apii.worker()
 	}
