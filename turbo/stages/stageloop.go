@@ -117,7 +117,6 @@ func AsyncFlushSmtData(ctx context.Context,
 						logger.Info("SmtCacheCh closed during shutdown")
 						break
 					}
-					log.Info("---Get from channel---")
 					wg.Add(1)
 					go FlushDataToDB(&wg, context.Background(), db, logger, smtCacheData)
 				default:

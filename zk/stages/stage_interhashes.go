@@ -464,6 +464,7 @@ func zkIncrementIntermediateHashes(ctx context.Context, logPrefix string, s *sta
 		}
 	}
 
+	// ToDO: remove this
 	depth, err := dbSmt.Db.GetDepth()
 	if err != nil {
 		log.Error("depth err", err)
@@ -477,12 +478,10 @@ func zkIncrementIntermediateHashes(ctx context.Context, logPrefix string, s *sta
 		log.Error("root err", err)
 	}
 	log.Info("---SMT root before---", "depth", depth, "height", height, "root", common.BigToHash(root))
-
 	log.Info("Debug SetStorage parameters",
 		"accChanges count", len(accChanges),
 		"codeChanges count", len(codeChanges),
 		"storageChanges count", len(storageChanges))
-
 	for addr, acc := range accChanges {
 		log.Info("Account change",
 			"address", addr.Hex(),
@@ -490,13 +489,11 @@ func zkIncrementIntermediateHashes(ctx context.Context, logPrefix string, s *sta
 			"nonce", acc.Nonce,
 			"codeHash", acc.CodeHash)
 	}
-
 	for addr, code := range codeChanges {
 		log.Info("Code change",
 			"address", addr.Hex(),
 			"codeLength", len(code))
 	}
-
 	for addr, storage := range storageChanges {
 		log.Info("Storage change",
 			"address", addr.Hex(),
@@ -529,6 +526,7 @@ func zkIncrementIntermediateHashes(ctx context.Context, logPrefix string, s *sta
 		return trie.EmptyRoot, err
 	}
 
+	// ToDO: remove this
 	depth, err = dbSmt.Db.GetDepth()
 	if err != nil {
 		log.Error("depth err", err)
