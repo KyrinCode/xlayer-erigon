@@ -1,14 +1,15 @@
 package txpool
 
 import (
+	"math/big"
+	"strings"
+	"sync/atomic"
+
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/types"
 	ecommon "github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/zkevm/hex"
-	"math/big"
-	"strings"
-	"sync/atomic"
 )
 
 // free gas tx type
@@ -176,12 +177,9 @@ func (p *TxPool) setFreeGasList(freeGasList []ethconfig.FreeGasInfo) {
 }
 
 var requireTxPoolLock atomic.Bool
-var needNofity bool
 
 func ArquireTxPoolLock(acquire bool) {
-	if needNofity {
-		requireTxPoolLock.Swap(acquire)
-	}
+	requireTxPoolLock.Swap(acquire)
 }
 
 func IsAcquireTxPoolLock() bool {

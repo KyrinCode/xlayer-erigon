@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
 	"math/big"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -120,7 +121,7 @@ func (api *APIImpl) worker() {
 				txBulkMtx.Lock()
 				txBulk = append(txBulk, req)
 				txBulkMtx.Unlock()
-				if !api.enableNotify && len(txBulk) >= api.BulkAddTxsSize {
+				if !api.EnableNotify && len(txBulk) >= api.BulkAddTxsSize {
 					bulkProcessCh <- struct{}{}
 				}
 			case <-ctx.Done():
@@ -135,7 +136,7 @@ func (api *APIImpl) worker() {
 	for {
 		select {
 		case <-ticker.C:
-			if txpool2.IsAcquireTxPoolLock() {
+			if api.EnableNotify && txpool2.IsAcquireTxPoolLock() {
 				continue
 			}
 			getTxAndBulkProcess()
