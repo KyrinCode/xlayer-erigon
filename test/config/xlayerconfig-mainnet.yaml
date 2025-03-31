@@ -15,7 +15,7 @@ zkevm.l1-rpc-url: https://rpc.ankr.com/eth
 
 zkevm.executor-strict: false
 zkevm.witness-full: false
-zkevm.executor-mock: false
+zkevm.executor-mock: true
 
 zkevm.sequencer-block-seal-time: "1s"
 zkevm.sequencer-batch-seal-time: "10s"
@@ -71,7 +71,7 @@ metrics.port: 9095
 yieldsize: 35
 zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 1ms
-zkevm.pre-run-address-list: ["0xa03666Fb51Aa9aD2DE70e0434072A007b3C91A9E"]
+zkevm.pre-run-address-list: [""]
 zkevm.block-info-concurrent: true
-zkevm.standalone-smt-db: false
+zkevm.standalone-smt-db: true
 zkevm.enable-async-commit: true
