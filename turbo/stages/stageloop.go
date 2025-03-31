@@ -75,7 +75,7 @@ func AsyncFlushSmtData(ctx context.Context,
 		wg.Wait()
 		logger.Info("All flush operations completed, exiting...")
 	}()
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	cache := s.GetCache()
