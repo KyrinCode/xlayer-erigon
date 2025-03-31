@@ -107,7 +107,7 @@ func (api *APIImpl) worker() {
 		}
 		txBulkMtx.Unlock()
 		if len(txBulkToProcess) > 0 {
-			err := api.processBulk(txBulk)
+			err := api.processBulk(txBulkToProcess)
 			if err != nil {
 				log.Error("process bulk failed", "err", err)
 			}
@@ -120,8 +120,9 @@ func (api *APIImpl) worker() {
 			case req := <-api.txChan:
 				txBulkMtx.Lock()
 				txBulk = append(txBulk, req)
+				txBulkLen := len(txBulk)
 				txBulkMtx.Unlock()
-				if !api.EnableNotify && len(txBulk) >= api.BulkAddTxsSize {
+				if !api.EnableNotify && txBulkLen >= api.BulkAddTxsSize {
 					bulkProcessCh <- struct{}{}
 				}
 			case <-ctx.Done():
