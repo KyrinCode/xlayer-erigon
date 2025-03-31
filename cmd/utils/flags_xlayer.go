@@ -103,6 +103,11 @@ var (
 		Name:  "txpool.freegaslist",
 		Usage: "FreeGasList Project in JSON Format",
 	}
+	TxPoolEnableTimsort = cli.BoolFlag{
+		Name:  "txpool.enabletimsort",
+		Usage: "EnableTimsort enable timsort to instead of built-in sorting",
+		Value: false,
+	}
 	// Gas Pricer
 	GpoTypeFlag = cli.StringFlag{
 		Name:  "gpo.type",
@@ -401,6 +406,9 @@ func setTxPoolXLayer(ctx *cli.Context, cfg *ethconfig.DeprecatedTxPoolConfig) {
 				panic("unable to unmarshal freeGasList:" + err.Error())
 			}
 		}
+	}
+	if ctx.IsSet(TxPoolEnableTimsort.Name) {
+		cfg.EnableTimsort = ctx.Bool(TxPoolEnableTimsort.Name)
 	}
 }
 
