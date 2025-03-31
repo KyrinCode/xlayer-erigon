@@ -13,11 +13,11 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	testscripts "github.com/ledgerwatch/erigon/cmd/lrp/test-scripts"
 )
 
 var dependencies = []string{
 	".dockerignore",
+	"Dockerfile.local",
 	"go.mod",
 	"go.sum",
 	"erigon-lib/go.mod",
@@ -129,26 +129,25 @@ func CheckEnviorment(path string) error {
 		return err
 	}
 
-	// Check if Dockerfile.local exists, if not, create it
-	dockerfileLocalPath := filepath.Join(path, "Dockerfile.local")
-	if err := createFileIfNotExist(dockerfileLocalPath, testscripts.DockerfileLRPContent); err != nil {
-		return err
-	}
-
 	fmt.Println("Check environment done")
 	return nil
 }
 
+// copyDependencies copies dependency files from repoPath to destPath, overwriting existing files.
+// It ensures all specified dependencies are copied, skipping only if the source file is missing.
 func copyDependencies(repoPath, destPath string) error {
+	// Create the destination directory if it doesn't exist
 	err := os.MkdirAll(destPath, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create destination directory: %v", err)
 	}
 
+	// Iterate over the list of dependency files
 	for _, file := range dependencies {
 		srcFile := filepath.Join(repoPath, file)
 		destFile := filepath.Join(destPath, file)
 
+		// Check if the source file exists; skip with a warning if it doesn't
 		if _, err := os.Stat(srcFile); os.IsNotExist(err) {
 			fmt.Printf("Warning: %s does not exist in %s, skipping\n", file, repoPath)
 			continue
@@ -156,28 +155,33 @@ func copyDependencies(repoPath, destPath string) error {
 			return fmt.Errorf("error checking %s: %v", srcFile, err)
 		}
 
+		// Ensure the destination directory structure exists
 		err = os.MkdirAll(filepath.Dir(destFile), 0755)
 		if err != nil {
 			return fmt.Errorf("failed to create directory for %s: %v", destFile, err)
 		}
 
+		// Open the source file for reading
 		src, err := os.Open(srcFile)
 		if err != nil {
 			return fmt.Errorf("failed to open source file %s: %v", srcFile, err)
 		}
 		defer src.Close()
 
+		// Create (or overwrite) the destination file
 		dest, err := os.Create(destFile)
 		if err != nil {
 			return fmt.Errorf("failed to create destination file %s: %v", destFile, err)
 		}
-		defer src.Close()
+		defer dest.Close() // Note: Fixed defer to close dest, not src again
 
+		// Copy the contents from source to destination, overwriting any existing file
 		_, err = io.Copy(dest, src)
 		if err != nil {
 			return fmt.Errorf("failed to copy %s to %s: %v", srcFile, destFile, err)
 		}
 
+		// Sync the destination file to ensure the write is complete
 		err = dest.Sync()
 		if err != nil {
 			return fmt.Errorf("failed to sync %s: %v", destFile, err)
