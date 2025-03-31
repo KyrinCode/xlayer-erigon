@@ -2,8 +2,9 @@ package smt
 
 import (
 	"errors"
-	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"sync"
+
+	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
 type SmtCache struct {
@@ -188,7 +189,7 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map
 
 }
 
-func (cache *SmtCache) FlushSmtCache(batchPush bool) error {
+func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 	// 1. merge current batch cache image to PreBatchSnapshotImage
 	cache.CurrentBatchSnapshotLock.Lock()
 	currentBatchImage, _ := cache.CurrentBatchBlockSnapshotList.getAllCacheShapshot(false)
@@ -242,7 +243,7 @@ func (cache *SmtCache) FlushSmtCache(batchPush bool) error {
 		cache.LastResetHeight = height
 	}
 
-	if batchPush && (height-cache.LastPushedHeight < 100) {
+	if batchPush && (height-cache.LastPushedHeight < 100) && !grace {
 		return nil
 	}
 
