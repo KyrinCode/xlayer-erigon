@@ -329,6 +329,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.TxPoolFreeGasLimit,
 	&utils.TxPoolEnableFreeGasList,
 	&utils.TxPoolFreeGasList,
+	&utils.TxPoolEnableTimsort,
 	&utils.HTTPApiKeysFlag,
 	&utils.MethodRateLimitFlag,
 	&utils.SequencerReplay,
@@ -344,6 +345,10 @@ var DefaultFlags = []cli.Flag{
 	&utils.ExecutorMock,
 	&utils.BlockInfoConcurrent,
 	&utils.EnableAsyncCommit,
+	&utils.BulkAddTxsFlag,
+	&utils.BulkAddTxsSizeFlag,
+	&utils.BulkAddTxsWaitTimeFlag,
+	&utils.EnableAddTxNotify,
 
 	&utils.ACLPrintHistory,
 	&utils.InfoTreeUpdateInterval,

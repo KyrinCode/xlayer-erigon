@@ -33,6 +33,11 @@ type XLayerConfig struct {
 	BlockInfoConcurrent bool
 
 	EnableAsyncCommit bool
+	// Bulk Add Txs
+	BulkAddTxs         bool
+	BulkAddTxsSize     int
+	BulkAddTxsWaitTime time.Duration
+	EnableAddTxNotify  bool
 }
 
 var DefaultXLayerConfig = XLayerConfig{}

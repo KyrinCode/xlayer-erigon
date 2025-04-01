@@ -57,11 +57,10 @@ func NewHashBatch(tx kv.Tx, quit <-chan struct{}, tmpdir string, logger log.Logg
 func (m *Mapmutation) getMem(table string, key []byte) ([]byte, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if _, ok := m.puts[table]; !ok {
-		return nil, false
-	}
-	if value, ok := m.puts[table][*(*string)(unsafe.Pointer(&key))]; ok {
-		return value, ok
+	if ptm, ok := m.puts[table]; ok {
+		if value, ok := ptm[*(*string)(unsafe.Pointer(&key))]; ok {
+			return value, ok
+		}
 	}
 
 	return nil, false
