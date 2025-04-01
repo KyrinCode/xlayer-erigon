@@ -1,11 +1,9 @@
 package l1_cache
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -159,111 +157,111 @@ func generateCacheKey(chainID string, body []byte) (string, error) {
 
 func handleRequest(db kv.RwDB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		endpoint := r.URL.Query().Get("endpoint")
-		chainID := r.URL.Query().Get("chainid")
-		if endpoint == "" || chainID == "" {
-			http.Error(w, "Missing endpoint or chainid parameter", http.StatusBadRequest)
-			return
-		}
+		// endpoint := r.URL.Query().Get("endpoint")
+		// chainID := r.URL.Query().Get("chainid")
+		// if endpoint == "" || chainID == "" {
+		// 	http.Error(w, "Missing endpoint or chainid parameter", http.StatusBadRequest)
+		// 	return
+		// }
 
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close()
+		// body, err := io.ReadAll(r.Body)
+		// if err != nil {
+		// 	http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+		// 	return
+		// }
+		// defer r.Body.Close()
 
-		var request map[string]interface{}
-		if err := json.Unmarshal(body, &request); err != nil {
-			http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
-			return
-		}
+		// var request map[string]interface{}
+		// if err := json.Unmarshal(body, &request); err != nil {
+		// 	http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
+		// 	return
+		// }
 
-		method, ok := request["method"].(string)
-		if !ok {
-			http.Error(w, "Invalid JSON-RPC method", http.StatusBadRequest)
-			return
-		}
+		// method, ok := request["method"].(string)
+		// if !ok {
+		// 	http.Error(w, "Invalid JSON-RPC method", http.StatusBadRequest)
+		// 	return
+		// }
 
-		cacheKey, err := generateCacheKey(chainID, body)
-		if err != nil {
-			http.Error(w, "Failed to generate cache key", http.StatusInternalServerError)
-			return
-		}
+		// cacheKey, err := generateCacheKey(chainID, body)
+		// if err != nil {
+		// 	http.Error(w, "Failed to generate cache key", http.StatusInternalServerError)
+		// 	return
+		// }
 
-		if _, ignore := methodsToIgnore[method]; !ignore {
-			tx, err := db.BeginRw(r.Context())
-			if err != nil {
-				http.Error(w, "Failed to begin transaction", http.StatusInternalServerError)
-				return
-			}
-			if cachedResponse, found := fetchFromCache(tx, cacheKey); found {
-				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("X-Cache-Status", "HIT")
-				w.Write(cachedResponse)
-				tx.Commit()
-				return
-			}
-			tx.Rollback()
-		}
+		// if _, ignore := methodsToIgnore[method]; !ignore {
+		// 	tx, err := db.BeginRw(r.Context())
+		// 	if err != nil {
+		// 		http.Error(w, "Failed to begin transaction", http.StatusInternalServerError)
+		// 		return
+		// 	}
+		// 	if cachedResponse, found := fetchFromCache(tx, cacheKey); found {
+		// 		w.Header().Set("Content-Type", "application/json")
+		// 		w.Header().Set("X-Cache-Status", "HIT")
+		// 		w.Write(cachedResponse)
+		// 		tx.Commit()
+		// 		return
+		// 	}
+		// 	tx.Rollback()
+		// }
 
-		resp, err := http.Post(endpoint, "application/json", bytes.NewBuffer(body))
-		if err != nil {
-			http.Error(w, "Failed to fetch from upstream", http.StatusInternalServerError)
-			return
-		}
-		defer resp.Body.Close()
+		// resp, err := http.Post(endpoint, "application/json", bytes.NewBuffer(body))
+		// if err != nil {
+		// 	http.Error(w, "Failed to fetch from upstream", http.StatusInternalServerError)
+		// 	return
+		// }
+		// defer resp.Body.Close()
 
-		responseBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			http.Error(w, "Failed to read upstream response", http.StatusInternalServerError)
-			return
-		}
+		// responseBody, err := io.ReadAll(resp.Body)
+		// if err != nil {
+		// 	http.Error(w, "Failed to read upstream response", http.StatusInternalServerError)
+		// 	return
+		// }
 
-		if resp.StatusCode == http.StatusOK {
-			// Check if the response contains a JSON-RPC error
-			var jsonResponse map[string]interface{}
-			if err := json.Unmarshal(responseBody, &jsonResponse); err == nil {
-				if _, hasError := jsonResponse["error"]; hasError {
-					log.Warn("Received error response from upstream, not caching", "error", jsonResponse["error"])
-				} else {
-					if _, ignore := methodsToIgnore[method]; !ignore {
-						cacheDuration := time.Duration(0)
-						if duration, found := methodsToExpire[method]; found {
-							if method == "eth_getBlockByNumber" {
-								params, ok := request["params"].([]interface{})
-								if ok && len(params) > 0 {
-									param, ok := params[0].(string)
-									if ok {
-										if _, shouldExpire := paramsToExpire[param]; shouldExpire {
-											cacheDuration = duration
-										}
-									}
-								}
-							} else {
-								cacheDuration = duration
-							}
-						}
-						tx, err := db.BeginRw(r.Context())
-						if err != nil {
-							http.Error(w, "Failed to begin transaction", http.StatusInternalServerError)
-							return
-						}
-						defer tx.Rollback()
-						if err := saveToCache(tx, cacheKey, responseBody, cacheDuration); err != nil {
-							http.Error(w, "Failed to save to cache", http.StatusInternalServerError)
-							return
-						}
-						tx.Commit()
-					}
-				}
-			} else {
-				fmt.Println("Failed to parse upstream response, not caching")
-			}
-		}
+		// if resp.StatusCode == http.StatusOK {
+		// 	// Check if the response contains a JSON-RPC error
+		// 	var jsonResponse map[string]interface{}
+		// 	if err := json.Unmarshal(responseBody, &jsonResponse); err == nil {
+		// 		if _, hasError := jsonResponse["error"]; hasError {
+		// 			log.Warn("Received error response from upstream, not caching", "error", jsonResponse["error"])
+		// 		} else {
+		// 			if _, ignore := methodsToIgnore[method]; !ignore {
+		// 				cacheDuration := time.Duration(0)
+		// 				if duration, found := methodsToExpire[method]; found {
+		// 					if method == "eth_getBlockByNumber" {
+		// 						params, ok := request["params"].([]interface{})
+		// 						if ok && len(params) > 0 {
+		// 							param, ok := params[0].(string)
+		// 							if ok {
+		// 								if _, shouldExpire := paramsToExpire[param]; shouldExpire {
+		// 									cacheDuration = duration
+		// 								}
+		// 							}
+		// 						}
+		// 					} else {
+		// 						cacheDuration = duration
+		// 					}
+		// 				}
+		// 				tx, err := db.BeginRw(r.Context())
+		// 				if err != nil {
+		// 					http.Error(w, "Failed to begin transaction", http.StatusInternalServerError)
+		// 					return
+		// 				}
+		// 				defer tx.Rollback()
+		// 				if err := saveToCache(tx, cacheKey, responseBody, cacheDuration); err != nil {
+		// 					http.Error(w, "Failed to save to cache", http.StatusInternalServerError)
+		// 					return
+		// 				}
+		// 				tx.Commit()
+		// 			}
+		// 		}
+		// 	} else {
+		// 		fmt.Println("Failed to parse upstream response, not caching")
+		// 	}
+		// }
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("X-Cache-Status", "MISS")
-		w.Write(responseBody)
+		// w.Header().Set("Content-Type", "application/json")
+		// w.Header().Set("X-Cache-Status", "MISS")
+		// w.Write(responseBody)
 	}
 }
