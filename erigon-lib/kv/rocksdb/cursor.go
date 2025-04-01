@@ -341,7 +341,7 @@ func (c *RocksDbCursor) putCurrent(k, v []byte) error {
 		return err
 	}
 	if !bytes.Equal(curK, k) {
-		return errors.New("The given key value is mismatched to the current cursor position")
+		return ErrKeyMismatch
 	}
 
 	dbv, err := c.rtx.get(c.table, curK)
@@ -463,18 +463,24 @@ func (c *RocksDbCursor) putAppendDup(k, v []byte) error {
 }
 
 func (c *RocksDbCursor) putAppend(k, v []byte) (err error) {
-	curK, curV, err := c.it.Current()
-	if err != nil {
-		return err
-	}
+	curK, curV, curErr := c.it.Current()
 	defer func() {
 		if err != nil {
-			c.it.mustSeekToKeyValue(curK, curV)
+			if curErr != nil {
+				c.it.invalidCurrent()
+			} else {
+				c.it.mustSeekToKeyValue(curK, curV)
+			}
 		}
 	}()
 
 	lastK, _, err := c.it.Last()
 	if err != nil {
+		if errors.Is(err, ErrInvalidIter) {
+			// this is the first k/v in the db, insert it.
+			return c.put(k, v)
+		}
+		log.Error("putAppend: Last() error", "err", err)
 		return err
 	}
 	if bytes.Compare(k, lastK) <= 0 {

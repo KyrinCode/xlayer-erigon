@@ -722,13 +722,20 @@ func TestRocksDbCursor_DifferentTable(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_putNoOverwrite
 func TestRocksDbCursor_putNoOverwrite(t *testing.T) {
-	_, tx, _ := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
 
-	ci, err := tx.RwCursor(mdbxTestTable)
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
 	require.NoError(t, err)
-	defer ci.Close()
+	cs := csi.(*RocksDbCursor)
+	err = cs.putNoOverwrite([]byte("key0"), []byte("value0"))
+	require.NoError(t, err)
+	k, v, err := cs.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key0"), k)
+	require.Equal(t, []byte("value0"), v)
 
-	c := ci.(*RocksDbCursor)
+	c := ci.(*RocksDbDupSortCursor)
 
 	// key exist, value exist: return error
 	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1"))
@@ -749,10 +756,14 @@ func TestRocksDbCursor_putNoOverwrite(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_putCurrent
 func TestRocksDBCursor_putCurrent(t *testing.T) {
-	_, tx, _ := rocksdbBaseCase(t)
-	ci, err := tx.RwCursor(rocksdbTestTable)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
 	require.NoError(t, err)
-	defer ci.Close()
+	cs := csi.(*RocksDbCursor)
+	require.EqualError(t, cs.putCurrent([]byte("key0"), []byte("value0")), ErrInvalidIter.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	k, v, err := c.First()
@@ -760,7 +771,7 @@ func TestRocksDBCursor_putCurrent(t *testing.T) {
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
 
-	require.EqualError(t, c.putCurrent([]byte("new1"), []byte("newvalue1")), "The given key value is mismatched to the current cursor position")
+	require.EqualError(t, c.putCurrent([]byte("new1"), []byte("newvalue1")), ErrKeyMismatch.Error())
 
 	require.NoError(t, c.putCurrent([]byte("key1"), []byte("newvalue1")))
 	k, v, err = c.Current()
@@ -820,13 +831,24 @@ func TestRocksDBCursor_getBothRange(t *testing.T) {
 // see behaviour of mdbx in TestMdbxCursor_put
 func TestRocksDBCursor_put(t *testing.T) {
 	t.Run("DupSort", func(t *testing.T) {
-		_, _, ci := rocksdbBaseCase(t)
+		_, tx, ci := rocksdbBaseCase(t)
+
+		// check empty table
+		ci2, err := tx.RwCursor(rocksdbTestTable2)
+		require.NoError(t, err)
+		c2 := ci2.(*RocksDbDupSortCursor)
+		require.NoError(t, c2.put([]byte("key0"), []byte("value0")))
+		k, v, err := c2.Current()
+		require.NoError(t, err)
+		require.Equal(t, []byte("key0"), k)
+		require.Equal(t, []byte("value0"), v)
+
 		c := ci.(*RocksDbDupSortCursor)
 
 		require.NoError(t, c.put([]byte("key1"), []byte("value0.0")))
 		require.NoError(t, c.put([]byte("key1"), []byte("value0.1")))
 
-		k, v, err := c.Next()
+		k, v, err = c.Next()
 		require.NoError(t, err)
 		require.Equal(t, []byte("key1"), k)
 		require.Equal(t, []byte("value1.1"), v)
@@ -878,10 +900,18 @@ func TestRocksDBCursor_put(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_setRange
 func TestRocksDBCursor_setRange(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	k, v, err := cs.setRange([]byte("key1"))
+	require.EqualError(t, err, ErrNotFound.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
-	k, v, err := c.setRange([]byte("key"))
+	k, v, err = c.setRange([]byte("key"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
@@ -904,10 +934,17 @@ func TestRocksDBCursor_setRange(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_set
 func TestRocksDBCursor_set(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	k, v, err := cs.set([]byte("key1"))
+	require.EqualError(t, err, ErrNotFound.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
-	k, v, err := c.set([]byte("key"))
+	k, v, err = c.set([]byte("key"))
 	require.Error(t, err)
 
 	k, v, err = c.set([]byte("key1"))
@@ -926,10 +963,21 @@ func TestRocksDBCursor_set(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_putAppendDup
 func TestRocksDBCursor_putAppendDup(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	require.NoError(t, cs.putAppendDup([]byte("key0"), []byte("value0")))
+	k, v, err := cs.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key0"), k)
+	require.Equal(t, []byte("value0"), v)
+
 	c := ci.(*RocksDbDupSortCursor)
 
-	err := c.putAppendDup([]byte("key1"), []byte("value1.1"))
+	err = c.putAppendDup([]byte("key1"), []byte("value1.1"))
 	require.EqualError(t, err, ErrKeyExist.Error())
 
 	err = c.putAppendDup([]byte("key1"), []byte("append1.2"))
@@ -941,7 +989,7 @@ func TestRocksDBCursor_putAppendDup(t *testing.T) {
 	err = c.putAppendDup([]byte("key3"), []byte("append3.1"))
 	require.EqualError(t, err, ErrKeyExist.Error())
 
-	k, v, err := c.First()
+	k, v, err = c.First()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
@@ -961,11 +1009,28 @@ func TestRocksDBCursor_putAppendDup(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_putAppend
 func TestRocksDBCursor_putAppend(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
 	c := ci.(*RocksDbDupSortCursor)
 
-	err := c.putAppend([]byte("key1"), []byte("value1.1"))
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	err = cs.putAppend([]byte("key0"), []byte("value0.1"))
+	require.NoError(t, err)
+	k, v, err := cs.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key0"), k)
+	require.Equal(t, []byte("value0.1"), v)
+
+	err = c.putAppend([]byte("key1"), []byte("value1.1"))
 	require.EqualError(t, err, ErrKeyMismatch.Error())
+
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+
 	err = c.putAppend([]byte("key3"), []byte("value3.4"))
 	require.EqualError(t, err, ErrKeyMismatch.Error())
 	err = c.putAppend([]byte("key4"), []byte("value4.4"))
@@ -983,7 +1048,7 @@ func TestRocksDBCursor_putAppend(t *testing.T) {
 	err = c.putAppend([]byte("key5"), []byte("value5.1"))
 	require.NoError(t, err)
 
-	k, v, err := c.First()
+	k, v, err = c.First()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
@@ -1011,7 +1076,14 @@ func TestRocksDBCursor_putAppend(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_delAllDupData
 func TestRocksDBCursor_delAllDupData(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	require.EqualError(t, cs.delAllDupData(), ErrInvalidIter.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.delAllDupData())
@@ -1065,7 +1137,14 @@ func TestRocksDBCursor_delAllDupData(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_delCurrent
 func TestRocksDBCursor_delCurrent(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	require.EqualError(t, cs.delCurrent(), ErrInvalidIter.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.delCurrent())
@@ -1144,9 +1223,17 @@ func TestRocksDBCursor_delCurrent(t *testing.T) {
 	require.Error(t, err)
 }
 
-// see behaviour of mdbx in TestMdxCursor_lastDup
+// see behaviour of mdbx in TestMdbxCursor_lastDup
 func TestRocksDBCursor_lastDup(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	_, err = cs.lastDup()
+	require.EqualError(t, err, ErrInvalidIter.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
@@ -1168,7 +1255,15 @@ func TestRocksDBCursor_lastDup(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_firstDup
 func TestRocksDBCursor_firstDup(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	_, err = cs.firstDup()
+	require.EqualError(t, err, ErrInvalidIter.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
@@ -1190,11 +1285,19 @@ func TestRocksDBCursor_firstDup(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_nextDup
 func TestRocksDbCursor_nextDup(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	_, _, err = cs.nextDup()
+	require.EqualError(t, err, ErrNotFound.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
-	_, _, err := c.nextDup()
+	_, _, err = c.nextDup()
 	require.Error(t, err)
 
 	_, _, err = c.SeekExact([]byte("key1"))
@@ -1209,11 +1312,19 @@ func TestRocksDbCursor_nextDup(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_prevDup
 func TestRocksDbCursor_prevDup(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	_, _, err = cs.prevDup()
+	require.EqualError(t, err, ErrNotFound.Error())
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.Put([]byte("key5"), []byte("value5.1")))
-	_, _, err := c.prevDup()
+	_, _, err = c.prevDup()
 	require.Error(t, err)
 
 	_, _, err = c.SeekExact([]byte("key1"))
@@ -1239,7 +1350,15 @@ func TestRocksDbCursor_prevDup(t *testing.T) {
 
 // see behaviour of mdbx in TestMdbxCursor_getBoth
 func TestRocksDbCursor_getBoth(t *testing.T) {
-	_, _, ci := rocksdbBaseCase(t)
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	_, err = cs.getBoth([]byte("key0"), []byte("value0"))
+	require.Error(t, err)
+
 	c := ci.(*RocksDbDupSortCursor)
 
 	v, err := c.getBoth([]byte("key"), []byte("value1.1"))
