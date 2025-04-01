@@ -45,6 +45,11 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 	minTip := uint64(math.MaxUint64)
 	var toDel []*metaTx // can't delete items while iterate them
 	pending.mtx.Lock()
+
+	senderAddr := common.Address{}
+	freeType, gpMul := p.checkFreeGasSenderXLayer(senderID, &senderAddr)
+	findSenderOk := senderAddr != [20]byte{}
+
 	byNonce.ascend(senderID, func(mt *metaTx) bool {
 		if mt.Tx.Traced {
 			log.Info(fmt.Sprintf("TX TRACING: onSenderStateChange loop iteration idHash=%x senderID=%d, senderNonce=%d, txn.nonce=%d, currentSubPool=%s", mt.Tx.IDHash, senderID, senderNonce, mt.Tx.Nonce, mt.currentSubPool))
@@ -82,7 +87,9 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 		// 1. is claim tx;
 		// 2. new bridge account with the first few tx
 		// 3. special project
-		freeType, gpMul := p.checkFreeGasAddrXLayer(senderID, mt.Tx)
+		if findSenderOk && freeType == notFree {
+			freeType, gpMul = p.checkFreeGasTxXLayer(senderAddr, mt.Tx)
+		}
 		// parse claim tx or dex tx, and add the withdraw addr into free gas cache
 		p.setFreeGasByNonceCache(senderID, mt, freeType == claim)
 		if freeType > notFree {
@@ -91,7 +98,7 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 			// use the max uint64 as default because the remain claimTx should handle first
 			var newGpBig uint64 = math.MaxUint64
 			if p.gpCache != nil {
-				_, dGp := p.gpCache.GetLatest()
+				dGp := p.gpCache.GetLatestPriceReadOnly()
 				if dGp != nil {
 					newGpBig = dGp.Uint64() * gpMul
 					// newGpBig = newGpBig.Mul(dGp, big.NewInt(int64(gpMul)))
