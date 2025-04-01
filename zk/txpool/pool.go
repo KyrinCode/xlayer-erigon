@@ -1648,7 +1648,7 @@ func (p *TxPool) flushLocked(tx kv.RwTx) (err error) {
 	}
 	for i, txHash := range txHashes {
 		binary.BigEndian.PutUint64(encID, uint64(i))
-		if err := tx.Append(kv.RecentLocalTransaction, encID, []byte(txHash)); err != nil {
+		if err := tx.Put(kv.RecentLocalTransaction, encID, []byte(txHash)); err != nil {
 			return err
 		}
 	}

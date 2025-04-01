@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/erigontech/mdbx-go/mdbx"
-
 	"github.com/ledgerwatch/erigon-lib/kv"
 )
 
@@ -480,7 +479,6 @@ func (c *RocksDbCursor) putAppend(k, v []byte) (err error) {
 			// this is the first k/v in the db, insert it.
 			return c.put(k, v)
 		}
-		log.Error("putAppend: Last() error", "err", err)
 		return err
 	}
 	if bytes.Compare(k, lastK) <= 0 {
