@@ -1,6 +1,6 @@
 module github.com/ledgerwatch/erigon
 
-go 1.21
+go 1.24
 
 require (
 	github.com/erigontech/mdbx-go v0.27.24
@@ -277,6 +277,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
+	github.com/psilva261/timsort/v2 v2.0.1 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-20 v0.3.3 // indirect
 	github.com/quic-go/quic-go v0.38.2 // indirect
