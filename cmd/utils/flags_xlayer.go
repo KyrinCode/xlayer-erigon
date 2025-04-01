@@ -245,6 +245,11 @@ var (
 		Usage: "maximum waiting time for bulk adding transactions",
 		Value: 5 * time.Millisecond,
 	}
+	EnableAddTxNotify = cli.BoolFlag{
+		Name:  "zkevm.enable-add-tx-notify",
+		Usage: "Enable notifications to limit added transactions",
+		Value: false,
+	}
 
 	// Local Replay
 	SequencerReplay = cli.BoolFlag{
@@ -440,4 +445,5 @@ func SetBulkAddTxs(ctx *cli.Context, cfg *ethconfig.Config) {
 	cfg.XLayer.BulkAddTxs = ctx.Bool(BulkAddTxsFlag.Name)
 	cfg.XLayer.BulkAddTxsSize = ctx.Int(BulkAddTxsFlag.Name)
 	cfg.XLayer.BulkAddTxsWaitTime = ctx.Duration(BulkAddTxsWaitTimeFlag.Name)
+	cfg.XLayer.EnableAddTxNotify = ctx.Bool(EnableAddTxNotify.Name)
 }

@@ -396,6 +396,7 @@ type APIImpl struct {
 	BulkAddTxsSize     int
 	BulkAddTxsWaitTime time.Duration
 	txChan             chan txRequest
+	EnableNotify       bool
 }
 
 // NewEthAPI returns APIImpl instance
@@ -444,6 +445,7 @@ func NewEthAPI(base *BaseAPI, db kv.RoDB, dbsmt kv.RoDB, eth rpchelper.ApiBacken
 		BulkAddTxs:         ethCfg.XLayer.BulkAddTxs,
 		BulkAddTxsSize:     ethCfg.XLayer.BulkAddTxsSize,
 		BulkAddTxsWaitTime: ethCfg.XLayer.BulkAddTxsWaitTime,
+		EnableNotify:       ethCfg.XLayer.EnableAddTxNotify,
 		txChan:             make(chan txRequest, 1000),
 	}
 

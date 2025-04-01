@@ -7,8 +7,11 @@ import (
 	"math/big"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
+
+	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -83,38 +86,64 @@ func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexuti
 
 func (api *APIImpl) worker() {
 	var txBulk []txRequest
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigc)
+	go func() {
+		<-sigc
+		cancel()
+	}()
+
+	txBulkMtx := new(sync.Mutex)
+	bulkProcessCh := make(chan struct{})
+
+	getTxAndBulkProcess := func() {
+		var txBulkToProcess []txRequest
+		txBulkMtx.Lock()
+		if len(txBulk) > 0 {
+			txBulkToProcess, txBulk = txBulk, nil
+		}
+		txBulkMtx.Unlock()
+		if len(txBulkToProcess) > 0 {
+			err := api.processBulk(txBulkToProcess)
+			if err != nil {
+				log.Error("process bulk failed", "err", err)
+			}
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case req := <-api.txChan:
+				txBulkMtx.Lock()
+				txBulk = append(txBulk, req)
+				txBulkLen := len(txBulk)
+				txBulkMtx.Unlock()
+				if !api.EnableNotify && txBulkLen >= api.BulkAddTxsSize {
+					bulkProcessCh <- struct{}{}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	ticker := time.NewTicker(api.BulkAddTxsWaitTime)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case req, ok := <-api.txChan:
-			if !ok {
-				if len(txBulk) > 0 {
-					api.processBulk(txBulk)
-				}
-				return
-			}
-			txBulk = append(txBulk, req)
-			if len(txBulk) >= api.BulkAddTxsSize {
-				api.processBulk(txBulk)
-				txBulk = nil
-				ticker.Reset(api.BulkAddTxsWaitTime)
-			}
 		case <-ticker.C:
-			if len(txBulk) > 0 {
-				err := api.processBulk(txBulk)
-				if err != nil {
-					log.Error("process bulk failed", "err", err)
-				}
-				txBulk = nil
+			if api.EnableNotify && txpool2.IsAcquireTxPoolLock() {
+				continue
 			}
-			ticker.Reset(api.BulkAddTxsWaitTime)
-		case <-sigc:
+			getTxAndBulkProcess()
+		case <-bulkProcessCh:
+			getTxAndBulkProcess()
+		case <-ctx.Done():
 			return
 		}
 	}

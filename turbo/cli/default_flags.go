@@ -345,6 +345,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.BulkAddTxsFlag,
 	&utils.BulkAddTxsSizeFlag,
 	&utils.BulkAddTxsWaitTimeFlag,
+	&utils.EnableAddTxNotify,
 
 	&utils.ACLPrintHistory,
 	&utils.InfoTreeUpdateInterval,
