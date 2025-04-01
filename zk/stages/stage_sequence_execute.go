@@ -426,9 +426,6 @@ func sequencingBatchStep(
 			default:
 			}
 
-			// For X Layer
-			txpool.ArquireTxPoolLock(true)
-
 			select {
 			case <-infoTreeTicker.C:
 				newLogs, err := cfg.infoTreeUpdater.CheckForInfoTreeUpdates(logPrefix, sdb.tx)
@@ -823,9 +820,6 @@ func sequencingBatchStep(
 		if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
 			return err
 		}
-
-		// For X Layer
-		txpool.ArquireTxPoolLock(false)
 
 		t.LogTimer()
 		gasPerSecond := float64(0)
