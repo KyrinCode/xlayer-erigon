@@ -272,9 +272,10 @@ func (v *LegacyExecutorVerifier) VerifyAsync(request *VerifierRequest) *Promise[
 			return nil, err
 		}
 
+		block := minUint64(latestBlock, blockNumbers[len(blockNumbers)-1])
 		cache := map[string]map[string][]byte{}
 		if v.cache != nil {
-			cache = v.cache.CascadeGetCurrentBatchSnapshotCache(latestBlock)
+			cache = v.cache.CascadeGetCurrentBatchSnapshotCache(block)
 		}
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, cache)
 		if err != nil {
@@ -395,9 +396,10 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 			return nil, err
 		}
 
+		block := minUint64(latestBlock, blockNumbers[len(blockNumbers)-1])
 		cache := map[string]map[string][]byte{}
 		if v.cache != nil {
-			cache = v.cache.CascadeGetCurrentBatchSnapshotCache(latestBlock)
+			cache = v.cache.CascadeGetCurrentBatchSnapshotCache(block)
 		}
 		witness, err := v.WitnessGenerator.GetWitnessByBlockRange(tx, txsmt, innerCtx, blockNumbers[0], blockNumbers[len(blockNumbers)-1], false, v.cfg.WitnessFull, cache)
 		if err != nil {
@@ -630,4 +632,11 @@ func filterTransactionByIndexes(
 	}
 
 	return filteredTransactions
+}
+
+func minUint64(a, b uint64) uint64 {
+	if a <= b {
+		return a
+	}
+	return b
 }

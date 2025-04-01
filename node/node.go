@@ -428,6 +428,7 @@ func OpenDatabaseSMT(ctx context.Context, config *nodecfg.Config, logger log.Log
 		opts := mdbx.NewMDBX(logger).
 			Path(dbPath).Label(label).
 			GrowthStep(16 * datasize.MB).
+			SyncPeriod(30 * time.Second).
 			DBVerbosity(config.DatabaseVerbosity).RoTxsLimiter(roTxsLimiter)
 
 		if exclusive {

@@ -7,12 +7,17 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
+type SmtCacheSave struct {
+	SmtData     map[string]map[string][]byte
+	BlockHeight uint64
+}
+
 type SmtCache struct {
 	PushedHeap       *Uint64MinHeap
 	LastPushedHeight uint64
 	ConfirmedHeap    *Uint64MinHeap
 
-	SmtCacheDataCh       chan map[string]map[string][]byte
+	SmtCacheDataCh       chan SmtCacheSave
 	SmtCacheSnapshotList *SmtCacheList
 	SmtCacheSnapshotLock sync.RWMutex // Added lock for SmtCacheSnapshotList
 
@@ -35,7 +40,7 @@ func CreateNewSmtCache() *SmtCache {
 		ConfirmedHeap:    NewUint64MinHeap(),
 		LastPushedHeight: 0,
 
-		SmtCacheDataCh:       make(chan map[string]map[string][]byte, 1),
+		SmtCacheDataCh:       make(chan SmtCacheSave, 1000),
 		SmtCacheSnapshotList: NewSmtCacheList(),
 		DeltaSmtCache:        make(map[string]map[string][]byte),
 		LongLivedSmtCache:    make(map[string]map[string][]byte),
@@ -247,8 +252,13 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 		return nil
 	}
 
+	data := SmtCacheSave{
+		cache.DeltaSmtCache,
+		height,
+	}
+
 	select {
-	case cache.SmtCacheDataCh <- cache.DeltaSmtCache:
+	case cache.SmtCacheDataCh <- data:
 		cache.PushedHeap.ThreadSafePush(height)
 		cache.LastPushedHeight = height
 
