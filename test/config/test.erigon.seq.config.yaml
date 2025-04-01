@@ -105,3 +105,5 @@ zkevm.block-info-concurrent: true
 
 # to reduce lock race in stress test
 txpool.enabletimsort: true
+zkevm.bulk-add-txs: true
+zkevm.enable-add-tx-notify: true
