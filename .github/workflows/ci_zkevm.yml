@@ -225,6 +225,10 @@ jobs:
       - name: Build Docker
         run: make build-docker
 
+      - name: Update E2E Test Configurations
+        run: |
+          bash ./.github/scripts/update_config.sh
+
       - name: Test
         run: make test-${{ matrix.e2e-group }}
         working-directory: test
