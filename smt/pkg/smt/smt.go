@@ -1,7 +1,6 @@
 package smt
 
 import (
-	"container/list"
 	"math/big"
 
 	"context"
@@ -698,56 +697,70 @@ func (s *RoSMT) Traverse(ctx context.Context, node *big.Int, action TraverseActi
 	return s.traverse(ctx, node, action, []byte{})
 }
 
-type queueEntry struct {
+// Define the stack entry structure
+type stackEntry struct {
 	node   *big.Int
 	prefix []byte
 }
 
+// traverse performs an iterative pre-order DFS traversal of the SMT
 func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseAction, prefix []byte) error {
-	queue := list.New()
-	queue.PushBack(queueEntry{node: node, prefix: prefix})
+	// Early return if the node is nil or zero
+	if node == nil || node.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
 
-	for queue.Len() > 0 {
-		e := queue.Front()
-		current := e.Value.(queueEntry)
-		queue.Remove(e)
+	// Initialize stack with pre-allocated capacity to reduce allocations
+	stack := make([]stackEntry, 0, 1024)
+	stack = append(stack, stackEntry{node: node, prefix: prefix})
 
-		if current.node == nil || current.node.Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
+	// Main loop: process nodes until the stack is empty
+	for len(stack) > 0 {
+		// Pop the top element from the stack
+		topIdx := len(stack) - 1
+		current := stack[topIdx]
+		stack = stack[:topIdx]
 
+		// Check context cancellation
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
+		// Convert node to key and retrieve node value from database
 		ky := utils.ScalarToRoot(current.node)
 		nodeValue, err := s.DbRo.Get(ky)
 		if err != nil {
 			return err
 		}
 
+		// Execute the action on the current node
 		shouldContinue, err := action(current.prefix, ky, nodeValue)
 		if err != nil {
 			return err
 		}
 
+		// Stop traversing children if the node is final or action indicates no continuation
 		if nodeValue.IsFinalNode() || !shouldContinue {
 			continue
 		}
 
-		for i := 0; i < 2; i++ {
+		// Push children onto the stack in reverse order (right to left) to ensure left is processed first
+		for i := 1; i >= 0; i-- {
 			if len(nodeValue) < i*4+4 {
 				return errors.New("nodeValue has insufficient length")
 			}
 
 			child := utils.NodeKeyFromBigIntArray(nodeValue[i*4 : i*4+4])
-			childPrefix := make([]byte, len(current.prefix)+1)
-			copy(childPrefix, current.prefix)
-			childPrefix[len(current.prefix)] = byte(i)
+			childBigInt := child.ToBigInt()
+			if childBigInt != nil && childBigInt.Cmp(big.NewInt(0)) != 0 {
+				childPrefix := make([]byte, len(current.prefix)+1)
+				copy(childPrefix, current.prefix)
+				childPrefix[len(current.prefix)] = byte(i)
 
-			queue.PushBack(queueEntry{node: child.ToBigInt(), prefix: childPrefix})
+				stack = append(stack, stackEntry{node: childBigInt, prefix: childPrefix})
+			}
 		}
 	}
 
