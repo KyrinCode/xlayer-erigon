@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/holiman/uint256"
@@ -307,11 +308,20 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 	}
 }
 
-func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
-	cache := p.cache()
+// RemoveMinedTransactionsOriginal 是原始的实现方法，在某些情况下可能更高效
+func (p *TxPool) RemoveMinedTransactionsOriginal(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
+	if len(ids) == 0 {
+		return nil
+	}
 
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	startTime := time.Now()
+	defer func() {
+		log.Debug("[txpool] RemoveMinedTransactionsOriginal processed",
+			"txCount", len(ids),
+			"duration", time.Since(startTime))
+	}()
+
+	cache := p.cache()
 
 	toDelete := make([]*metaTx, 0)
 
@@ -353,36 +363,74 @@ func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGas
 		}
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
-
 	}
 	return nil
 }
 
-func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockGasLimit uint64, senders map[common.Address]struct{}) error {
-	if len(senders) == 0 {
+// RemoveMinedTransactionsOptimized 使用哈希映射优化查找性能
+func (p *TxPool) RemoveMinedTransactionsOptimized(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
+	if len(ids) == 0 {
 		return nil
 	}
 
+	startTime := time.Now()
+	defer func() {
+		log.Debug("[txpool] RemoveMinedTransactionsOptimized processed",
+			"txCount", len(ids),
+			"duration", time.Since(startTime))
+	}()
+
 	cache := p.cache()
+
+	// 创建哈希映射以实现O(1)查找
+	idMap := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idMap[string(id[:])] = struct{}{}
+	}
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	sendersToUpdate := make(map[uint64]struct{})
-	for sender := range senders {
-		if id, ok := p.senders.senderIDs[sender]; ok {
-			sendersToUpdate[id] = struct{}{}
+	// 预分配合理容量，减少内存重分配
+	toDelete := make([]*metaTx, 0, len(ids))
+	sendersWithChangedState := make(map[uint64]struct{}, len(ids))
+
+	// 单次遍历，使用哈希表查找替代嵌套循环
+	p.all.ascendAll(func(mt *metaTx) bool {
+		if _, exists := idMap[string(mt.Tx.IDHash[:])]; exists {
+			toDelete = append(toDelete, mt)
+			// 记录发送者ID，用于后续状态更新
+			sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
+
+			// 从相应子池中移除
+			switch mt.currentSubPool {
+			case PendingSubPool:
+				p.pending.Remove(mt)
+			case BaseFeeSubPool:
+				p.baseFee.Remove(mt)
+			case QueuedSubPool:
+				p.queued.Remove(mt)
+			default:
+				// 已移除
+			}
 		}
+		return true
+	})
+
+	// 批量处理删除操作
+	for _, mt := range toDelete {
+		p.discardLocked(mt, Mined)
 	}
 
+	// 更新发送者状态
 	baseFee := p.pendingBaseFee.Load()
-
 	cacheView, err := cache.View(ctx, tx)
 	if err != nil {
 		return err
 	}
 
-	for senderID := range sendersToUpdate {
+	// 处理所有需要更新状态的发送者
+	for senderID := range sendersWithChangedState {
 		nonce, balance, err := p.senders.info(cacheView, senderID)
 		if err != nil {
 			return err
@@ -390,8 +438,50 @@ func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockG
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
 	}
-
 	return nil
+}
+
+// RemoveMinedTransactions 现在使用自适应策略，根据交易数量和池大小选择最合适的方法
+func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	startTime := time.Now()
+
+	p.lock.Lock()
+	poolSize := p.all.tree.Len() // 获取交易池大小
+	p.lock.Unlock()
+
+	// 根据交易数量和池大小动态选择算法
+	// 阈值调整：根据实际情况选择最佳的阈值
+	// - 对于小型池和少量交易，原始方法可能更快（避免哈希表构建开销）
+	// - 对于大型池和大量交易，优化方法显著更快
+	var strategy string
+	var err error
+
+	// 交易数量与池大小的比例也是一个因素
+	txPoolRatio := float64(len(ids)) / float64(poolSize)
+
+	// 调整后的阈值逻辑
+	if poolSize > 100000 || len(ids) > 200 || (poolSize > 10000 && txPoolRatio > 0.01) {
+		// 大型池、大量交易或中等池但交易比例较高时使用优化方法
+		strategy = "optimized"
+		err = p.RemoveMinedTransactionsOptimized(ctx, tx, blockGasLimit, ids)
+	} else {
+		// 其他情况使用原始方法
+		strategy = "original"
+		err = p.RemoveMinedTransactionsOriginal(ctx, tx, blockGasLimit, ids)
+	}
+
+	log.Info("[txpool] RemoveMinedTransactions completed",
+		"strategy", strategy,
+		"txCount", len(ids),
+		"poolSize", poolSize,
+		"ratio", txPoolRatio,
+		"duration", time.Since(startTime))
+
+	return err
 }
 
 // discards the transactions that are in overflowZkCoutners from pending
@@ -447,4 +537,40 @@ func (p *TxPool) PreYield() {
 
 func (p *TxPool) PostYield() {
 	p.flushMtx.Unlock()
+}
+
+func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockGasLimit uint64, senders map[common.Address]struct{}) error {
+	if len(senders) == 0 {
+		return nil
+	}
+
+	cache := p.cache()
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	sendersToUpdate := make(map[uint64]struct{})
+	for sender := range senders {
+		if id, ok := p.senders.senderIDs[sender]; ok {
+			sendersToUpdate[id] = struct{}{}
+		}
+	}
+
+	baseFee := p.pendingBaseFee.Load()
+
+	cacheView, err := cache.View(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	for senderID := range sendersToUpdate {
+		nonce, balance, err := p.senders.info(cacheView, senderID)
+		if err != nil {
+			return err
+		}
+		p.onSenderStateChange(senderID, nonce, balance, p.all,
+			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
+	}
+
+	return nil
 }
