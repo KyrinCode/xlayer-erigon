@@ -737,13 +737,24 @@ func TestRocksDbCursor_putNoOverwrite(t *testing.T) {
 
 	c := ci.(*RocksDbDupSortCursor)
 
+	// make sure chrrent is key3
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+
 	// key exist, value exist: return error
-	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1"))
-	require.Error(t, ErrKeyExist, err)
+	err = c.putNoOverwrite([]byte("key1"), []byte("value1.x"))
+	require.EqualError(t, err, ErrKeyExist.Error())
+	// even putNoOverwrite, but it change current
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
 
 	// key exist, value not exist: return error
 	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1xxx"))
-	require.Error(t, ErrKeyExist, err)
+	require.EqualError(t, err, ErrKeyExist.Error())
 
 	// key not exist, value not exist, return success
 	err = c.putNoOverwrite([]byte("key2"), []byte("value2.1"))
@@ -976,18 +987,20 @@ func TestRocksDBCursor_putAppendDup(t *testing.T) {
 	require.Equal(t, []byte("value0"), v)
 
 	c := ci.(*RocksDbDupSortCursor)
-
-	err = c.putAppendDup([]byte("key1"), []byte("value1.1"))
-	require.EqualError(t, err, ErrKeyExist.Error())
-
-	err = c.putAppendDup([]byte("key1"), []byte("append1.2"))
-	require.EqualError(t, err, ErrKeyExist.Error())
-
-	err = c.putAppendDup([]byte("key2"), []byte("append2.1"))
+	k, v, err = c.Current()
 	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
 
-	err = c.putAppendDup([]byte("key3"), []byte("append3.1"))
-	require.EqualError(t, err, ErrKeyExist.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key3"), []byte("append3.1")), ErrValueLeLatest.Error())
+	require.NoError(t, c.putAppendDup([]byte("key3"), []byte("xppend3.1")))
+
+	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("value1.1")), ErrValueLeLatest.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("value1.3")), ErrValueLeLatest.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("append1.2")), ErrValueLeLatest.Error())
+	require.NoError(t, c.putAppendDup([]byte("key1"), []byte("value1.4")))
+
+	require.NoError(t, c.putAppendDup([]byte("key2"), []byte("append2.1")))
 
 	k, v, err = c.First()
 	require.NoError(t, err)
@@ -999,12 +1012,28 @@ func TestRocksDBCursor_putAppendDup(t *testing.T) {
 	require.Equal(t, []byte("value1.3"), v)
 	k, v, err = c.Next()
 	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.4"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
 	require.Equal(t, []byte("key2"), k)
 	require.Equal(t, []byte("append2.1"), v)
 	k, v, err = c.Next()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("xppend3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
 }
 
 // see behaviour of mdbx in TestMdbxCursor_putAppend
@@ -1251,6 +1280,13 @@ func TestRocksDBCursor_lastDup(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.3"), v)
+
+	// check situation when current is invalid
+	require.NoError(t, c.Delete([]byte("key5")))
+	_, _, err = c.Current()
+	require.Error(t, err)
+	_, err = c.lastDup()
+	require.Error(t, err)
 }
 
 // see behaviour of mdbx in TestMdbxCursor_firstDup
@@ -1467,23 +1503,48 @@ func TestRocksDbCursor_Put(t *testing.T) {
 		require.Equal(t, 8, rdb.AllTables()[rocksdbAutoDupSortKeysConversionTable].DupFromLen)
 		require.Equal(t, 5, rdb.AllTables()[rocksdbAutoDupSortKeysConversionTable].DupToLen)
 
+		// check key exist and current is the key
 		key := []byte("key1")
-		err = mc.Put(key, []byte("value1st"))
+		err = mc.Put(key, []byte("value1.1"))
 		require.NoError(t, err)
-		err = rc.Put(key, []byte("value1st"))
+		err = rc.Put(key, []byte("value1.1"))
 		require.NoError(t, err)
-		// the 2nd time write. now the key has exist.
-		err = mc.Put(key, []byte("value2nd"))
+		// the 2nd time write. now the key has exist, and current is the key
+		err = mc.Put(key, []byte("value1.2"))
 		require.NoError(t, err)
-		err = rc.Put(key, []byte("value2nd"))
+		err = rc.Put(key, []byte("value1.2"))
+		require.NoError(t, err)
+
+		// check key exist but current is not the key
+		key2 := []byte("key2")
+		err = mc.Put(key2, []byte("value2.1"))
+		require.NoError(t, err)
+		err = rc.Put(key2, []byte("value2.1"))
+		require.NoError(t, err)
+		k, _, err := mc.SeekExact(key)
+		require.NoError(t, err)
+		require.Equal(t, key, k)
+		k, _, err = rc.SeekExact(key)
+		require.NoError(t, err)
+		require.Equal(t, key, k)
+		// the 2nd time write. now the key has exist, but current is not the key
+		err = mc.Put(key2, []byte("value2.2"))
+		require.NoError(t, err)
+		err = rc.Put(key2, []byte("value2.2"))
 		require.NoError(t, err)
 
 		v, err := mtx.GetOne(mdbxAutoDupSortKeysConversionTable, key)
 		require.NoError(t, err)
-		require.Equal(t, []byte("value2nd"), v)
+		require.Equal(t, []byte("value1.2"), v)
 		v, err = rtx.GetOne(rocksdbAutoDupSortKeysConversionTable, key)
 		require.NoError(t, err)
-		require.Equal(t, []byte("value2nd"), v)
+		require.Equal(t, []byte("value1.2"), v)
+		v, err = mtx.GetOne(mdbxAutoDupSortKeysConversionTable, key2)
+		require.NoError(t, err)
+		require.Equal(t, []byte("value2.2"), v)
+		v, err = rtx.GetOne(rocksdbAutoDupSortKeysConversionTable, key2)
+		require.NoError(t, err)
+		require.Equal(t, []byte("value2.2"), v)
 	})
 	t.Run("AutoDupSortKeysConversion=true&&KeyLen==DupFromLen&&KeyEqual", func(t *testing.T) {
 		_, mtx, _ := mdbxBaseCase(t)
@@ -1656,9 +1717,34 @@ func TestCurrentAfterDelete(t *testing.T) {
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
 
+	require.NoError(t, mc.Put([]byte("key4"), []byte("value4.1")))
+	require.NoError(t, rc.Put([]byte("key4"), []byte("value4.1")))
+
+	require.NoError(t, mc.Delete([]byte("key1")))
+	k, v, err = mc.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	require.NoError(t, rc.Delete([]byte("key1")))
+	k, v, err = rc.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+
 	require.NoError(t, mc.Delete([]byte("key3")))
 	require.NoError(t, rc.Delete([]byte("key3")))
 
+	k, v, err = mc.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key4"), k)
+	require.Equal(t, []byte("value4.1"), v)
+	k, v, err = rc.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key4"), k)
+	require.Equal(t, []byte("value4.1"), v)
+
+	require.NoError(t, mc.Delete([]byte("key4")))
+	require.NoError(t, rc.Delete([]byte("key4")))
 	k, v, err = mc.Current()
 	require.Error(t, err)
 	k, v, err = rc.Current()

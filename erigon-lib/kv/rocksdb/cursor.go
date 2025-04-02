@@ -224,7 +224,7 @@ func (c *RocksDbCursor) Delete(k []byte) error {
 
 	_, _, err := c.set(k)
 	if err != nil {
-		if errors.Is(err, ErrKeyNotExist) {
+		if errors.Is(err, ErrNotFound) {
 			return nil
 		}
 		return err
@@ -233,6 +233,7 @@ func (c *RocksDbCursor) Delete(k []byte) error {
 	if c.tableCfg.Flags&mdbx.DupSort != 0 {
 		return c.delAllDupData()
 	}
+
 	return c.delCurrent()
 }
 
@@ -362,11 +363,8 @@ func (c *RocksDbCursor) putNoOverwrite(k, v []byte) error {
 	// mdbx:
 	// return c.c.Put(k, v, mdbx.NoOverwrite)
 
-	exist, err := c.rtx.Has(c.table, k)
-	if err != nil {
-		return err
-	}
-	if exist {
+	_, _, err := c.it.SeekExact(k)
+	if err == nil {
 		return ErrKeyExist
 	}
 
@@ -457,8 +455,35 @@ func (c *RocksDbCursor) set(k []byte) ([]byte, []byte, error) {
 	return c.it.SeekExact(k)
 }
 
-func (c *RocksDbCursor) putAppendDup(k, v []byte) error {
-	return c.putNoOverwrite(k, v)
+func (c *RocksDbCursor) putAppendDup(k, v []byte) (err error) {
+	curK, curV, curErr := c.it.Current()
+	defer func() {
+		if err != nil {
+			if curErr != nil {
+				c.it.invalidCurrent()
+			} else {
+				c.it.mustSeekToKeyValue(curK, curV)
+			}
+		}
+	}()
+
+	_, _, err = c.it.SeekExact(k)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return c.put(k, v)
+		}
+		return err
+	}
+
+	_, lastV, err := c.it.LastDup()
+	if err != nil {
+		return err
+	}
+	if bytes.Compare(lastV, v) >= 0 {
+		return ErrValueLeLatest
+	}
+
+	return c.put(k, v)
 }
 
 func (c *RocksDbCursor) putAppend(k, v []byte) (err error) {

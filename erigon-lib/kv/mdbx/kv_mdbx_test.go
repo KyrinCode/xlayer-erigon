@@ -1181,13 +1181,24 @@ func TestMdbxCursor_putNoOverwrite(t *testing.T) {
 
 	c := ci.(*MdbxDupSortCursor)
 
+	// make sure chrrent is key3
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+
 	// key exist, value exist: return error
-	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1"))
-	require.Error(t, mdbx.KeyExist, err)
+	err = c.putNoOverwrite([]byte("key1"), []byte("value1.x"))
+	require.EqualError(t, err, "mdbx_cursor_put: MDBX_KEYEXIST: Key/data pair already exists")
+	// even putNoOverwrite, but it change current
+	k, v, err = c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
 
 	// key exist, value not exist: return error
 	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1xxx"))
-	require.Error(t, mdbx.KeyExist, err)
+	require.EqualError(t, err, "mdbx_cursor_put: MDBX_KEYEXIST: Key/data pair already exists")
 
 	// key not exist, value not exist, return success
 	err = c.putNoOverwrite([]byte("key2"), []byte("value2.1"))
@@ -1468,25 +1479,45 @@ func TestMdbxCursor_putAppendDup(t *testing.T) {
 	csi, err := tx.RwCursor(kv.Sequence)
 	require.NoError(t, err)
 	cs := csi.(*MdbxCursor)
-	require.NoError(t, cs.c.Put([]byte("key0"), []byte("value0"), mdbx.AppendDup))
+	require.NoError(t, cs.c.Put([]byte("key0"), []byte("value0.1"), mdbx.AppendDup))
 	k, v, err := cs.Current()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key0"), k)
-	require.Equal(t, []byte("value0"), v)
+	require.Equal(t, []byte("value0.1"), v)
+	require.NoError(t, cs.Put([]byte("key0"), []byte("value0.2")))
+	k, v, err = cs.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key0"), k)
+	require.Equal(t, []byte("value0.2"), v)
+	k, v, err = cs.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+	require.NoError(t, cs.c.Put([]byte("key0"), []byte("value0.3"), mdbx.AppendDup))
+	k, v, err = cs.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key0"), k)
+	require.Equal(t, []byte("value0.3"), v)
+	k, v, err = cs.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
 
 	c := ci.(*MdbxDupSortCursor)
-
-	err = c.c.Put([]byte("key1"), []byte("value1.1"), mdbx.AppendDup)
-	require.EqualError(t, err, expectErrMsg)
-
-	err = c.c.Put([]byte("key1"), []byte("append1.2"), mdbx.AppendDup)
-	require.EqualError(t, err, expectErrMsg)
-
-	err = c.c.Put([]byte("key2"), []byte("append2.1"), mdbx.AppendDup)
+	k, v, err = c.Current()
 	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
 
-	err = c.c.Put([]byte("key3"), []byte("append3.1"), mdbx.AppendDup)
-	require.EqualError(t, err, expectErrMsg)
+	require.EqualError(t, c.c.Put([]byte("key3"), []byte("append3.1"), mdbx.AppendDup), expectErrMsg)
+	require.NoError(t, c.c.Put([]byte("key3"), []byte("xppend3.1"), mdbx.AppendDup))
+
+	require.EqualError(t, c.c.Put([]byte("key1"), []byte("value1.1"), mdbx.AppendDup), expectErrMsg)
+	require.EqualError(t, c.c.Put([]byte("key1"), []byte("value1.3"), mdbx.AppendDup), expectErrMsg)
+	require.EqualError(t, c.c.Put([]byte("key1"), []byte("append1.2"), mdbx.AppendDup), expectErrMsg)
+	require.NoError(t, c.c.Put([]byte("key1"), []byte("value1.4"), mdbx.AppendDup))
+
+	require.NoError(t, c.c.Put([]byte("key2"), []byte("append2.1"), mdbx.AppendDup))
 
 	k, v, err = c.First()
 	require.NoError(t, err)
@@ -1498,12 +1529,28 @@ func TestMdbxCursor_putAppendDup(t *testing.T) {
 	require.Equal(t, []byte("value1.3"), v)
 	k, v, err = c.Next()
 	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.4"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
 	require.Equal(t, []byte("key2"), k)
 	require.Equal(t, []byte("append2.1"), v)
 	k, v, err = c.Next()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("xppend3.1"), v)
+	k, v, err = c.Next()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
 }
 
 func TestMdbxCursor_putAppend(t *testing.T) {
@@ -1747,6 +1794,13 @@ func TestMdbxCursor_lastDup(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.3"), v)
+
+	// check situation when current is invalid
+	require.NoError(t, c.Delete([]byte("key5")))
+	_, _, err = c.Current()
+	require.Error(t, err)
+	_, err = c.lastDup()
+	require.Error(t, err)
 }
 
 func TestMdbxCursor_firstDup(t *testing.T) {

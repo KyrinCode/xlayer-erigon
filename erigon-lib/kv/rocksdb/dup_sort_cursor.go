@@ -101,7 +101,10 @@ func (c *RocksDbDupSortCursor) Append(k []byte, v []byte) error {
 
 // AppendDup - same as Append, but for sorted dup data
 func (c *RocksDbDupSortCursor) AppendDup(key, value []byte) error {
-	panic("yztodo: not implemented")
+	if err := c.putAppendDup(key, value); err != nil {
+		return fmt.Errorf("label: %s, in AppendDup: bucket=%s, %w", c.rtx.db.label, c.table, err)
+	}
+	return nil
 }
 
 // PutNoDupData - inserts key without dupsort

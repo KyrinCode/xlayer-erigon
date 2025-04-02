@@ -18,7 +18,7 @@ type RocksDB struct {
 
 	closeGuard *CloseGuard
 
-	readOnly  bool
+	readOnly  bool // todo: not used
 	tablesCfg kv.TableCfg
 	label     kv.Label // marker to distinct db instances - one process may open many databases. for example to collect metrics of only 1 database
 
