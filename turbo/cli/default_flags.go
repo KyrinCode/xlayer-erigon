@@ -31,6 +31,8 @@ var DefaultFlags = []cli.Flag{
 	&utils.TxPoolCommitEveryFlag,
 	&utils.TxpoolPurgeEveryFlag,
 	&utils.TxpoolPurgeDistanceFlag,
+	&utils.TxpoolMapSizeFlag,
+	&utils.TxpoolAclMapSizeFlag,
 	&PruneFlag,
 	&PruneHistoryFlag,
 	&PruneReceiptFlag,

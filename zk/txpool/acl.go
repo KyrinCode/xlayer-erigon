@@ -11,6 +11,7 @@ import (
 	mdbx2 "github.com/erigontech/mdbx-go/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
+	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -126,6 +127,28 @@ func OpenACLDB(ctx context.Context, dbDir string) (kv.RwDB, error) {
 		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return ACLTablesCfg }).
 		Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
 		GrowthStep(16 * datasize.MB).
+		// MapSize(3 * datasize.GB).
+		SyncPeriod(30 * time.Second).
+		Open(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return aclDB, nil
+}
+
+func OpenACLDBWithConfig(ctx context.Context, cfg txpoolcfg.Config) (kv.RwDB, error) {
+	dbDir := cfg.DBDir
+	path := dbDir
+	if !IsACLsPath(dbDir) {
+		path = filepath.Join(dbDir, aclFolder)
+	}
+
+	aclDB, err := mdbx.NewMDBX(log.New()).Label(ACLDB).Path(path).
+		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return ACLTablesCfg }).
+		Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
+		GrowthStep(cfg.MdbxGrowthStep).
+		MapSize(cfg.MdbxAclSizeLimit).
 		SyncPeriod(30 * time.Second).
 		Open(ctx)
 	if err != nil {

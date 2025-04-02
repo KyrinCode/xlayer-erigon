@@ -247,6 +247,16 @@ var (
 		Usage: "Transactions older than this distance will be purged",
 		Value: txpoolcfg.DefaultConfig.PurgeDistance,
 	}
+	TxpoolMapSizeFlag = cli.StringFlag{
+		Name:  "txpool.mdbx.mapsize",
+		Usage: "txpool mapsize",
+		Value: (2 * datasize.TB).String(),
+	}
+	TxpoolAclMapSizeFlag = cli.StringFlag{
+		Name:  "txpool.mdbx.aclmapsize",
+		Usage: "txpool acl mapsize",
+		Value: (2 * datasize.TB).String(),
+	}
 	// Miner settings
 	MiningEnabledFlag = cli.BoolFlag{
 		Name:  "mine",
@@ -1248,8 +1258,7 @@ var (
 	DbSizeLimitFlag = cli.StringFlag{
 		Name:  "db.size.limit",
 		Usage: "Runtime limit of chaindata db size. You can change value of this flag at any time.",
-		// Value: (12 * datasize.TB).String(),
-		Value: (12 * datasize.GB).String(),
+		Value: (12 * datasize.TB).String(),
 	}
 	ForcePartialCommitFlag = cli.BoolFlag{
 		Name:  "force.partial.commit",
@@ -1886,8 +1895,12 @@ func setDataDir(ctx *cli.Context, cfg *nodecfg.Config) {
 		panic(err)
 	}
 	szLimit := cfg.MdbxDBSizeLimit.Bytes()
+	checkDatasizeOrPanic(ctx.String(DbSizeLimitFlag.Name), szLimit)
+}
+
+func checkDatasizeOrPanic(flagName string, szLimit uint64) {
 	if szLimit%256 != 0 || szLimit < 256 {
-		panic(fmt.Errorf("invalid --db.size.limit: %s=%d, see: %s", ctx.String(DbSizeLimitFlag.Name), szLimit, DbSizeLimitFlag.Usage))
+		panic(fmt.Errorf("invalid --db.size.limit: %s=%d, see: %s", flagName, szLimit, DbSizeLimitFlag.Usage))
 	}
 }
 
@@ -1997,6 +2010,18 @@ func setTxPool(ctx *cli.Context, fullCfg *ethconfig.Config) {
 	}
 	if ctx.IsSet(TxPoolBlobPriceBumpFlag.Name) {
 		fullCfg.TxPool.BlobPriceBump = ctx.Uint64(TxPoolBlobPriceBumpFlag.Name)
+	}
+	if ctx.IsSet(TxpoolMapSizeFlag.Name) {
+		if err := fullCfg.TxPool.MdbxDBSizeLimit.UnmarshalText([]byte(ctx.String(TxpoolMapSizeFlag.Name))); err != nil {
+			panic(fmt.Errorf("Error setting txpool map size. %v", err))
+		}
+		checkDatasizeOrPanic(ctx.String(TxpoolMapSizeFlag.Name), uint64(fullCfg.TxPool.MdbxDBSizeLimit))
+	}
+	if ctx.IsSet(TxpoolAclMapSizeFlag.Name) {
+		if err := fullCfg.TxPool.MdbxAclSizeLimit.UnmarshalText([]byte(ctx.String(TxpoolAclMapSizeFlag.Name))); err != nil {
+			panic(fmt.Errorf("Error setting txpool acl map size. %v", err))
+		}
+		checkDatasizeOrPanic(ctx.String(TxpoolAclMapSizeFlag.Name), uint64(fullCfg.TxPool.MdbxAclSizeLimit))
 	}
 	cfg.CommitEvery = common2.RandomizeDuration(ctx.Duration(TxPoolCommitEveryFlag.Name))
 
@@ -2305,6 +2330,7 @@ func SetEthConfig(ctx *cli.Context, nodeConfig *nodecfg.Config, cfg *ethconfig.C
 	setGPO(ctx, &cfg.GPO)
 
 	setTxPool(ctx, cfg)
+
 	cfg.TxPool = ethconfig.DefaultTxPool2Config(cfg)
 	cfg.TxPool.DBDir = nodeConfig.Dirs.TxPool
 	cfg.YieldSize = ctx.Uint64(YieldSizeFlag.Name)

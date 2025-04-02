@@ -123,6 +123,8 @@ var DefaultTxPool2Config = func(fullCfg *Config) txpoolcfg.Config {
 	cfg.CommitEvery = pool1Cfg.CommitEvery
 	cfg.PurgeEvery = fullCfg.TxPool.PurgeEvery
 	cfg.PurgeDistance = fullCfg.TxPool.PurgeDistance
+	cfg.MdbxDBSizeLimit = fullCfg.TxPool.MdbxDBSizeLimit
+	cfg.MdbxAclSizeLimit = fullCfg.TxPool.MdbxAclSizeLimit
 
 	return cfg
 }
