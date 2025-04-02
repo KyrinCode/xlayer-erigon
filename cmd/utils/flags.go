@@ -1248,7 +1248,8 @@ var (
 	DbSizeLimitFlag = cli.StringFlag{
 		Name:  "db.size.limit",
 		Usage: "Runtime limit of chaindata db size. You can change value of this flag at any time.",
-		Value: (12 * datasize.TB).String(),
+		// Value: (12 * datasize.TB).String(),
+		Value: (12 * datasize.GB).String(),
 	}
 	ForcePartialCommitFlag = cli.BoolFlag{
 		Name:  "force.partial.commit",

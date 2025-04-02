@@ -2559,7 +2559,8 @@ func openClient(ctx context.Context, dbDir, snapDir string, cfg *torrent.ClientC
 		Label(kv.DownloaderDB).
 		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return kv.DownloaderTablesCfg }).
 		GrowthStep(16 * datasize.MB).
-		MapSize(16 * datasize.GB).
+		// MapSize(16 * datasize.GB).
+		MapSize(5 * datasize.GB).
 		PageSize(uint64(4 * datasize.KB)).
 		//WriteMap().
 		//LifoReclaim().

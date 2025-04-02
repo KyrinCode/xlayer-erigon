@@ -76,8 +76,10 @@ type MdbxOpts struct {
 	inMem           bool
 }
 
-const DefaultMapSize = 2 * datasize.TB
-const DefaultGrowthStep = 2 * datasize.GB
+// const DefaultMapSize = 2 * datasize.TB
+// const DefaultGrowthStep = 2 * datasize.GB
+const DefaultMapSize = 2 * datasize.GB
+const DefaultGrowthStep = 1 * datasize.MB
 
 func NewMDBX(log log.Logger) MdbxOpts {
 	opts := MdbxOpts{
@@ -189,6 +191,10 @@ func (opts MdbxOpts) MapSize(sz datasize.ByteSize) MdbxOpts {
 	return opts
 }
 
+func (opts MdbxOpts) GetMapSize() datasize.ByteSize {
+	return opts.mapSize
+}
+
 func (opts MdbxOpts) WriteMap() MdbxOpts {
 	opts.flags |= mdbx.WriteMap
 	return opts
@@ -283,6 +289,7 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 	}
 
 	if !opts.HasFlag(mdbx.Accede) {
+		log.Info("SET GEO", "MAP_SIZE", opts.mapSize)
 		if err = env.SetGeometry(-1, -1, int(opts.mapSize), int(opts.growthStep), opts.shrinkThreshold, int(opts.pageSize)); err != nil {
 			return nil, err
 		}
