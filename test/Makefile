@@ -57,8 +57,8 @@ STOP := $(DOCKER_COMPOSE) down --remove-orphans; sleep 3; rm -rf data
 build-docker: ## Build cdk-erigoin for sequencer and rpc
 	docker build -t cdk-erigon -f ../Dockerfile.local ../
 
-.PHONY: run
-run: build-docker ## Runs a full node
+.PHONY: run_base
+run_base: build-docker ## Runs a full node
 	# base services
 	$(RUN_DOCKER_L1_NETWORK)
 	$(RUN_DOCKER_DATA_AVAILABILITY_DB)
@@ -69,17 +69,18 @@ run: build-docker ## Runs a full node
 	$(RUN_DOCKER_APPROVE)
 	$(RUN_DOCKER_STATELESS_EXECUTOR)
 
-	# app services
-	sleep 3
-	$(RUN_DOCKER_SEQ)
-	$(RUN_DOCKER_PROVER)
-	sleep 10
-	$(RUN_DOCKER_DS)
-	$(RUN_DOCKER_SIGNER)
-	$(RUN_DOCKER_SEQ_SENDER)
-	$(RUN_DOCKER_AGGREGATOR)
-	$(RUN_DOCKER_POOL_MANAGER)
-	$(RUN_DOCKER_RPC)
+.PHONY: run
+run:
+#	# app services
+	#$(RUN_DOCKER_SEQ)
+#	$(RUN_DOCKER_PROVER)
+#	sleep 10
+#	$(RUN_DOCKER_DS)
+#	$(RUN_DOCKER_SIGNER)
+#	$(RUN_DOCKER_SEQ_SENDER)
+#	$(RUN_DOCKER_AGGREGATOR)
+#	$(RUN_DOCKER_POOL_MANAGER)
+#	$(RUN_DOCKER_RPC)
 
 	# monitoring services
 	$(RUN_DOCKER_PROMETHEUS)
