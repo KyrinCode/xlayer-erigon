@@ -1237,7 +1237,7 @@ var (
 		Value: "",
 	}
 	TorrentClientDbSizeFlag = cli.StringFlag{
-		Name:  "torrent.db.size",
+		Name:  "torrent.db.mapsize",
 		Usage: "torrent mdbx db map size",
 		Value: (16 * datasize.GB).String(),
 	}
