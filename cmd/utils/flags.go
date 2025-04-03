@@ -1226,6 +1226,21 @@ var (
 		Usage: "Comma separated enode URLs to connect to",
 		Value: "",
 	}
+	TorrentClientDbSizeFlag = cli.StringFlag{
+		Name:  "torrent.db.size",
+		Usage: "torrent mdbx db map size",
+		Value: (16 * datasize.GB).String(),
+	}
+	TorrentClientDbGrowthStepFlag = cli.StringFlag{
+		Name:  "torrent.db.growthstep",
+		Usage: "torrent mdbx db growthstep",
+		Value: (16 * datasize.MB).String(),
+	}
+	TorrentClientDbPagesizeFlag = cli.StringFlag{
+		Name:  "torrent.db.pagesize",
+		Usage: "torrent mdbx db pagesize",
+		Value: "4KB",
+	}
 	NoDownloaderFlag = cli.BoolFlag{
 		Name:  "no-downloader",
 		Usage: "Disables downloader component",
@@ -2333,6 +2348,13 @@ func SetEthConfig(ctx *cli.Context, nodeConfig *nodecfg.Config, cfg *ethconfig.C
 		if err != nil {
 			panic(err)
 		}
+		if err = cfg.Downloader.ClientDBSizeLimit.UnmarshalText([]byte(ctx.String(TorrentClientDbSizeFlag.Name))); err != nil {
+			panic(err)
+		}
+		if err = cfg.Downloader.ClientDBGrowthStep.UnmarshalText([]byte(ctx.String(TorrentClientDbGrowthStepFlag.Name))); err != nil {
+			panic(err)
+		}
+		cfg.Downloader.ClientDBPageSize = flags.DBPageSizeFlagUnmarshal(ctx, TorrentClientDbPagesizeFlag.Name, TorrentClientDbPagesizeFlag.Usage)
 		downloadernat.DoNat(nodeConfig.P2P.NAT, cfg.Downloader.ClientConfig, logger)
 	}
 

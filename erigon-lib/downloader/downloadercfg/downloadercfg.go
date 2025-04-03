@@ -46,7 +46,11 @@ const DefaultPieceSize = 2 * 1024 * 1024
 const DefaultNetworkChunkSize = 256 * 1024
 
 type Cfg struct {
-	ClientConfig  *torrent.ClientConfig
+	ClientConfig       *torrent.ClientConfig
+	ClientDBSizeLimit  datasize.ByteSize
+	ClientDBPageSize   datasize.ByteSize
+	ClientDBGrowthStep datasize.ByteSize
+
 	DownloadSlots int
 
 	WebSeedUrls                     []*url.URL

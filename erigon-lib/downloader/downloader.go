@@ -45,7 +45,6 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 	"github.com/anacrolix/torrent/types/infohash"
-	"github.com/c2h5oh/datasize"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/tidwall/btree"
 	"golang.org/x/sync/errgroup"
@@ -270,7 +269,7 @@ func New(ctx context.Context, cfg *downloadercfg.Cfg, logger log.Logger, verbosi
 
 	cfg.ClientConfig.WebTransport = requestHandler
 
-	db, c, m, torrentClient, err := openClient(ctx, cfg.Dirs.Downloader, cfg.Dirs.Snap, cfg.ClientConfig)
+	db, c, m, torrentClient, err := openClient(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("openClient: %w", err)
 	}
@@ -2554,14 +2553,16 @@ func (d *Downloader) StopSeeding(hash metainfo.Hash) error {
 
 func (d *Downloader) TorrentClient() *torrent.Client { return d.torrentClient }
 
-func openClient(ctx context.Context, dbDir, snapDir string, cfg *torrent.ClientConfig) (db kv.RwDB, c storage.PieceCompletion, m storage.ClientImplCloser, torrentClient *torrent.Client, err error) {
+func openClient(ctx context.Context, cfg *downloadercfg.Cfg) (db kv.RwDB, c storage.PieceCompletion, m storage.ClientImplCloser, torrentClient *torrent.Client, err error) {
+	dbDir := cfg.Dirs.Downloader
+	snapDir := cfg.Dirs.Snap
+
 	db, err = mdbx.NewMDBX(log.New()).
 		Label(kv.DownloaderDB).
 		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return kv.DownloaderTablesCfg }).
-		GrowthStep(16 * datasize.MB).
-		// MapSize(16 * datasize.GB).
-		MapSize(5 * datasize.GB).
-		PageSize(uint64(4 * datasize.KB)).
+		GrowthStep(cfg.ClientDBGrowthStep).
+		MapSize(cfg.ClientDBSizeLimit).
+		PageSize(uint64(cfg.ClientDBPageSize)).
 		//WriteMap().
 		//LifoReclaim().
 		RoTxsLimiter(semaphore.NewWeighted(9_000)).
@@ -2587,12 +2588,12 @@ func openClient(ctx context.Context, dbDir, snapDir string, cfg *torrent.ClientC
 	//	ClientBaseDir:   snapDir,
 	//	PieceCompletion: c,
 	//})
-	cfg.DefaultStorage = m
+	cfg.ClientConfig.DefaultStorage = m
 
 	dnsResolver := &downloadercfg.DnsCacheResolver{RefreshTimeout: 24 * time.Hour}
-	cfg.TrackerDialContext = dnsResolver.DialContext
+	cfg.ClientConfig.TrackerDialContext = dnsResolver.DialContext
 
-	torrentClient, err = torrent.NewClient(cfg)
+	torrentClient, err = torrent.NewClient(cfg.ClientConfig)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("torrent.NewClient: %w", err)
 	}
