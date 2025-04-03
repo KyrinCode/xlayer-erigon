@@ -102,7 +102,7 @@ func SpawnSequencingStage(
 			return err
 		}
 
-		//s.ResetCurrentBatchCache(s.BlockNumber)
+		s.ResetCurrentBatchCache(s.BlockNumber)
 	}
 
 	return err

@@ -66,8 +66,8 @@ func (s *Sync) FlushSmtCache(batchPush, grace bool) error {
 	return s.cache.FlushSmtCache(batchPush, grace)
 }
 
-func (s *Sync) ResetCurrentBatchCache(blockNumber uint64) {
-	s.cache.ResetCurrentBatch(blockNumber)
+func (s *Sync) ResetCurrentBatchCache(resetBlockHeight uint64) {
+	s.cache.ResetCurrentBatch(resetBlockHeight)
 }
 
 func (s *Sync) Len() int {
