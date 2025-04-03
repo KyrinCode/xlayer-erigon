@@ -10,6 +10,7 @@ on:
       - dev
       - zkevm
       - stable/**
+      - feature/v0.6.0
     types:
       - opened
       - reopened
