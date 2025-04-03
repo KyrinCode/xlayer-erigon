@@ -34,6 +34,7 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/ledgerwatch/log/v3"
 
 	"github.com/ledgerwatch/erigon/common"
@@ -178,6 +179,9 @@ type Config struct {
 	TmpDir string
 
 	MetricsEnabled bool
+
+	NodeDBMapSize    datasize.ByteSize
+	NodeDBGrowthStep datasize.ByteSize
 }
 
 func (config *Config) ListenPort() int {
@@ -550,7 +554,16 @@ func (srv *Server) setupLocalNode() error {
 	}
 	sort.Sort(capsByNameAndVersion(srv.ourHandshake.Caps))
 	// Create the local node
-	db, err := enode.OpenDB(srv.quitCtx, srv.Config.NodeDatabase, srv.Config.TmpDir, srv.logger)
+	db, err := enode.OpenDB(srv.quitCtx, srv.Config.NodeDatabase, srv.Config.TmpDir, srv.logger,
+		enode.AdditionalConfig{
+			Key:   "mapsize",
+			Value: srv.Config.NodeDBMapSize,
+		},
+		enode.AdditionalConfig{
+			Key:   "growthstep",
+			Value: srv.Config.NodeDBGrowthStep,
+		},
+	)
 	if err != nil {
 		return err
 	}

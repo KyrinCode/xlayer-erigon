@@ -80,13 +80,28 @@ type DB struct {
 	ctxCancel func()
 }
 
+type AdditionalConfig struct {
+	Key   string
+	Value any
+}
+
 // OpenDB opens a node database for storing and retrieving infos about known peers in the
 // network. If no path is given an in-memory, temporary database is constructed.
-func OpenDB(ctx context.Context, path string, tmpDir string, logger log.Logger) (*DB, error) {
+func OpenDB(ctx context.Context, path string, tmpDir string, logger log.Logger, moreCfg ...AdditionalConfig) (*DB, error) {
 	if path == "" {
 		return newMemoryDB(ctx, logger, tmpDir)
 	}
-	return newPersistentDB(ctx, logger, path)
+	var size datasize.ByteSize = 0
+	var growthStep datasize.ByteSize = 0
+	for _, cfg := range moreCfg {
+		if cfg.Key == "mapsize" {
+			size = cfg.Value.(datasize.ByteSize)
+		}
+		if cfg.Key == "growthstep" {
+			growthStep = cfg.Value.(datasize.ByteSize)
+		}
+	}
+	return newPersistentDB(ctx, logger, path, size, growthStep)
 }
 
 func bucketsConfig(_ kv.TableCfg) kv.TableCfg {
@@ -116,14 +131,13 @@ func newMemoryDB(ctx context.Context, logger log.Logger, tmpDir string) (*DB, er
 
 // newPersistentDB creates/opens a persistent node database,
 // also flushing its contents in case of a version mismatch.
-func newPersistentDB(ctx context.Context, logger log.Logger, path string) (*DB, error) {
+func newPersistentDB(ctx context.Context, logger log.Logger, path string, mapsize, growthStep datasize.ByteSize) (*DB, error) {
 	db, err := mdbx.NewMDBX(logger).
 		Path(path).
 		Label(kv.SentryDB).
 		WithTableCfg(bucketsConfig).
-		// MapSize(8 * datasize.GB).
-		MapSize(2 * datasize.GB).
-		GrowthStep(16 * datasize.MB).
+		MapSize(mapsize).
+		GrowthStep(growthStep).
 		DirtySpace(uint64(128 * datasize.MB)).
 		Flags(func(f uint) uint { return f ^ mdbx1.Durable | mdbx1.SafeNoSync }).
 		SyncPeriod(2 * time.Second).
@@ -163,7 +177,7 @@ func newPersistentDB(ctx context.Context, logger log.Logger, path string) (*DB, 
 		if err := os.RemoveAll(path); err != nil {
 			return nil, err
 		}
-		return newPersistentDB(ctx, logger, path)
+		return newPersistentDB(ctx, logger, path, mapsize, growthStep)
 	}
 
 	nodeDB := &DB{kv: db}

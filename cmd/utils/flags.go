@@ -1126,6 +1126,16 @@ var (
 		Name:  "discovery.dns",
 		Usage: "Sets DNS discovery entry points (use \"\" to disable DNS)",
 	}
+	P2PNodeDBMapSizeFlag = cli.StringFlag{
+		Name:  "p2p.db.mapsize",
+		Usage: "enode mdbx map size",
+		Value: (8 * datasize.GB).String(),
+	}
+	P2PNodeDBGrowthstepFlag = cli.StringFlag{
+		Name:  "p2p.db.growthstep",
+		Usage: "enode mdbx growth step",
+		Value: (16 * datasize.MB).String(),
+	}
 
 	// ATM the url is left to the user and deployment to
 	JSpathFlag = cli.StringFlag{
@@ -2494,11 +2504,17 @@ func SetEthConfig(ctx *cli.Context, nodeConfig *nodecfg.Config, cfg *ethconfig.C
 	if ctx.IsSet(TrustedSetupFile.Name) {
 		libkzg.SetTrustedSetupFilePath(ctx.String(TrustedSetupFile.Name))
 	}
-
 	if ctx.IsSet(TxPoolGossipDisableFlag.Name) {
 		cfg.DisableTxPoolGossip = ctx.Bool(TxPoolGossipDisableFlag.Name)
 	} else {
 		cfg.DisableTxPoolGossip = txpoolcfg.DefaultConfig.NoGossip
+	}
+
+	if err := nodeConfig.P2P.NodeDBMapSize.UnmarshalText([]byte(ctx.String(P2PNodeDBMapSizeFlag.Name))); err != nil {
+		panic(err)
+	}
+	if err := nodeConfig.P2P.NodeDBGrowthStep.UnmarshalText([]byte(ctx.String(P2PNodeDBGrowthstepFlag.Name))); err != nil {
+		panic(err)
 	}
 }
 

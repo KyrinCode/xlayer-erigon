@@ -129,6 +129,8 @@ var DefaultFlags = []cli.Flag{
 	&utils.NodeKeyFileFlag,
 	&utils.NodeKeyHexFlag,
 	&utils.DNSDiscoveryFlag,
+	&utils.P2PNodeDBMapSizeFlag,
+	&utils.P2PNodeDBGrowthstepFlag,
 	&utils.BootnodesFlag,
 	&utils.StaticPeersFlag,
 	&utils.TrustedPeersFlag,
