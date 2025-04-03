@@ -239,6 +239,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 
 	best := p.pending.best
 
+	log.Info("resize_len", "len", uint(cmp.Min(int(n), len(best.ms))))
 	txs.Resize(uint(cmp.Min(int(n), len(best.ms))))
 	var toRemove []*metaTx
 	count := 0
