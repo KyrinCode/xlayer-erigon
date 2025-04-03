@@ -83,7 +83,6 @@ type DB struct {
 // OpenDB opens a node database for storing and retrieving infos about known peers in the
 // network. If no path is given an in-memory, temporary database is constructed.
 func OpenDB(ctx context.Context, path string, tmpDir string, logger log.Logger) (*DB, error) {
-	log.Warn("OPEN ENODE DB")
 	if path == "" {
 		return newMemoryDB(ctx, logger, tmpDir)
 	}

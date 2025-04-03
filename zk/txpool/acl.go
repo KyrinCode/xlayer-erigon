@@ -127,7 +127,6 @@ func OpenACLDB(ctx context.Context, dbDir string) (kv.RwDB, error) {
 		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return ACLTablesCfg }).
 		Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
 		GrowthStep(16 * datasize.MB).
-		// MapSize(3 * datasize.GB).
 		SyncPeriod(30 * time.Second).
 		Open(ctx)
 	if err != nil {
@@ -147,7 +146,7 @@ func OpenACLDBWithConfig(ctx context.Context, cfg txpoolcfg.Config) (kv.RwDB, er
 	aclDB, err := mdbx.NewMDBX(log.New()).Label(ACLDB).Path(path).
 		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return ACLTablesCfg }).
 		Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
-		GrowthStep(cfg.MdbxGrowthStep).
+		GrowthStep(cfg.MdbxAclGrowthStep).
 		MapSize(cfg.MdbxAclSizeLimit).
 		SyncPeriod(30 * time.Second).
 		Open(ctx)

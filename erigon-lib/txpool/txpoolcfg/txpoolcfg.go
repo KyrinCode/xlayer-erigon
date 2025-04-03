@@ -55,10 +55,11 @@ type Config struct {
 	PurgeEvery            time.Duration
 
 	//txpool db
-	MdbxPageSize     datasize.ByteSize
-	MdbxDBSizeLimit  datasize.ByteSize // controls mdbx memory map size
-	MdbxAclSizeLimit datasize.ByteSize
-	MdbxGrowthStep   datasize.ByteSize
+	MdbxPageSize      datasize.ByteSize
+	MdbxDBSizeLimit   datasize.ByteSize // controls mdbx memory map size
+	MdbxGrowthStep    datasize.ByteSize
+	MdbxAclSizeLimit  datasize.ByteSize
+	MdbxAclGrowthStep datasize.ByteSize
 
 	NoGossip bool // this mode doesn't broadcast any txs, and if receive remote-txn - skip it
 

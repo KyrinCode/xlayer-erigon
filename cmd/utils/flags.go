@@ -252,10 +252,20 @@ var (
 		Usage: "txpool mapsize",
 		Value: (2 * datasize.TB).String(),
 	}
+	TxpoolGrowthStepFlag = cli.StringFlag{
+		Name:  "txpool.mdbx.growthstep",
+		Usage: "txpool growthstep",
+		Value: (16 * datasize.MB).String(),
+	}
 	TxpoolAclMapSizeFlag = cli.StringFlag{
 		Name:  "txpool.mdbx.aclmapsize",
 		Usage: "txpool acl mapsize",
 		Value: (2 * datasize.TB).String(),
+	}
+	TxpoolAclGrowthStepFlag = cli.StringFlag{
+		Name:  "txpool.mdbx.aclgrowthstep",
+		Usage: "txpool acl growthstep",
+		Value: (16 * datasize.MB).String(),
 	}
 	// Miner settings
 	MiningEnabledFlag = cli.BoolFlag{
@@ -2017,11 +2027,17 @@ func setTxPool(ctx *cli.Context, fullCfg *ethconfig.Config) {
 		}
 		checkDatasizeOrPanic(ctx.String(TxpoolMapSizeFlag.Name), uint64(fullCfg.TxPool.MdbxDBSizeLimit))
 	}
+	if err := fullCfg.TxPool.MdbxGrowthStep.UnmarshalText([]byte(ctx.String(TxpoolGrowthStepFlag.Name))); err != nil {
+		panic(fmt.Errorf("Error setting txpool growth step. %v", err))
+	}
 	if ctx.IsSet(TxpoolAclMapSizeFlag.Name) {
 		if err := fullCfg.TxPool.MdbxAclSizeLimit.UnmarshalText([]byte(ctx.String(TxpoolAclMapSizeFlag.Name))); err != nil {
 			panic(fmt.Errorf("Error setting txpool acl map size. %v", err))
 		}
 		checkDatasizeOrPanic(ctx.String(TxpoolAclMapSizeFlag.Name), uint64(fullCfg.TxPool.MdbxAclSizeLimit))
+	}
+	if err := fullCfg.TxPool.MdbxAclGrowthStep.UnmarshalText([]byte(ctx.String(TxpoolAclGrowthStepFlag.Name))); err != nil {
+		panic(fmt.Errorf("Error setting txpool acl growth step. %v", err))
 	}
 	cfg.CommitEvery = common2.RandomizeDuration(ctx.Duration(TxPoolCommitEveryFlag.Name))
 

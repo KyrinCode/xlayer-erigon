@@ -289,7 +289,6 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 	}
 
 	if !opts.HasFlag(mdbx.Accede) {
-		log.Info("SET GEO", "MAP_SIZE", opts.mapSize)
 		if err = env.SetGeometry(-1, -1, int(opts.mapSize), int(opts.growthStep), opts.shrinkThreshold, int(opts.pageSize)); err != nil {
 			return nil, err
 		}

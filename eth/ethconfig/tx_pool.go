@@ -124,7 +124,9 @@ var DefaultTxPool2Config = func(fullCfg *Config) txpoolcfg.Config {
 	cfg.PurgeEvery = fullCfg.TxPool.PurgeEvery
 	cfg.PurgeDistance = fullCfg.TxPool.PurgeDistance
 	cfg.MdbxDBSizeLimit = fullCfg.TxPool.MdbxDBSizeLimit
+	cfg.MdbxGrowthStep = fullCfg.TxPool.MdbxGrowthStep
 	cfg.MdbxAclSizeLimit = fullCfg.TxPool.MdbxAclSizeLimit
+	cfg.MdbxAclGrowthStep = fullCfg.TxPool.MdbxAclGrowthStep
 
 	return cfg
 }
