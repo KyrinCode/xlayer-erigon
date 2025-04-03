@@ -596,6 +596,16 @@ var (
 		Usage: "Use standalone SMT database, not integrated with chaindb",
 		Value: false,
 	}
+	SequencerDecodedTxCacheSize = cli.IntFlag{
+		Name:  "zkevm.sequencer-decoded-tx-cache-size",
+		Usage: "Sequencer decoded transaction cache size",
+		Value: 4096,
+	}
+	SequencerDecodedTxCacheTTL = cli.DurationFlag{
+		Name:  "zkevm.sequencer-decoded-tx-cache-ttl",
+		Usage: "Sequencer decoded transaction cache time-to-live",
+		Value: 600 * time.Second,
+	}
 	ExecutorUrls = cli.StringFlag{
 		Name:  "zkevm.executor-urls",
 		Usage: "A comma separated list of grpc addresses that host executors",

@@ -461,10 +461,9 @@ func sequencingBatchStep(
 				}
 			} else if !batchState.isL1Recovery() {
 
-				var allConditionsOK bool
 				var newTransactions []types.Transaction
 				var newIds []common.Hash
-				newTransactions, newIds, allConditionsOK, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
+				newTransactions, newIds, _, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
 				if err != nil {
 					return err
 				}
@@ -476,18 +475,6 @@ func sequencingBatchStep(
 					batchState.blockState.transactionHashesToSlots[tx.Hash()] = newIds[idx]
 				}
 
-				if len(batchState.blockState.transactionsForInclusion) == 0 {
-					pauseTime := time.Now()
-					if allConditionsOK {
-						time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
-					} else {
-						time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool / 5) // we do not need to sleep too long for txpool not ready
-					}
-					metrics.GetLogStatistics().CumulativeCounting(metrics.GetTxPauseCounter)
-					metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxPauseTiming, time.Since(pauseTime))
-				} else {
-					log.Trace(fmt.Sprintf("[%s] Yielded transactions from the pool", logPrefix), "txCount", len(batchState.blockState.transactionsForInclusion))
-				}
 			}
 
 			// For X Layer
@@ -815,6 +802,14 @@ func sequencingBatchStep(
 		toRemove := append(batchState.blockState.builtBlockElements.txSlots, batchState.blockState.transactionsToDiscard...)
 		if err := cfg.txPool.RemoveMinedTransactions(ctx, sdb.tx, header.GasLimit, toRemove); err != nil {
 			return err
+		}
+
+		// remove the decoded transactions from the cache
+		for _, txHash := range batchState.blockState.builtBlockElements.txSlots {
+			cfg.decodedTxCache.Remove(txHash)
+		}
+		for _, txHash := range batchState.blockState.transactionsToDiscard {
+			cfg.decodedTxCache.Remove(txHash)
 		}
 
 		// now trigger sender state changes in the pool where we encountered nonce issues during execution
