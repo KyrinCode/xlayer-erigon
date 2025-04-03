@@ -89,8 +89,10 @@ var DefaultConfig = Config{
 
 	OverrideShanghaiTime: nil,
 
-	MdbxDBSizeLimit:  5 * datasize.GB,
-	MdbxAclSizeLimit: 2 * datasize.GB,
+	MdbxDBSizeLimit:   5 * datasize.GB,
+	MdbxGrowthStep:    16 * datasize.MB,
+	MdbxAclSizeLimit:  2 * datasize.GB,
+	MdbxAclGrowthStep: 16 * datasize.MB,
 }
 
 type DiscardReason uint8

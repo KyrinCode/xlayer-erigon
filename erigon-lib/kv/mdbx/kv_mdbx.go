@@ -76,10 +76,8 @@ type MdbxOpts struct {
 	inMem           bool
 }
 
-// const DefaultMapSize = 2 * datasize.TB
-// const DefaultGrowthStep = 2 * datasize.GB
-const DefaultMapSize = 2 * datasize.GB
-const DefaultGrowthStep = 1 * datasize.MB
+const DefaultMapSize = 2 * datasize.TB
+const DefaultGrowthStep = 2 * datasize.GB
 
 func NewMDBX(log log.Logger) MdbxOpts {
 	opts := MdbxOpts{
@@ -189,10 +187,6 @@ func (opts MdbxOpts) DBVerbosity(v kv.DBVerbosityLvl) MdbxOpts {
 func (opts MdbxOpts) MapSize(sz datasize.ByteSize) MdbxOpts {
 	opts.mapSize = sz
 	return opts
-}
-
-func (opts MdbxOpts) GetMapSize() datasize.ByteSize {
-	return opts.mapSize
 }
 
 func (opts MdbxOpts) WriteMap() MdbxOpts {
