@@ -450,13 +450,29 @@ func BenchmarkSortingPerformance(b *testing.B) {
 
 type addLocalTxsTest struct {
 	newTransactions types.TxSlots
-	expects         []DiscardReason
-	discards        []int
-	goodTxs         []uint8
+	expectReasons   []DiscardReason
+	discardIndex    []int
+	goodTxsIndex    []uint8
 }
 
 func TestAddLocalTxsInParallel(t *testing.T) {
 	var tests = []addLocalTxsTest{
+		// Case1: single invalid transaction
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  1,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{NonceTooLow},
+			goodTxsIndex:  []uint8{},
+		},
+		// Case2: single valid transaction
 		{
 			newTransactions: types.TxSlots{
 				Txs: []*types.TxSlot{
@@ -466,11 +482,26 @@ func TestAddLocalTxsInParallel(t *testing.T) {
 						Gas:    100000,
 						Nonce:  3,
 					},
+				},
+			},
+			expectReasons: []DiscardReason{Success},
+			goodTxsIndex:  []uint8{0},
+		},
+		// Case3: bulk transactions with invalid ones
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
 					{
 						Tip:    *uint256.NewInt(3_000_000),
 						FeeCap: *uint256.NewInt(1_000_000_000),
 						Gas:    100000,
 						Nonce:  4,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  5,
 					},
 					{
 						Tip:    *uint256.NewInt(3_000_000),
@@ -482,13 +513,40 @@ func TestAddLocalTxsInParallel(t *testing.T) {
 						Tip:    *uint256.NewInt(3_000_000),
 						FeeCap: *uint256.NewInt(1_000_000_000),
 						Gas:    100000,
-						Nonce:  5,
+						Nonce:  6,
 					},
 				},
 			},
-			expects:  []DiscardReason{Success, Expired, NonceTooLow, Success},
-			discards: []int{1},
-			goodTxs:  []uint8{0x0, 0x3},
+			expectReasons: []DiscardReason{Success, Expired, NonceTooLow, Success},
+			discardIndex:  []int{1},
+			goodTxsIndex:  []uint8{0x0, 0x3},
+		},
+		//  Case4: bulk transactions with no invalid ones
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  9,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  8,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  7,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{Success, Success, Success},
+			goodTxsIndex:  []uint8{0x0, 0x1, 0x2},
 		},
 	}
 	kv.InitStandaloneSMT(false)
@@ -548,15 +606,16 @@ func TestAddLocalTxsInParallel(t *testing.T) {
 	err = pool.OnNewBlock(ctx, change, types.TxSlots{}, types.TxSlots{}, tx)
 	assert.NoError(err)
 
+	var txCount = 0
 	for _, test := range tests {
 		var txSlots types.TxSlots
 		for i, tx := range test.newTransactions.Txs {
-			tx.IDHash[0] = byte(i)
+			tx.IDHash[0] = byte(i + txCount)
 			txSlots.Append(tx, addr[:], true)
 		}
 
-		for _, discard := range test.discards {
-			pool.discardReasonsLRU.Add(string(test.newTransactions.Txs[discard].IDHash[:]), Expired)
+		for _, index := range test.discardIndex {
+			pool.discardReasonsLRU.Add(string(test.newTransactions.Txs[index].IDHash[:]), Expired)
 		}
 
 		var tx kv.Tx
@@ -571,15 +630,16 @@ func TestAddLocalTxsInParallel(t *testing.T) {
 		assert.NoError(err)
 		t.Logf("After AddLocalTxs, promoted len: %d", pool.promoted.Len())
 
-		for i, expect := range test.expects {
+		for i, expect := range test.expectReasons {
 			assert.Equal(expect, resaons[i], "The discard reason is wrong")
 		}
 
-		for i, expect := range test.goodTxs {
+		for i, expect := range test.goodTxsIndex {
 			_, _, actual := pool.promoted.At(i)
-			assert.Equal(expect, actual[0], "The good transaction is wrong")
+			assert.Equal(expect+uint8(txCount), actual[0], "The good transaction is wrong")
 		}
 
+		txCount += len(test.newTransactions.Txs)
 		tx.Commit()
 	}
 }
