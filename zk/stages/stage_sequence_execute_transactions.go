@@ -3,7 +3,6 @@ package stages
 import (
 	"context"
 	"errors"
-
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
 
@@ -34,24 +33,25 @@ func getNextPoolTransactions(ctx context.Context, cfg SequenceBlockCfg, executio
 	cfg.txPool.PreYield()
 	defer cfg.txPool.PostYield()
 
+	slots := types2.TxsRlp{}
 	if err := cfg.txPoolDb.View(ctx, func(poolTx kv.Tx) error {
-		slots := types2.TxsRlp{}
 		if allConditionsOk, _, err = cfg.txPool.YieldBest(cfg.yieldSize, &slots, poolTx, executionAt, gasLimit, 0, alreadyYielded); err != nil {
 			return err
 		}
-		yieldedTxs, yieldedIds, toRemove, err := extractTransactionsFromSlot(&slots, executionAt, cfg)
-		if err != nil {
-			return err
-		}
-		for _, txId := range toRemove {
-			cfg.txPool.MarkForDiscardFromPendingBest(txId)
-		}
-		transactions = append(transactions, yieldedTxs...)
-		ids = append(ids, yieldedIds...)
 		return nil
 	}); err != nil {
 		return nil, nil, allConditionsOk, err
 	}
+
+	yieldedTxs, yieldedIds, toRemove, err := extractTransactionsFromSlot(&slots, executionAt, cfg)
+	if err != nil {
+		return nil, nil, allConditionsOk, err
+	}
+	for _, txId := range toRemove {
+		cfg.txPool.MarkForDiscardFromPendingBest(txId)
+	}
+	transactions = append(transactions, yieldedTxs...)
+	ids = append(ids, yieldedIds...)
 
 	return transactions, ids, allConditionsOk, err
 }
@@ -85,7 +85,7 @@ func getLimboTransaction(ctx context.Context, cfg SequenceBlockCfg, txHash *comm
 func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg SequenceBlockCfg) ([]types.Transaction, []common.Hash, []common.Hash, error) {
 	ids := make([]common.Hash, 0, len(slot.TxIds))
 	transactions := make([]types.Transaction, 0, len(slot.Txs))
-	toRemove := make([]common.Hash, 0)
+	toRemove := make([]common.Hash, 0, len(slot.Txs)/10)
 
 	for idx, txBytes := range slot.Txs {
 		transaction, err := types.DecodeTransaction(txBytes)
