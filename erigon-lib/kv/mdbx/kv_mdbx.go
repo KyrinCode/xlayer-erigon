@@ -358,6 +358,8 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 		return nil, fmt.Errorf("%w, label: %s, trace: %s", err, opts.label.String(), stack2.Trace().String())
 	}
 
+
+	log.Info("BEFORE ENV INFO", "size", opts.mapSize)
 	// mdbx will not change pageSize if db already exists. means need read real value after env.open()
 	in, err := env.Info(nil)
 	if err != nil {
@@ -366,6 +368,7 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 
 	opts.pageSize = uint64(in.PageSize)
 	opts.mapSize = datasize.ByteSize(in.MapSize)
+	log.Info("AFTER ENV INFO", "size", opts.mapSize)
 	if opts.label == kv.ChainDB {
 		opts.log.Info("[db] open", "label", opts.label, "sizeLimit", opts.mapSize, "pageSize", opts.pageSize)
 	} else {
