@@ -147,12 +147,14 @@ func StageLoopIteration(ctx context.Context, db kv.RwDB, txc wrap.TxContainer, s
 		// -- Process new blocks + commit(no_sync)
 		txc.Tx, err = db.BeginRwNosync(ctx)
 		if err != nil {
+			log.Warn("ERROR db.BeginRwNosync", "err", err)
 			return err
 		}
 		defer txc.Tx.Rollback()
 	}
 	_, err = sync.Run(db, txc, initialCycle)
 	if err != nil {
+		log.Warn("ERROR sync.Run", "err", err)
 		return err
 	}
 	logCtx := sync.PrintTimings()
@@ -161,9 +163,11 @@ func StageLoopIteration(ctx context.Context, db kv.RwDB, txc wrap.TxContainer, s
 	if canRunCycleInOneTransaction && !externalTx {
 		stagedsync.CollectDBMetrics(db, txc.Tx) // Need to do this before commit to access tx
 		commitStart := time.Now()
-		errTx := txc.Tx.Commit()
+		log.Info("BEFORE COMMIT", "time", commitStart)
+		errTx := txc.Tx.Commit() // NOTE: Commit to mdbx?
 		txc.Tx = nil
 		if errTx != nil {
+			log.Warn("ERROR txc.Tx.Commit", "errTx", errTx)
 			return errTx
 		}
 		commitTime = time.Since(commitStart)
@@ -175,6 +179,7 @@ func StageLoopIteration(ctx context.Context, db kv.RwDB, txc wrap.TxContainer, s
 		// as part of the execution stage in sequencer mode
 		if !sequencer.IsSequencer() {
 			if err = hook.AfterRun(txc.Tx, finishProgressBefore, sync.PrevUnwindPoint()); err != nil {
+				log.Warn("ERROR hook.AfterRun", "err", err)
 				return err
 			}
 		}
@@ -197,6 +202,7 @@ func StageLoopIteration(ctx context.Context, db kv.RwDB, txc wrap.TxContainer, s
 		err = db.Update(ctx, func(tx kv.RwTx) error { return sync.RunPrune(db, tx, initialCycle) })
 	}
 	if err != nil {
+		log.Warn("ERROR sync.RunPrune or db.Update", "externalTx", externalTx, "err", err)
 		return err
 	}
 
