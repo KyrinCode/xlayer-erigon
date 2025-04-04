@@ -193,7 +193,11 @@ type Ethereum struct {
 	sentriesClient *sentry_multi_client.MultiClient
 	sentryServers  []*sentry.GrpcServer
 
+	smtFlushCtx    context.Context
+	smtFlushCancel context.CancelFunc
+
 	stagedSync         *stagedsync.Sync
+	verifier           *legacy_executor_verifier.LegacyExecutorVerifier
 	pipelineStagedSync *stagedsync.Sync
 	syncStages         []*stagedsync.Stage
 	syncUnwindOrder    stagedsync.UnwindOrder
@@ -271,7 +275,10 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	}
 
 	// Assemble the Ethereum object
-	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, logger)
+
+	// call InitStandaloneSMT before openning the DB
+	kv.InitStandaloneSMT(config.XLayer.StandaloneSMTDatabase)
+	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, config.XLayer.StandaloneSMTDatabase, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -298,10 +305,16 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	}
 
 	// SMT DB
-	smtdb, err := node.OpenDatabaseSMT(ctx, stack.Config(), logger)
-	if err != nil {
-		log.Error("Failed to OpenDatabaseSMT", "err", err)
-		return nil, err
+	var smtdb kv.RwDB = chainKv
+	if config.XLayer.StandaloneSMTDatabase {
+		log.Info("Opening standalone SMT database (smt folder).")
+		smtdb, err = node.OpenDatabaseSMT(ctx, stack.Config(), logger)
+		if err != nil {
+			log.Error("Failed to OpenDatabaseSMT", "err", err)
+			return nil, err
+		}
+	} else {
+		log.Info("SMT database is part of main chain DB (chaindata folder).")
 	}
 	txsmt, err := smtdb.BeginRw(ctx)
 	if err != nil {
@@ -317,13 +330,21 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		log.Error("Failed to commit SMT init transaction", "err", err)
 		return nil, err
 	}
+	if !config.XLayer.StandaloneSMTDatabase {
+		txsmt = nil
+		smtdb = nil
+	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
+
+	smtFlushCtx, smtFlushCancel := context.WithCancel(context.Background())
 
 	// kv_remote architecture does blocks on stream.Send - means current architecture require unlimited amount of txs to provide good throughput
 	backend := &Ethereum{
 		sentryCtx:            ctx,
 		sentryCancel:         ctxCancel,
+		smtFlushCtx:          smtFlushCtx,
+		smtFlushCancel:       smtFlushCancel,
 		config:               config,
 		chainDB:              chainKv,
 		smtDB:                smtdb,
@@ -868,7 +889,8 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 	// backend.syncPruneOrder = stagedsync.DefaultPruneOrder
 	// backend.stagedSync = stagedsync.New(config.Sync, backend.syncStages, backend.syncUnwindOrder, backend.syncPruneOrder, logger)
 
-	hook := stages2.NewHook(backend.sentryCtx, backend.chainDB, backend.notifications, backend.stagedSync, backend.blockReader, backend.chainConfig, backend.logger, backend.sentriesClient.SetStatus)
+	// [zkevm] this is the hook that will be passed into the stage execution so we want to set the stage to execution here so we can notify at the correct stage
+	hook := stages2.NewHook(backend.sentryCtx, backend.chainDB, backend.notifications, backend.stagedSync, backend.blockReader, backend.chainConfig, backend.logger, backend.sentriesClient.SetStatusWithTx, stages.Execution)
 
 	if !config.Sync.UseSnapshots && backend.downloaderClient != nil {
 		for _, p := range blockReader.AllTypes() {
@@ -1182,7 +1204,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 				}
 			}
 
-			verifier := legacy_executor_verifier.NewLegacyExecutorVerifier(
+			backend.verifier = legacy_executor_verifier.NewLegacyExecutorVerifier(
 				*cfg.Zk,
 				legacyExecutors,
 				backend.chainDB,
@@ -1192,7 +1214,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 			)
 
 			if cfg.Zk.Limbo {
-				limboSubPoolProcessor := txpool.NewLimboSubPoolProcessor(ctx, cfg.Zk, backend.chainConfig, backend.chainDB, backend.txPool2, verifier)
+				limboSubPoolProcessor := txpool.NewLimboSubPoolProcessor(ctx, cfg.Zk, backend.chainConfig, backend.chainDB, backend.txPool2, backend.verifier)
 				limboSubPoolProcessor.StartWork()
 			}
 
@@ -1230,8 +1252,9 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 				l1BlockSyncer,
 				backend.txPool2,
 				backend.txPool2DB,
-				verifier,
+				backend.verifier,
 				l1InfoTreeUpdater,
+				hook,
 			)
 
 			backend.syncUnwindOrder = zkStages.ZkSequencerUnwindOrder
@@ -1342,6 +1365,9 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	var err error
 
 	s.stagedSync = stagedsync.New(s.config.Sync, s.syncStages, s.syncUnwindOrder, s.syncPruneOrder, s.logger)
+	if s.verifier != nil {
+		s.verifier.SetSmtCache(s.stagedSync.GetCache())
+	}
 
 	if chainConfig.Bor == nil {
 		s.sentriesClient.Hd.StartPoSDownloader(s.sentryCtx, s.sentriesClient.SendHeaderRequest, s.sentriesClient.Penalize)
@@ -1386,7 +1412,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	}
 
 	var gpCache *jsonrpc.GasPriceCache
-	s.apiList, gpCache = jsonrpc.APIList(chainKv, s.smtDB, ethRpcClient, txPoolRpcClient, s.txPool2, miningRpcClient, ff, stateCache, blockReader, s.agg, &httpRpcCfg, s.engine, config, s.l1Syncer, s.logger, dataStreamServer, s.gasTracker)
+	s.apiList, gpCache = jsonrpc.APIList(chainKv, s.smtDB, ethRpcClient, txPoolRpcClient, s.txPool2, miningRpcClient, ff, stateCache, blockReader, s.agg, &httpRpcCfg, s.engine, config, s.l1Syncer, s.logger, dataStreamServer, s.gasTracker, s.stagedSync.GetCache())
 
 	// For X Layer
 	if s.txPool2 != nil && gpCache != nil {
@@ -1922,7 +1948,8 @@ func (s *Ethereum) Start() error {
 	s.sentriesClient.StartStreamLoops(s.sentryCtx)
 	time.Sleep(10 * time.Millisecond) // just to reduce logs order confusion
 
-	hook := stages2.NewHook(s.sentryCtx, s.chainDB, s.notifications, s.stagedSync, s.blockReader, s.chainConfig, s.logger, s.sentriesClient.SetStatus)
+	// [zkevm] this is the usual hook that will be run as part of the typical stage loop so here we can pass stage finish as the notification stage
+	hook := stages2.NewHook(s.sentryCtx, s.chainDB, s.notifications, s.stagedSync, s.blockReader, s.chainConfig, s.logger, s.sentriesClient.SetStatusWithTx, stages.Finish)
 
 	currentTDProvider := func() *big.Int {
 		currentTD, err := readCurrentTotalDifficulty(s.sentryCtx, s.chainDB, s.blockReader)
@@ -1958,7 +1985,11 @@ func (s *Ethereum) Start() error {
 		if s.config.DebugNoSync {
 			return nil
 		}
-		go stages2.AsyncFlushSmtData(s.sentryCtx, s.smtDB, s.stagedSync, s.logger)
+		smtdb := s.smtDB
+		if s.smtDB == nil {
+			smtdb = s.chainDB
+		}
+		go stages2.AsyncFlushSmtData(s.smtFlushCtx, smtdb, s.stagedSync, s.config.Zk.XLayer, s.logger)
 		go stages2.StageLoop(s.sentryCtx, s.chainDB, s.stagedSync, s.sentriesClient.Hd, s.waitForStageLoopStop, s.config.Sync.LoopThrottle, s.logger, s.blockReader, hook, s.config.ForcePartialCommit)
 	}
 
@@ -2035,6 +2066,11 @@ func (s *Ethereum) Stop() error {
 	if s.agg != nil {
 		s.agg.Close()
 	}
+
+	s.logger.Info("Stopping SMT flush service...")
+	s.smtFlushCancel()
+	time.Sleep(3 * time.Second)
+
 	s.chainDB.Close()
 
 	s.gasTracker.Stop()

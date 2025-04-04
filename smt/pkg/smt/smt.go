@@ -29,17 +29,19 @@ type DB interface {
 	DeleteByNodeKey(key utils.NodeKey) error
 	SetLastRoot(lr *big.Int) error
 	SetDepth(uint8) error
+	SetLastHeight(uint64) error
 	CommitBatch() error
 	OpenBatch(quitCh <-chan struct{})
 	RollbackBatch()
 	SetCache(cache map[string]map[string][]byte)
-	RetriveAndCleanCache() (map[string]map[string][]byte, map[string]map[string][]byte)
+	RetriveAndCleanCache() map[string]map[string][]byte
 	RoDB
 }
 
 type RoDB interface {
 	GetDepth() (uint8, error)
 	GetLastRoot() (*big.Int, error)
+	GetLastHeight() (uint64, error)
 	GetCode(codeHash []byte) ([]byte, error)
 	GetHashKey(key utils.NodeKey) (utils.NodeKey, error)
 	GetKeySource(key utils.NodeKey) ([]byte, error)
@@ -109,6 +111,20 @@ func (s *SMT) SetLastRoot(lr *big.Int) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (s *RoSMT) LastHeight() (uint64, error) {
+	s.clearUpMutex.Lock()
+	defer s.clearUpMutex.Unlock()
+
+	return s.DbRo.GetLastHeight()
+}
+
+func (s *SMT) SetLastHeight(newHeight uint64) error {
+	s.clearUpMutex.Lock()
+	defer s.clearUpMutex.Unlock()
+
+	return s.Db.SetLastHeight(newHeight)
 }
 
 func (s *SMT) StartPeriodicCheck(doneChan chan bool) {
@@ -681,6 +697,11 @@ func (s *RoSMT) Traverse(ctx context.Context, node *big.Int, action TraverseActi
 	return s.traverse(ctx, node, action, []byte{})
 }
 
+type queueEntry struct {
+	node   *big.Int
+	prefix []byte
+}
+
 func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseAction, prefix []byte) error {
 	if node == nil || node.Cmp(big.NewInt(0)) == 0 {
 		return nil
@@ -705,6 +726,10 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 	if err != nil {
 		return err
 	}
+
+	//if nodeValue.IsNil() {
+	//	return nil
+	//}
 
 	if nodeValue.IsFinalNode() || !shouldContinue {
 		return nil

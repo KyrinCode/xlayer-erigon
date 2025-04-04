@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
+	"github.com/ledgerwatch/erigon-lib/kv/membatch"
 
 	lru "github.com/hashicorp/golang-lru/arc/v2"
 	"github.com/ledgerwatch/log/v3"
@@ -45,53 +46,105 @@ import (
 	"github.com/ledgerwatch/erigon/turbo/shards"
 	"github.com/ledgerwatch/erigon/turbo/silkworm"
 	"github.com/ledgerwatch/erigon/turbo/stages/headerdownload"
+	"github.com/ledgerwatch/erigon/zk/smt"
 )
 
 func AsyncFlushSmtData(ctx context.Context,
 	_db kv.RwDB,
 	s *stagedsync.Sync,
+	config ethconfig.XLayerConfig,
 	logger log.Logger,
 ) {
-	db, ok := _db.(*mdbx.MdbxKV)
-	if !ok {
-		logger.Error("invalid database type, expected *mdbx.MdbxKV")
+	if !sequencer.IsSequencer() || !config.EnableAsyncCommit {
+		logger.Info("AsyncFlushSmtData skipped",
+			"isSequencer", sequencer.IsSequencer(),
+			"enableAsyncCommit", config.EnableAsyncCommit)
 		return
 	}
 
+	db, ok := _db.(*mdbx.MdbxKV)
+	if !ok {
+		logger.Error("invalid database type, expected *mdbx.MdbxKV", "type", fmt.Sprintf("%T", _db))
+		return
+	}
+
+	cache := s.GetCache()
+	const maxWorkers = 6
+	workerPool := make(chan struct{}, maxWorkers)
 	var wg sync.WaitGroup
-	defer wg.Wait() // 等待所有 FlushDataToDB goroutine 完成
+
+	defer func() {
+		logger.Info("Waiting for all flush operations to complete...")
+		wg.Wait()
+		logger.Info("All flush operations completed, exiting AsyncFlushSmtData")
+	}()
 
 	for {
 		select {
-		case smtCache, ok := <-s.SmtCacheCh:
+		case saveData, ok := <-cache.SmtCacheDataCh:
 			if !ok {
 				logger.Info("SmtCacheCh closed, stopping AsyncFlushSmtData")
 				return
 			}
-
-			wg.Add(1)
-			go FlushDataToDB(&wg, ctx, db, logger, smtCache)
+			dispatchFlushTask(ctx, &wg, workerPool, db, cache, saveData, logger)
 
 		case <-ctx.Done():
 			logger.Info("AsyncFlushSmtData received stop signal", "reason", ctx.Err())
+			handleShutdown(ctx, s, config, &wg, workerPool, db, cache, logger)
 			return
 		}
 	}
 }
 
-func FlushDataToDB(wg *sync.WaitGroup, ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, smtCache map[string]map[string][]byte) {
-	defer wg.Done()
+func dispatchFlushTask(ctx context.Context, wg *sync.WaitGroup, workerPool chan struct{},
+	db *mdbx.MdbxKV, cache *smt.SmtCache, saveData smt.SmtCacheSave, logger log.Logger) {
+	select {
+	case workerPool <- struct{}{}: // get working slot
+		wg.Add(1)
+		go func() {
+			defer func() {
+				<-workerPool // release working slot
+				wg.Done()
+			}()
+			FlushDataToDB(ctx, db, logger, cache, saveData)
+		}()
 
+	case <-ctx.Done():
+		logger.Debug("Skipped flush task due to context cancellation", "reason", ctx.Err())
+	}
+}
+
+func handleShutdown(ctx context.Context, s *stagedsync.Sync, config ethconfig.XLayerConfig,
+	wg *sync.WaitGroup, workerPool chan struct{}, db *mdbx.MdbxKV, cache *smt.SmtCache, logger log.Logger) {
+	s.FlushSmtCache(config.StandaloneSMTDatabase, true)
+
+	for len(cache.SmtCacheDataCh) > 0 {
+		select {
+		case saveData, ok := <-cache.SmtCacheDataCh:
+			if !ok {
+				logger.Info("SmtCacheCh closed during shutdown")
+				return
+			}
+			dispatchFlushTask(context.Background(), wg, workerPool, db, cache, saveData, logger)
+		default:
+			logger.Debug("No more data in SmtCacheDataCh during shutdown")
+			return
+		}
+	}
+}
+
+func FlushDataToDB(ctx context.Context, db *mdbx.MdbxKV, logger log.Logger, cache *smt.SmtCache, saveData smt.SmtCacheSave) {
 	err := db.Batch(func(tx kv.RwTx) error {
-		batch := membatch.NewHashBatchWithCache(tx, ctx.Done(), "", logger, smtCache)
+		batch := membatch.NewHashBatch(tx, ctx.Done(), "", logger)
 		defer batch.Close()
-
+		batch.SetCache(saveData.SmtData)
 		return batch.Flush(ctx, tx)
 	})
-
 	if err != nil {
 		logger.Error("failed to flush data to DB", "error", err)
+		return
 	}
+	cache.TruncateSmtCacheList(saveData.BlockHeight)
 }
 
 // StageLoop runs the continuous loop of staged sync
@@ -221,8 +274,12 @@ func StageLoopIteration(ctx context.Context, db kv.RwDB, txc wrap.TxContainer, s
 
 	// -- send notifications START
 	if hook != nil {
-		if err = hook.AfterRun(txc.Tx, finishProgressBefore); err != nil {
-			return err
+		// we only want to run the notifications hook if we're not running in sequencer mode as the hook is called
+		// as part of the execution stage in sequencer mode
+		if !sequencer.IsSequencer() {
+			if err = hook.AfterRun(txc.Tx, finishProgressBefore, sync.PrevUnwindPoint()); err != nil {
+				return err
+			}
 		}
 	}
 	if canRunCycleInOneTransaction && !externalTx && commitTime > 500*time.Millisecond {
@@ -280,18 +337,19 @@ func stagesHeadersAndFinish(db kv.RoDB, tx kv.Tx) (head, bor, fin uint64, err er
 }
 
 type Hook struct {
-	ctx           context.Context
-	notifications *shards.Notifications
-	sync          *stagedsync.Sync
-	chainConfig   *chain.Config
-	logger        log.Logger
-	blockReader   services.FullBlockReader
-	updateHead    func(ctx context.Context)
-	db            kv.RoDB
+	ctx               context.Context
+	notifications     *shards.Notifications
+	sync              *stagedsync.Sync
+	chainConfig       *chain.Config
+	logger            log.Logger
+	blockReader       services.FullBlockReader
+	updateHead        func(ctx context.Context, tx kv.Tx)
+	db                kv.RoDB
+	notificationStage stages.SyncStage // which stage to use to notify about new headers
 }
 
-func NewHook(ctx context.Context, db kv.RoDB, notifications *shards.Notifications, sync *stagedsync.Sync, blockReader services.FullBlockReader, chainConfig *chain.Config, logger log.Logger, updateHead func(ctx context.Context)) *Hook {
-	return &Hook{ctx: ctx, db: db, notifications: notifications, sync: sync, blockReader: blockReader, chainConfig: chainConfig, logger: logger, updateHead: updateHead}
+func NewHook(ctx context.Context, db kv.RoDB, notifications *shards.Notifications, sync *stagedsync.Sync, blockReader services.FullBlockReader, chainConfig *chain.Config, logger log.Logger, updateHead func(ctx context.Context, tx kv.Tx), notificationStage stages.SyncStage) *Hook {
+	return &Hook{ctx: ctx, db: db, notifications: notifications, sync: sync, blockReader: blockReader, chainConfig: chainConfig, logger: logger, updateHead: updateHead, notificationStage: notificationStage}
 }
 func (h *Hook) beforeRun(tx kv.Tx, inSync bool) error {
 	notifications := h.notifications
@@ -310,23 +368,25 @@ func (h *Hook) BeforeRun(tx kv.Tx, inSync bool) error {
 	}
 	return h.beforeRun(tx, inSync)
 }
-func (h *Hook) AfterRun(tx kv.Tx, finishProgressBefore uint64) error {
+func (h *Hook) AfterRun(tx kv.Tx, finishProgressBefore uint64, prevUnwindPoint *uint64) error {
 	if tx == nil {
-		return h.db.View(h.ctx, func(tx kv.Tx) error { return h.afterRun(tx, finishProgressBefore) })
+		return h.db.View(h.ctx, func(tx kv.Tx) error {
+			return h.afterRun(tx, finishProgressBefore, prevUnwindPoint)
+		})
 	}
-	return h.afterRun(tx, finishProgressBefore)
+	return h.afterRun(tx, finishProgressBefore, prevUnwindPoint)
 }
-func (h *Hook) afterRun(tx kv.Tx, finishProgressBefore uint64) error {
+func (h *Hook) afterRun(tx kv.Tx, finishProgressBefore uint64, prevUnwindPoint *uint64) error {
 	// Update sentry status for peers to see our sync status
 	if h.updateHead != nil {
-		h.updateHead(h.ctx)
+		h.updateHead(h.ctx, tx)
 	}
 	if h.notifications != nil {
-		return h.sendNotifications(h.notifications, tx, finishProgressBefore)
+		return h.sendNotifications(h.notifications, tx, finishProgressBefore, prevUnwindPoint)
 	}
 	return nil
 }
-func (h *Hook) sendNotifications(notifications *shards.Notifications, tx kv.Tx, finishProgressBefore uint64) error {
+func (h *Hook) sendNotifications(notifications *shards.Notifications, tx kv.Tx, finishProgressBefore uint64, prevUnwindPoint *uint64) error {
 	// update the accumulator with a new plain state version so the cache can be notified that
 	// state has moved on
 	if notifications.Accumulator != nil {
@@ -339,11 +399,11 @@ func (h *Hook) sendNotifications(notifications *shards.Notifications, tx kv.Tx, 
 	}
 
 	if notifications.Events != nil {
-		finishStageAfterSync, err := stages.GetStageProgress(tx, stages.Finish)
+		finishStageAfterSync, err := stages.GetStageProgress(tx, h.notificationStage)
 		if err != nil {
 			return err
 		}
-		if err = stagedsync.NotifyNewHeaders(h.ctx, finishProgressBefore, finishStageAfterSync, h.sync.PrevUnwindPoint(), notifications.Events, tx, h.logger, h.blockReader); err != nil {
+		if err = stagedsync.NotifyNewHeaders(h.ctx, finishProgressBefore, finishStageAfterSync, prevUnwindPoint, notifications.Events, tx, h.logger, h.blockReader); err != nil {
 			return nil
 		}
 	}
