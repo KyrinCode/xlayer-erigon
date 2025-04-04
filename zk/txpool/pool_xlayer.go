@@ -1,12 +1,12 @@
 package txpool
 
 import (
+	ecommon "github.com/ledgerwatch/erigon/common"
 	"math/big"
 	"strings"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/types"
-	ecommon "github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/zkevm/hex"
 )
@@ -109,21 +109,25 @@ func (p *TxPool) checkFreeGasAddrXLayer(senderID uint64, tx *types.TxSlot) (free
 	if !ok {
 		return
 	}
-	// is claim tx
-	if p.apolloCfg.CheckFreeClaimAddr(p.xlayerCfg.FreeClaimGasAddrs, addr) {
-		return claim, p.xlayerCfg.GasPriceMultiple
-	}
 
-	// specific project
-	if p.apolloCfg.GetEnableFreeGasList(p.xlayerCfg.EnableFreeGasList) {
-		fromToName, freeGpList := p.xlayerCfg.FreeGasFromNameMap, p.xlayerCfg.FreeGasList
-		info := freeGpList[fromToName[strings.ToLower(addr.String())]]
-		if info != nil &&
-			contains(info.ToList, tx.To) &&
-			containsMethod(ecommon.Bytes2Hex(tx.Rlp), info.MethodSigs) {
-
-			return specificProject, info.GasPriceMultiple
+	if p.apolloCfg != nil {
+		// is claim tx
+		if p.apolloCfg.CheckFreeClaimAddr(p.xlayerCfg.FreeClaimGasAddrs, addr) {
+			return claim, p.xlayerCfg.GasPriceMultiple
 		}
+
+		// specific project
+		if p.apolloCfg.GetEnableFreeGasList(p.xlayerCfg.EnableFreeGasList) {
+			fromToName, freeGpList := p.xlayerCfg.FreeGasFromNameMap, p.xlayerCfg.FreeGasList
+			info := freeGpList[fromToName[strings.ToLower(addr.String())]]
+			if info != nil &&
+				contains(info.ToList, tx.To) &&
+				containsMethod(ecommon.Bytes2Hex(tx.Rlp), info.MethodSigs) {
+
+				return specificProject, info.GasPriceMultiple
+			}
+		}
+
 	}
 
 	// 	new bridge address
