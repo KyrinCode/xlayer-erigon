@@ -79,31 +79,6 @@ func SpawnSequencingStage(
 		}
 	}
 
-	// For X Layer, local replay feature
-	if cfg.zk.XLayer.SequencerReplay {
-		if cfg.zk.XLayer.SequencerReplayL1SyncOnly {
-			log.Info(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
-			os.Exit(0)
-		}
-		var externalDataStreamServer server.DataStreamServer
-		if cfg.zk.XLayer.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
-			externalDataStreamServer, err = createExternalDataStreamServer(cfg)
-			if err != nil {
-				return err
-			}
-			externalDataStreamServerCreated = true
-			highestBatchInDs, err = externalDataStreamServer.GetHighestBatchNumber()
-		} else {
-			highestBatchInDs, err = cfg.dataStreamServer.GetHighestBatchNumber()
-		}
-		if err != nil {
-			return err
-		}
-		if lastBatch < highestBatchInDs {
-			return replay(s, u, ctx, cfg, historyCfg, lastBatch, highestBatchInDs, externalDataStreamServer)
-		}
-	}
-
 	if lastBatch < highestBatchInDs {
 		return resequence(s, u, ctx, cfg, historyCfg, lastBatch, highestBatchInDs)
 	}
