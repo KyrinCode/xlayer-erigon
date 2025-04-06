@@ -22,6 +22,8 @@ DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := xlayer-mainnet-replay-with-ext
 DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := xlayer-mainnet-replay-with-vmtouch
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := xlayer-mainnet-replay-with-external-datastream-and-vmtouch
 DOCKER_MAINNET_REPLAY_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-replay
+DOCKER_MAINNET_UNWIND_SEQ := xlayer-mainnet-unwind-seq
+DOCKER_MAINNET_UNWIND_SEQ_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-unwind-seq
 DOCKER_MAINNET_L1_SYNC := xlayer-mainnet-l1-sync
 DOCKER_MAINNET_L1_SYNC_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-l1-sync
 
@@ -31,6 +33,7 @@ RUN_DOCKER_MAINNET_REPLAY := $(DOCKER_COMPOSE) --profile internal-ds up -d $(DOC
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := $(DOCKER_COMPOSE) --profile external-ds up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM)
 RUN_DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_VMTOUCH)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := $(DOCKER_COMPOSE) --profile external-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH)
+RUN_DOCKER_MAINNET_UNWIND_SEQ := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND_SEQ)
 RUN_DOCKER_MAINNET_L1_SYNC := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_L1_SYNC)
 
 UNWIND_LOG_FILE := unwind.log
@@ -86,8 +89,8 @@ lrp-config:
 		echo "toBatchNumber: $$TO_BATCH_NO" >> lrp.config.yaml; \
 		echo "processCount: 1" >> lrp.config.yaml; \
 		echo "useExternalDatastream: $$EXTERNAL_DS" >> lrp.config.yaml; \
-		echo "externalDatastreamPath: " >> lrp.config.yaml; \
 		echo "srcMainnetDataPath: " >> lrp.config.yaml; \
+		echo "externalDatastreamPath: " >> lrp.config.yaml; \
 		echo "gitRootPath: " >> lrp.config.yaml; \
 	else \
 		if [ "$(shell uname)" = "Darwin" ]; then \
@@ -128,22 +131,29 @@ lrp-config-apply:
 	if [ "$$EXTERNAL_DS" = "true" ]; then \
 		DS_PATH=$$(awk '/^externalDatastreamPath:/ {print $$2}' lrp.config.yaml); \
 		if [ ! -z "$$DS_PATH" ]; then \
-			EXPANDED_DS_PATH=$$(echo "$$DS_PATH" | envsubst); \
-			if [ "$(shell uname)" = "Darwin" ]; then \
-				sed -i '' "s|- .*:/home/data-stream.bin|- $$EXPANDED_DS_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
-				sed -i '' "s|- .*:/home/data-stream.db/|- $$EXPANDED_DS_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
-			else \
-				sed -i "s|- .*:/home/data-stream.bin|- $$EXPANDED_DS_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
-				sed -i "s|- .*:/home/data-stream.db/|- $$EXPANDED_DS_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
+			EXPANDED_PATH=$$(echo "$$DS_PATH" | envsubst)/data-stream; \
+		else \
+			SRC_PATH=$$(awk '/^srcMainnetDataPath:/ {print $$2}' lrp.config.yaml); \
+			if [ -z "$$SRC_PATH" ]; then \
+				echo "Error: Neither externalDatastreamPath nor srcMainnetDataPath is set in lrp.config.yaml"; \
+				exit 1; \
 			fi; \
+			EXPANDED_PATH=$$(echo "$$SRC_PATH" | envsubst)/data-stream; \
+		fi; \
+		if [ "$(shell uname)" = "Darwin" ]; then \
+			sed -i '' "s|- .*:/home/data-stream.bin|- $$EXPANDED_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
+			sed -i '' "s|- .*:/home/data-stream.db/|- $$EXPANDED_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
+		else \
+			sed -i "s|- .*:/home/data-stream.bin|- $$EXPANDED_PATH.bin:/home/data-stream.bin|" docker-compose.yml; \
+			sed -i "s|- .*:/home/data-stream.db/|- $$EXPANDED_PATH.db:/home/data-stream.db/|" docker-compose.yml; \
 		fi; \
 	fi; \
 	if [ "$(shell uname)" = "Darwin" ]; then \
-		sed -i '' "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
+		sed -i '' "s/--unwind-batch-no=.*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
 		sed -i '' "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$TO_BATCH_NO/" docker-compose.yml; \
 		sed -i '' "s/--zkevm.sequencer-replay-external-datastream=\(true\|false\)/--zkevm.sequencer-replay-external-datastream=$$EXTERNAL_DS/" docker-compose.yml; \
 	else \
-		sed -i "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
+		sed -i "s/--unwind-batch-no=.*/--unwind-batch-no=$$UNWIND_BATCH_NO/" docker-compose.yml; \
 		sed -i "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$TO_BATCH_NO/" docker-compose.yml; \
 		sed -i "s/--zkevm.sequencer-replay-external-datastream=\(true\|false\)/--zkevm.sequencer-replay-external-datastream=$$EXTERNAL_DS/" docker-compose.yml; \
 	fi
@@ -187,6 +197,12 @@ lrp-mainnet-replay-pause:
 	else \
 		echo "Warning: useExternalDatastream is set to false, batches data will be lost"; \
 	fi
+
+.PHONY: lrp-mainnet-unwind-seq
+lrp-mainnet-unwind-seq: lrp-config-apply lrp-build-docker
+	@$(RUN_DOCKER_MAINNET_UNWIND_SEQ)
+	@docker wait $(DOCKER_MAINNET_UNWIND_SEQ_CONTAINER) > /dev/null; \
+	docker logs $(DOCKER_MAINNET_UNWIND_SEQ_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 
 .PHONY: lrp-mainnet-data-refresh
 lrp-mainnet-data-refresh:
@@ -263,14 +279,6 @@ lrp-mainnet-replay-vmtouch: lrp-config-apply lrp-build-docker
 .PHONY: lrp-mainnet-l1-sync
 lrp-mainnet-l1-sync:
 	@$(RUN_DOCKER_MAINNET_L1_SYNC)
-	@while true; do \
-		if docker logs --tail=1 $(DOCKER_MAINNET_L1_SYNC_CONTAINER) 2>&1 | grep -q "Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true."; then \
-			echo "L1 sync finishes."; \
-			docker stop $(DOCKER_MAINNET_L1_SYNC_CONTAINER) > /dev/null; \
-			break; \
-		fi; \
-		sleep 1; \
-	done
 
 .PHONY: lrp-mainnet-parallel
 lrp-mainnet-parallel: lrp-config-apply-parallel lrp-build-docker lrp-mainnet-l1-sync
@@ -325,15 +333,27 @@ lrp-config-apply-parallel:
 		fi; \
 		UNWIND_BATCH=$$((START_BATCH - 1)); \
 		cp -f docker-compose.yml docker-compose-$$i.yml; \
-		sed -i '' "s/xlayer-mainnet-unwind/xlayer-mainnet-unwind-$$i/g" docker-compose-$$i.yml; \
-		sed -i '' "s/xlayer-mainnet-replay/xlayer-mainnet-replay-$$i/g" docker-compose-$$i.yml; \
-		sed -i '' "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH/" docker-compose-$$i.yml; \
-		sed -i '' "s|./mainnet/seq:|./mainnet/seq$$i:|" docker-compose-$$i.yml; \
-		sed -i '' "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$END_BATCH/" docker-compose-$$i.yml; \
-		sed -i '' "s/\$${PPROF_PORT}/$$(($(PPROF_PORT) + $$i))/" docker-compose-$$i.yml; \
-		sed -i '' "s/\$${RPC_PORT}/$$(($(RPC_PORT) + $$i))/" docker-compose-$$i.yml; \
-		sed -i '' "s/\$${DS_PORT}/$$(($(DS_PORT) + $$i))/" docker-compose-$$i.yml; \
-		sed -i '' "s/\$${METRICS_PORT}/$$(($(METRICS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		if [ "$(shell uname)" = "Darwin" ]; then \
+			sed -i '' "s/xlayer-mainnet-unwind/xlayer-mainnet-unwind-$$i/g" docker-compose-$$i.yml; \
+			sed -i '' "s/xlayer-mainnet-replay/xlayer-mainnet-replay-$$i/g" docker-compose-$$i.yml; \
+			sed -i '' "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH/" docker-compose-$$i.yml; \
+			sed -i '' "s|./mainnet/seq:|./mainnet/seq$$i:|" docker-compose-$$i.yml; \
+			sed -i '' "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$END_BATCH/" docker-compose-$$i.yml; \
+			sed -i '' "s/\$${PPROF_PORT}/$$(($(PPROF_PORT) + $$i))/" docker-compose-$$i.yml; \
+			sed -i '' "s/\$${RPC_PORT}/$$(($(RPC_PORT) + $$i))/" docker-compose-$$i.yml; \
+			sed -i '' "s/\$${DS_PORT}/$$(($(DS_PORT) + $$i))/" docker-compose-$$i.yml; \
+			sed -i '' "s/\$${METRICS_PORT}/$$(($(METRICS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		else \
+			sed -i "s/xlayer-mainnet-unwind/xlayer-mainnet-unwind-$$i/g" docker-compose-$$i.yml; \
+			sed -i "s/xlayer-mainnet-replay/xlayer-mainnet-replay-$$i/g" docker-compose-$$i.yml; \
+			sed -i "s/--unwind-batch-no=[0-9]*/--unwind-batch-no=$$UNWIND_BATCH/" docker-compose-$$i.yml; \
+			sed -i "s|./mainnet/seq:|./mainnet/seq$$i:|" docker-compose-$$i.yml; \
+			sed -i "s/--zkevm.sequencer-replay-halt-on-batch-number=[0-9]*/--zkevm.sequencer-replay-halt-on-batch-number=$$END_BATCH/" docker-compose-$$i.yml; \
+			sed -i "s/\$${PPROF_PORT}/$$(($(PPROF_PORT) + $$i))/" docker-compose-$$i.yml; \
+			sed -i "s/\$${RPC_PORT}/$$(($(RPC_PORT) + $$i))/" docker-compose-$$i.yml; \
+			sed -i "s/\$${DS_PORT}/$$(($(DS_PORT) + $$i))/" docker-compose-$$i.yml; \
+			sed -i "s/\$${METRICS_PORT}/$$(($(METRICS_PORT) + $$i))/" docker-compose-$$i.yml; \
+		fi; \
 		CURRENT_BATCH=$$((START_BATCH - 1)); \
 	done
 

@@ -5,6 +5,6 @@ fromBatchNumber:
 toBatchNumber: 
 processCount: 1
 useExternalDatastream: 
-externalDatastreamPath: ./external_ds/data-stream
-srcMainnetDataPath: $HOME/Downloads/mainnet/seq
+srcMainnetDataPath: $HOME/Downloads/mainnet-compact-170700-9510470/seq
+externalDatastreamPath:
 gitRootPath:

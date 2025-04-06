@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -48,12 +49,16 @@ func SpawnSequencingStage(
 		return err
 	}
 
-	var highestBatchInDs uint64
+	highestBatchInDs, err := cfg.dataStreamServer.GetHighestBatchNumber()
+	if err != nil {
+		return err
+	}
 
 	// For X Layer, local replay feature
-	if cfg.zk.SequencerResequence && cfg.zk.XLayer.SequencerReplay {
+	if cfg.zk.XLayer.SequencerReplay {
 		if cfg.zk.XLayer.SequencerReplayL1SyncOnly {
-			panic(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
+			log.Info(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
+			os.Exit(0)
 		}
 		var externalDataStreamServer server.DataStreamServer
 		if cfg.zk.XLayer.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
@@ -74,9 +79,29 @@ func SpawnSequencingStage(
 		}
 	}
 
-	highestBatchInDs, err = cfg.dataStreamServer.GetHighestBatchNumber()
-	if err != nil {
-		return err
+	// For X Layer, local replay feature
+	if cfg.zk.XLayer.SequencerReplay {
+		if cfg.zk.XLayer.SequencerReplayL1SyncOnly {
+			log.Info(fmt.Sprintf("[%s] Stop here because the zkevm.sequencer-replay-l1-sync-only flag is set to true.", s.LogPrefix()))
+			os.Exit(0)
+		}
+		var externalDataStreamServer server.DataStreamServer
+		if cfg.zk.XLayer.SequencerReplayExternalDatastream && !externalDataStreamServerCreated {
+			externalDataStreamServer, err = createExternalDataStreamServer(cfg)
+			if err != nil {
+				return err
+			}
+			externalDataStreamServerCreated = true
+			highestBatchInDs, err = externalDataStreamServer.GetHighestBatchNumber()
+		} else {
+			highestBatchInDs, err = cfg.dataStreamServer.GetHighestBatchNumber()
+		}
+		if err != nil {
+			return err
+		}
+		if lastBatch < highestBatchInDs {
+			return replay(s, u, ctx, cfg, historyCfg, lastBatch, highestBatchInDs, externalDataStreamServer)
+		}
 	}
 
 	if lastBatch < highestBatchInDs {
@@ -106,6 +131,7 @@ func sequencingBatchStep(
 	defer func() {
 		metrics.GetLogStatistics().CumulativeTiming(metrics.SequencingBatchTiming, time.Since(startSequenceTime))
 		log.Info(fmt.Sprintf("[%s] Finished sequencing stage", logPrefix))
+		metrics.GetLogStatistics().Summary()
 	}()
 
 	// For X Layer metrics
@@ -282,8 +308,6 @@ func sequencingBatchStep(
 	sendersToSkip := make(map[common.Address]struct{})
 
 	for blockNumber := executionAt + 1; runLoopBlocks; blockNumber++ {
-		// For X Layer
-		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
 		if batchTimedOut {
 			log.Debug(fmt.Sprintf("[%s] Closing batch due to timeout", logPrefix))
 			break
@@ -322,6 +346,9 @@ func sequencingBatchStep(
 				break
 			}
 		}
+
+		// For X Layer
+		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
 
 		header, parentBlock, err := prepareHeader(sdb.tx, blockNumber-1, batchState.blockState.getDeltaTimestamp(), batchState.getBlockHeaderForcedTimestamp(), batchState.forkId, batchState.getCoinbase(&cfg), cfg.chainConfig, cfg.miningConfig)
 		if err != nil {
@@ -371,7 +398,7 @@ func sequencingBatchStep(
 		emptyBlockOverflow := false
 
 		// For X Layer, local replay's feature of stateroot mismatch detection
-		stateRootBeforeResequence := common.Hash{}
+		stateRootBeforeReplay := common.Hash{}
 
 		sendersToTriggerStatechanges := make(map[common.Address]struct{})
 		processingTxTime := time.Now()
@@ -420,6 +447,7 @@ func sequencingBatchStep(
 			default:
 			}
 
+			getTxTime := time.Now()
 			if batchState.isLimboRecovery() {
 				batchState.blockState.transactionsForInclusion, err = getLimboTransaction(ctx, cfg, batchState.limboRecoveryData.limboTxHash, executionAt)
 				if err != nil {
@@ -432,13 +460,14 @@ func sequencingBatchStep(
 				}
 
 				// For X Layer, local replay's feature of stateroot mismatch detection
-				stateRootBeforeResequence = batchState.resequenceBatchJob.CurrentBlock().StateRoot
+				if cfg.zk.XLayer.SequencerReplay {
+					stateRootBeforeReplay = batchState.resequenceBatchJob.CurrentBlock().StateRoot
+				}
 			} else if !batchState.isL1Recovery() {
 
 				var allConditionsOK bool
 				var newTransactions []types.Transaction
 				var newIds []common.Hash
-				getTxTime := time.Now()
 				newTransactions, newIds, allConditionsOK, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
 				if err != nil {
 					return err
@@ -466,10 +495,12 @@ func sequencingBatchStep(
 			}
 
 			if len(batchState.blockState.transactionsForInclusion) == 0 {
-				pauseTime := time.Now()
-				time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
-				metrics.GetLogStatistics().CumulativeCounting(metrics.GetTxPauseCounter)
-				metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxPauseTiming, time.Since(pauseTime))
+				if !batchState.isAnyRecovery() {
+					pauseTime := time.Now()
+					time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
+					metrics.GetLogStatistics().CumulativeCounting(metrics.GetTxPauseCounter)
+					metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxPauseTiming, time.Since(pauseTime))
+				}
 			} else {
 				log.Trace(fmt.Sprintf("[%s] Yielded transactions from the pool", logPrefix), "txCount", len(batchState.blockState.transactionsForInclusion))
 			}
@@ -791,19 +822,19 @@ func sequencingBatchStep(
 		if err != nil {
 			return err
 		}
-		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries)
+		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.XLayer.ExecutorMock, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries)
 
 		// For X Layer, local replay's feature of stateroot mismatch detection
-		if batchState.isResequence() {
-			if stateRootBeforeResequence != block.Root() {
+		if cfg.zk.XLayer.SequencerReplay {
+			if stateRootBeforeReplay != block.Root() {
 				err := fmt.Errorf("[%s] State root mismatch of block %d after resequencing, expected %s, got %s",
 					logPrefix,
 					blockNumber,
-					stateRootBeforeResequence.Hex(),
+					stateRootBeforeReplay.Hex(),
 					block.Root().Hex(),
 				)
 				log.Error(err.Error())
-				return err
+				os.Exit(1)
 			}
 		}
 
@@ -826,6 +857,20 @@ func sequencingBatchStep(
 		if err != nil || needsUnwind {
 			return err
 		}
+		if _, err := rawdb.IncrementStateVersionByBlockNumberIfNeeded(batchContext.sdb.tx, block.NumberU64()); err != nil {
+			return fmt.Errorf("writing plain state version: %w", err)
+		}
+
+		// notify the done hook that we have finished processing this block - will notify subscribers etc.
+		// here we -1 the block number as we know we have just created a new block so can simulate that the last block notified
+		// was the previous block created
+		if err := cfg.doneHook.AfterRun(batchContext.sdb.tx, block.NumberU64()-1, s.PrevUnwindPoint()); err != nil {
+			return err
+		}
+
+		// For X Layer
+		metrics.GetLogStatistics().SetTag(metrics.FinalizeBlockNumber, strconv.Itoa(int(blockNumber)))
+		metrics.GetLogStatistics().SummaryCheckpoint()
 	}
 
 	/*
@@ -835,14 +880,6 @@ func sequencingBatchStep(
 		- it is also handled property in doCheckForBadBatch
 		- it is unwound correctly
 	*/
-
-	if block != nil { // block is nil here if no transactions mined
-		// TODO: It is 99% sure that there is no need to write this in any of processInjectedInitialBatch, alignExecutionToDatastream, doCheckForBadBatch but it is worth double checknig
-		// the unwind of this value is handed by UnwindExecutionStageDbWrites
-		if _, err := rawdb.IncrementStateVersionByBlockNumberIfNeeded(batchContext.sdb.tx, block.NumberU64()); err != nil {
-			return fmt.Errorf("writing plain state version: %w", err)
-		}
-	}
 
 	log.Info(fmt.Sprintf("[%s] Finish batch %d...", batchContext.s.LogPrefix(), batchState.batchNumber))
 
@@ -856,7 +893,6 @@ func sequencingBatchStep(
 
 	batchTime := time.Since(batchStart)
 	metrics.BatchExecuteTime(string(batchCloseReason), batchTime)
-	metrics.GetLogStatistics().Summary()
 
 	return err
 }

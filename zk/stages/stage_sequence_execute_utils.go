@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -56,6 +57,12 @@ type HasChangeSetWriter interface {
 	ChangeSetWriter() *state.ChangeSetWriter
 }
 
+// Designed to be used to call the normal stage loop hook earlier in the process as we want this to be
+// done per block rather than per batch.
+type DoneHook interface {
+	AfterRun(tx kv.Tx, finishProgressBefore uint64, prevUnwindPoint *uint64) error
+}
+
 type SequenceBlockCfg struct {
 	db            kv.RwDB
 	batchSize     datasize.ByteSize
@@ -85,6 +92,9 @@ type SequenceBlockCfg struct {
 	yieldSize      uint16
 
 	infoTreeUpdater *l1infotree.Updater
+
+	decodedTxCache *expirable.LRU[common.Hash, *types.Transaction]
+	doneHook       DoneHook
 }
 
 func StageSequenceBlocksCfg(
@@ -114,6 +124,7 @@ func StageSequenceBlocksCfg(
 	legacyVerifier *verifier.LegacyExecutorVerifier,
 	yieldSize uint16,
 	infoTreeUpdater *l1infotree.Updater,
+	doneHook DoneHook,
 ) SequenceBlockCfg {
 
 	return SequenceBlockCfg{
@@ -141,6 +152,7 @@ func StageSequenceBlocksCfg(
 		legacyVerifier:   legacyVerifier,
 		yieldSize:        yieldSize,
 		infoTreeUpdater:  infoTreeUpdater,
+		doneHook:         doneHook,
 	}
 }
 
@@ -312,8 +324,6 @@ func prepareL1AndInfoTreeRelatedStuff(sdb *stageDb, batchState *BatchState, prop
 			if batchState.resequenceBatchJob.AtNewBlockBoundary() {
 				l1TreeUpdateIndex = uint64(batchState.resequenceBatchJob.CurrentBlock().L1InfoTreeIndex)
 			}
-
-			// For X Layer, fix stateroot mismatch issue during local replay
 			if infoTreeIndexProgress >= l1TreeUpdateIndex {
 				shouldWriteGerToContract = false
 			}
