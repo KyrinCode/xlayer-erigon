@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -142,6 +143,7 @@ func DecodeRLPTransaction(s *rlp.Stream, blobTxnsAreWrappedWithBlobs bool) (Tran
 // but type-3 (blob) transactions are expected to be wrapped with blobs/commitments/proofs.
 // See https://eips.ethereum.org/EIPS/eip-4844#networking
 func DecodeWrappedTransaction(data []byte) (Transaction, error) {
+	log.Info(fmt.Sprintf("txdecode, DecodeWrappedTransaction, data: %s", hex.EncodeToString(data)))
 	blobTxnsAreWrappedWithBlobs := true
 	if len(data) == 0 {
 		return nil, io.EOF
@@ -155,6 +157,7 @@ func DecodeWrappedTransaction(data []byte) (Transaction, error) {
 
 // DecodeTransaction decodes a transaction either in RLP or canonical format
 func DecodeTransaction(data []byte) (Transaction, error) {
+	log.Info(fmt.Sprintf("txdecode, DecodeTransaction, data: %s", hex.EncodeToString(data)))
 	blobTxnsAreWrappedWithBlobs := false
 	if len(data) == 0 {
 		return nil, io.EOF

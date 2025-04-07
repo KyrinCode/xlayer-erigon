@@ -1427,6 +1427,9 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) txpoo
 	}
 
 	hashStr := string(mt.Tx.IDHash[:])
+	//if mt.Tx.Rlp == nil {
+	//	log.Warn(fmt.Sprintf("tx has no rlp: %s", hashStr))
+	//}
 	p.byHash[hashStr] = mt
 
 	if replaced := p.all.replaceOrInsert(mt, p.logger); replaced != nil {
