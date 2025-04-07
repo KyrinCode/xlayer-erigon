@@ -591,6 +591,24 @@ func (c *RocksDbCursor) nextDup() ([]byte, []byte, error) {
 	return c.it.NextDup()
 }
 
+func (c *RocksDbCursor) nextNoDup() ([]byte, []byte, error) {
+	// return c.c.Get(nil, nil, mdbx.NextNoDup)
+	if err := c.it.NextKey(); err != nil {
+		if errors.Is(err, ErrInvalidIter) {
+			return nil, nil, ErrNotFound
+		}
+		return nil, nil, err
+	}
+
+	k, v, err := c.it.Current()
+	if err != nil {
+		if errors.Is(err, ErrInvalidIter) {
+			return nil, nil, ErrNotFound
+		}
+	}
+	return k, v, nil
+}
+
 func (c *RocksDbCursor) prevDup() ([]byte, []byte, error) {
 	// return c.c.Get(nil, nil, mdbx.PrevDup)
 	return c.it.PrevDup()

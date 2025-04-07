@@ -65,7 +65,14 @@ func (c *RocksDbDupSortCursor) NextDup() ([]byte, []byte, error) {
 
 // NextNoDup - position at first data item of next key
 func (c *RocksDbDupSortCursor) NextNoDup() ([]byte, []byte, error) {
-	panic("yztodo: not implemented")
+	k, v, err := c.nextNoDup()
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil, nil
+		}
+		return []byte{}, nil, fmt.Errorf("in NextNoDup: %w", err)
+	}
+	return k, v, nil
 }
 
 func (c *RocksDbDupSortCursor) PrevDup() ([]byte, []byte, error) {

@@ -1894,3 +1894,46 @@ func TestMdbxCursor_prevDup(t *testing.T) {
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
 }
+
+func TestMdbxCursor_nextNoDup(t *testing.T) {
+	_, tx, ci := BaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*MdbxCursor)
+	_, _, err = cs.nextNoDup()
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+
+	c := ci.(*MdbxDupSortCursor)
+
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+	_, _, err = c.nextNoDup()
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.nextNoDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	_, _, err = c.nextNoDup()
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+
+	_, _, err = c.First()
+	require.NoError(t, err)
+	k, v, err = c.Next()
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.nextNoDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	_, _, err = c.nextNoDup()
+	require.EqualError(t, err, "mdbx_cursor_get: MDBX_NOTFOUND: No matching key/data pair found")
+}

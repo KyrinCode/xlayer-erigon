@@ -1445,6 +1445,50 @@ func TestRocksDbCursor_getBoth(t *testing.T) {
 	require.Equal(t, []byte("value3.3"), v)
 }
 
+// see behaviour of mdbx in TestMdbxCursor_nextNoDup
+func TestRocksDbCursor_nextNoDup(t *testing.T) {
+	_, tx, ci := rocksdbBaseCase(t)
+
+	// check empty table
+	csi, err := tx.RwCursor(kv.Sequence)
+	require.NoError(t, err)
+	cs := csi.(*RocksDbCursor)
+	_, _, err = cs.nextNoDup()
+	require.EqualError(t, err, ErrNotFound.Error())
+
+	c := ci.(*RocksDbDupSortCursor)
+
+	k, v, err := c.Current()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+	_, _, err = c.nextNoDup()
+	require.EqualError(t, err, ErrNotFound.Error())
+
+	k, v, err = c.First()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+	k, v, err = c.nextNoDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	_, _, err = c.nextNoDup()
+	require.EqualError(t, err, ErrNotFound.Error())
+
+	_, _, err = c.First()
+	require.NoError(t, err)
+	k, v, err = c.Next()
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+	k, v, err = c.nextNoDup()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+	_, _, err = c.nextNoDup()
+	require.EqualError(t, err, ErrNotFound.Error())
+}
+
 func TestRocksDbCursor_Put(t *testing.T) {
 	t.Run("AutoDupSortKeysConversion=true&&(KeyLen!=DupFromLen&&KeyLen>=DupToLen)", func(t *testing.T) {
 		_, mtx, _ := mdbxBaseCase(t)
