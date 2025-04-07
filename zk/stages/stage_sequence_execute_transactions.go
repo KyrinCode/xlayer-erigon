@@ -90,6 +90,7 @@ type task struct {
 	idx     int
 	txBytes []byte
 	id      common.Hash
+	sender  common.Address
 }
 
 // result represents the outcome of a transaction processing task
@@ -139,6 +140,10 @@ func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg 
 					continue
 				}
 
+				if (t.sender != common.Address{}) {
+					tx.SetSender(t.sender)
+				}
+
 				tx.Hash() // Pre-calculate transaction hash
 				res.tx = tx
 				results <- res
@@ -148,7 +153,7 @@ func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg 
 
 	// Distribute tasks
 	for i, txBytes := range slot.Txs {
-		tasks <- task{idx: i, txBytes: txBytes, id: slot.TxIds[i]}
+		tasks <- task{idx: i, txBytes: txBytes, id: slot.TxIds[i], sender: slot.Senders.AddressAt(i)}
 	}
 	close(tasks)
 
