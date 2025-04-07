@@ -19,10 +19,11 @@ package txpooluitl
 import (
 	"context"
 	"fmt"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
+	"golang.org/x/sync/semaphore"
+	"runtime"
 	"time"
 
-	"github.com/c2h5oh/datasize"
-	mdbx2 "github.com/erigontech/mdbx-go/mdbx"
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
 	"github.com/ledgerwatch/log/v3"
@@ -31,7 +32,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/direct"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/kvcache"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/types"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/zk/apollo"
@@ -103,12 +103,19 @@ func SaveChainConfigIfNeed(ctx context.Context, coreDB kv.RoDB, txPoolDB kv.RwDB
 }
 
 func AllComponents(ctx context.Context, cfg txpoolcfg.Config, ethCfg *ethconfig.Config, cache kvcache.Cache, newTxs chan types.Announcements, chainDB kv.RoDB, sentryClients []direct.SentryClient, stateChangesClient txpool.StateChangesClient) (kv.RwDB, *txpool.TxPool, *txpool.Fetch, *txpool.Send, *txpool.GrpcServer, error) {
-	txPoolDB, err := mdbx.NewMDBX(log.New()).Label(kv.TxPoolDB).Path(cfg.DBDir).
-		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return kv.TxpoolTablesCfg }).
-		Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
-		GrowthStep(16 * datasize.MB).
-		SyncPeriod(30 * time.Second).
-		Open(ctx)
+	log.Info("yangzhe: open txpool db", "path", cfg.DBDir)
+	targetSemCount := int64(runtime.GOMAXPROCS(-1) * 16)
+	readTxLimiter := semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
+	targetSemCount = int64(runtime.GOMAXPROCS(-1)) - 1
+	writeTxLimiter := semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
+
+	txPoolDB, err := rocksdb.NewRocksDB(cfg.DBDir, log.New(), kv.TxpoolTablesCfg, kv.TxPoolDB, readTxLimiter, writeTxLimiter, false)
+	//txPoolDB, err := mdbx.NewMDBX(log.New()).Label(kv.TxPoolDB).Path(cfg.DBDir).
+	//	WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return kv.TxpoolTablesCfg }).
+	//	Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
+	//	GrowthStep(16 * datasize.MB).
+	//	SyncPeriod(30 * time.Second).
+	//	Open(ctx)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}

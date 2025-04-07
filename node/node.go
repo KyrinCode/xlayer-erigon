@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv/memdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
 	"github.com/ledgerwatch/erigon/migrations"
 )
 
@@ -364,9 +366,12 @@ func OpenDatabase(ctx context.Context, config *nodecfg.Config, label kv.Label, n
 		default:
 		}
 
-		return opts.Open(ctx)
+		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
+		writeTxLimiter := semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
 		// todo: yztodo: use a options struct to deliver arguments
-		// return rocksdb.NewRocksDB(dbPath, logger, roTxsLimiter, readonly)
+		return rocksdb.NewRocksDB(dbPath, logger, kv.ChaindataTablesCfg, label, roTxsLimiter, writeTxLimiter, readonly)
+
+		// return opts.Open(ctx)
 	}
 	var err error
 	db, err = openFunc(false)
