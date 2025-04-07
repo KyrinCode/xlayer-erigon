@@ -978,18 +978,16 @@ func (p *TxPool) punishSpammer(spammer uint64) {
 }
 
 func fillDiscardReasons(reasons []DiscardReason, newTxs types.TxSlots, discardReasonsLRU *simplelru.LRU[string, DiscardReason]) []DiscardReason {
-	j := 0
 	for i := range reasons {
 		if reasons[i] != NotSet {
 			continue
 		}
-		reason, ok := discardReasonsLRU.Get(string(newTxs.Txs[j].IDHash[:]))
+		reason, ok := discardReasonsLRU.Get(string(newTxs.Txs[i].IDHash[:]))
 		if ok {
 			reasons[i] = reason
 		} else {
 			reasons[i] = Success
 		}
-		j++
 	}
 	return reasons
 }
