@@ -7,6 +7,8 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
+var flushSmtCachePeriod = uint64(50)
+
 type SmtCacheSave struct {
 	SmtData     map[string]map[string][]byte
 	BlockHeight uint64
@@ -72,7 +74,7 @@ func (cache *SmtCache) TruncateSmtCacheList(blockHeight uint64) {
 	}
 
 	if truncateHeight > 0 {
-		if truncateHeight-cache.PreBatchImageLastUpdateHeight > 100 {
+		if truncateHeight-cache.PreBatchImageLastUpdateHeight > flushSmtCachePeriod*2 {
 			cache.SmtCacheSnapshotLock.RLock()
 			tmpSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot()
 			cache.SmtCacheSnapshotLock.RUnlock()
@@ -222,7 +224,7 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 		return err
 	}
 
-	if batchPush && (height-cache.LastPushedHeight < 50) && !grace {
+	if batchPush && (height-cache.LastPushedHeight < flushSmtCachePeriod) && !grace {
 		return nil
 	}
 

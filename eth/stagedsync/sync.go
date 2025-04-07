@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ledgerwatch/log/v3"
@@ -36,7 +37,8 @@ type Sync struct {
 	logger        log.Logger
 	stagesIdsList []string
 
-	cache *smt.SmtCache
+	flushWG sync.WaitGroup
+	cache   *smt.SmtCache
 }
 
 type Timing struct {
@@ -60,6 +62,18 @@ func (s *Sync) GetSmtSnapshotCache(blockNumber uint64) map[string]map[string][]b
 
 func (s *Sync) SetSmtCache(blockNumber uint64, blockCache map[string]map[string][]byte) {
 	s.cache.SetSmtCache(blockNumber, blockCache)
+}
+
+func (s *Sync) FlushSmtCacheWait() {
+	s.flushWG.Wait()
+}
+
+func (s *Sync) FlushSmtCacheSignalInc() {
+	s.flushWG.Add(1)
+}
+
+func (s *Sync) FlushSmtCacheDone() {
+	s.flushWG.Done()
 }
 
 func (s *Sync) FlushSmtCache(batchPush, grace bool) error {
