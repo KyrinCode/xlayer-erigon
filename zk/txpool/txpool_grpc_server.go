@@ -193,6 +193,7 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 	parseCtx.ValidateRLP(s.txPool.ValidateSerializedTxn)
 
 	reply := &txpool_proto.AddReply{Imported: make([]txpool_proto.ImportResult, len(in.RlpTxs)), Errors: make([]string, len(in.RlpTxs))}
+	validIndices := make([]int, 0, len(in.RlpTxs))
 
 	j := 0
 	for i := 0; i < len(in.RlpTxs); i++ { // some incoming txs may be rejected, so - need secnod index
@@ -223,6 +224,7 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 		slots.Txs[j] = txSlot
 		copy(slots.Senders.At(j), senderSlice)
 		slots.IsLocal[j] = true
+		validIndices = append(validIndices, i)
 		j++
 	}
 
@@ -238,9 +240,11 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 			continue
 		}
 
-		reply.Imported[i] = mapDiscardReasonToProto(discardReasons[j])
-		reply.Errors[i] = discardReasons[j].String()
-		j++
+		if j < len(validIndices) && validIndices[j] == i {
+			reply.Imported[i] = mapDiscardReasonToProto(discardReasons[j])
+			reply.Errors[i] = discardReasons[j].String()
+			j++
+		}
 	}
 	return reply, nil
 }
