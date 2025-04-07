@@ -1024,12 +1024,20 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 		return nil, err
 	}
 
+	validIndices := make([]int, 0, len(newTxs.Txs))
+	for i, reason := range reasons {
+		reasons[i] = reason
+		if reason == NotSet {
+			validIndices = append(validIndices, i)
+		}
+	}
+
 	announcements, addReasons, err := p.addTxs(p.lastSeenBlock.Load(), cacheView, p.senders, newTxs,
 		p.pendingBaseFee.Load(), p.blockGasLimit.Load(), p.pending, p.baseFee, p.queued, p.all, p.byHash, p.addLocked, p.discardLocked, true)
 	if err == nil {
 		for i, reason := range addReasons {
 			if reason != NotSet {
-				reasons[i] = reason
+				reasons[validIndices[i]] = reason
 			}
 		}
 	} else {
@@ -1038,7 +1046,7 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 	p.promoted.Reset()
 	p.promoted.AppendOther(announcements)
 
-	reasons = fillDiscardReasons(reasons, newTxs, p.discardReasonsLRU)
+	reasons = fillDiscardReasons(reasons, newTransactions, p.discardReasonsLRU)
 	for i, reason := range reasons {
 		if reason == Success {
 			txn := newTransactions.Txs[i]
