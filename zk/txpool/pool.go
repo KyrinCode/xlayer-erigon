@@ -1026,7 +1026,6 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 
 	validIndices := make([]int, 0, len(newTxs.Txs))
 	for i, reason := range reasons {
-		reasons[i] = reason
 		if reason == NotSet {
 			validIndices = append(validIndices, i)
 		}
