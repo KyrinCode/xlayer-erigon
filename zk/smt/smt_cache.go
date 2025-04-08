@@ -7,7 +7,7 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
-var flushSmtCachePeriod = uint64(50)
+var flushSmtCachePeriod = uint64(100)
 
 type SmtCacheSave struct {
 	SmtData     map[string]map[string][]byte
@@ -33,6 +33,7 @@ type SmtCache struct {
 	SmtCacheDataCh    chan SmtCacheSave
 	ToPushedSmtCache  map[string]map[string][]byte // only used by seq thread, no need lock protect
 	LongLivedSmtCache map[string]map[string][]byte // only used by seq thread, no need lock protect
+	LastResetHeight   uint64
 }
 
 func CreateNewSmtCache() *SmtCache {
@@ -45,6 +46,7 @@ func CreateNewSmtCache() *SmtCache {
 		SmtCacheSnapshotList: NewSmtCacheList(),
 		ToPushedSmtCache:     make(map[string]map[string][]byte),
 		LongLivedSmtCache:    make(map[string]map[string][]byte),
+		LastResetHeight:      0,
 
 		LastRecordBlockHeight:         0,
 		CurrentBatchBlockSnapshotList: NewSmtCacheList(),
@@ -74,19 +76,19 @@ func (cache *SmtCache) TruncateSmtCacheList(blockHeight uint64) {
 	}
 
 	if truncateHeight > 0 {
-		if truncateHeight-cache.PreBatchImageLastUpdateHeight > flushSmtCachePeriod*2 {
-			cache.SmtCacheSnapshotLock.RLock()
-			tmpSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot()
-			cache.SmtCacheSnapshotLock.RUnlock()
+		//if truncateHeight-cache.PreBatchImageLastUpdateHeight > flushSmtCachePeriod*2 {
+		cache.SmtCacheSnapshotLock.RLock()
+		tmpSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot()
+		cache.SmtCacheSnapshotLock.RUnlock()
 
-			if tmpSmtCache == nil {
-				tmpSmtCache = map[string]map[string][]byte{}
-			}
-			cache.PreBatchImageLock.Lock()
-			cache.PreBatchSnapshotImage = tmpSmtCache
-			cache.PreBatchImageLastUpdateHeight = truncateHeight
-			cache.PreBatchImageLock.Unlock()
+		if tmpSmtCache == nil {
+			tmpSmtCache = map[string]map[string][]byte{}
 		}
+		cache.PreBatchImageLock.Lock()
+		cache.PreBatchSnapshotImage = tmpSmtCache
+		cache.PreBatchImageLastUpdateHeight = truncateHeight
+		cache.PreBatchImageLock.Unlock()
+		//}
 	}
 }
 
@@ -175,16 +177,30 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map
 	cache.CurrentBatchBlockSnapshotList.Push(blockNumber, blockCache)
 	cache.CurrentBatchSnapshotLock.Unlock()
 
-	// Merge blockCache into deltaCache (Thread 3 only, no lock needed)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 	for table, bucket := range blockCache {
-		if _, exists := cache.LongLivedSmtCache[table]; !exists {
-			cache.LongLivedSmtCache[table] = make(map[string][]byte, len(bucket))
-		}
+		wg.Add(1)
+		go func(table string, bucket map[string][]byte) {
+			defer wg.Done()
 
-		for k, v := range bucket {
-			cache.LongLivedSmtCache[table][k] = v
-		}
+			mu.Lock()
+			innerMap, exists := cache.LongLivedSmtCache[table]
+			if !exists {
+				innerMap = make(map[string][]byte, len(bucket))
+				cache.LongLivedSmtCache[table] = innerMap
+			}
+			mu.Unlock()
+
+			var tableMu sync.Mutex
+			tableMu.Lock()
+			for k, v := range bucket {
+				innerMap[k] = v
+			}
+			tableMu.Unlock()
+		}(table, bucket)
 	}
+	wg.Wait()
 
 	cache.LastRecordBlockHeight = blockNumber
 
@@ -211,7 +227,6 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 			cache.PreBatchSnapshotImage[table][key] = value // replace the old value with the latest one
 		}
 	}
-	cache.LongLivedSmtCache = cache.PreBatchSnapshotImage
 	cache.PreBatchImageLock.Unlock()
 
 	// 2. clean current batch cache image
@@ -222,6 +237,20 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 	height, err := utils.ConvertBytesToUint64(cache.ToPushedSmtCache["HermezSmtStats"]["lastHeight"])
 	if err != nil {
 		return err
+	}
+
+	if height-cache.LastResetHeight > 10*flushSmtCachePeriod {
+		cache.SmtCacheSnapshotLock.RLock()
+		tmpSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot()
+		cache.SmtCacheSnapshotLock.RUnlock()
+
+		if tmpSmtCache == nil {
+			tmpSmtCache = map[string]map[string][]byte{}
+		}
+
+		// Reset LongLivedSmtCache, prevent excessive memory usage.
+		cache.LongLivedSmtCache = tmpSmtCache
+		cache.LastResetHeight = height
 	}
 
 	if batchPush && (height-cache.LastPushedHeight < flushSmtCachePeriod) && !grace {
@@ -279,4 +308,5 @@ func (cache *SmtCache) ResetCurrentBatch(resetBlockHeight uint64) {
 	}
 
 	cache.LongLivedSmtCache = tmpSmtCache
+	cache.LastResetHeight = resetBlockHeight - 1
 }
