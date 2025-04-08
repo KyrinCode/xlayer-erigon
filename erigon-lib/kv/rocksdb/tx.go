@@ -30,12 +30,15 @@ type RocksDbTx struct {
 
 	statelessCursors map[string]kv.RwCursor
 
+	closed        bool
 	closeCallback func()
 }
 
 func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
+	defer wopts.Destroy()
 	txopt := grocksdb.NewDefaultTransactionOptions()
+	defer txopt.Destroy()
 	tx := db.rdb.TransactionBegin(wopts, txopt, nil)
 
 	return &RocksDbTx{
@@ -127,20 +130,10 @@ func (rtx *RocksDbTx) Delete(table string, k []byte) error {
 
 // impl kv.StatelessReadTx interface
 func (rtx *RocksDbTx) Commit() error { // Commit all the operations of a transaction into the database.
-	if rtx.tx == nil {
-		return nil
-	}
-	defer func() {
-		rtx.tx = nil
-		rtx.closeCallback()
-	}()
-	rtx.closeCursors()
-
 	rtx.CollectMetrics()
 
 	now := time.Now()
-	err := rtx.tx.Commit()
-	if err != nil {
+	if err := rtx.close(rtx.tx.Commit); err != nil {
 		return fmt.Errorf("label: %s, %w", rtx.db.label, err)
 	}
 
@@ -151,16 +144,7 @@ func (rtx *RocksDbTx) Commit() error { // Commit all the operations of a transac
 }
 
 func (rtx *RocksDbTx) Rollback() { // Rollback - abandon all the operations of the transaction instead of saving them.
-	if rtx.tx == nil {
-		return
-	}
-	defer func() {
-		rtx.tx = nil
-		rtx.closeCallback()
-	}()
-	rtx.closeCursors()
-
-	if err := rtx.tx.Rollback(); err != nil {
+	if err := rtx.close(rtx.tx.Rollback); err != nil {
 		panic(fmt.Sprintf("rocksdb tx: rollback failed: %v", err))
 	}
 }
@@ -351,6 +335,7 @@ func (rtx *RocksDbTx) ClearBucket(table string) error {
 	endPrefix, _ := kv.NextSubtree(beginPrefix)
 
 	ropts := grocksdb.NewDefaultReadOptions()
+	defer ropts.Destroy()
 	ropts.SetIterateLowerBound(beginPrefix)
 	ropts.SetIterateUpperBound(endPrefix)
 
@@ -385,6 +370,28 @@ func (rtx *RocksDbTx) SpaceDirty() (uint64, uint64, error) {
 	// todo: not found appropriate function to get those infos,
 	// so if `SpaceDirty` is important, we should compute it by ourself
 	return 0, 0, nil
+}
+
+func (rtx *RocksDbTx) close(action func() error) error {
+	if rtx.closed {
+		return nil
+	}
+
+	defer func() {
+		if rtx.ropts != nil {
+			rtx.ropts.Destroy()
+			rtx.ropts = nil
+		}
+
+		rtx.closeCursors()
+		rtx.closeCallback()
+
+		rtx.tx.Destroy()
+		rtx.tx = nil
+		rtx.closed = true
+	}()
+
+	return action()
 }
 
 func (rtx *RocksDbTx) closeCursors() {

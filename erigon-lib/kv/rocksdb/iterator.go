@@ -111,7 +111,14 @@ func NewRocksDbIterator(tx *grocksdb.Transaction, table string) *RocksDbIterator
 }
 
 func (iter *RocksDbIterator) Close() {
-	iter.it.Close()
+	if iter.it != nil {
+		iter.it.Close()
+		iter.it = nil
+	}
+	if iter.ropts != nil {
+		iter.ropts.Destroy()
+		iter.ropts = nil
+	}
 }
 
 func (iter *RocksDbIterator) First() ([]byte, []byte, error) {
@@ -145,15 +152,6 @@ func (iter *RocksDbIterator) Current() ([]byte, []byte, error) {
 	}
 
 	return nil, nil, ErrInvalidIter
-
-	//iter.it.Next()
-	//if !iter.it.Valid() {
-	//	return nil, nil, ErrInvalidIter
-	//}
-	//
-	//iter.current = createCacheWithFirstValueIsCurrent(iter.it)
-	//v, _ := iter.current.value.Current()
-	//return iter.current.key, v, nil
 }
 
 func (iter *RocksDbIterator) NextKey() error {
@@ -168,6 +166,7 @@ func (iter *RocksDbIterator) NextKey() error {
 
 func (iter *RocksDbIterator) Count() (uint64, error) {
 	it := &iteratorWrapper{Iterator: iter.tx.NewIterator(iter.ropts), table: iter.table}
+	defer it.Close()
 
 	count := uint64(0)
 	for it.SeekToFirst(); it.Valid(); it.Next() {

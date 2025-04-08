@@ -14,7 +14,8 @@ import (
 )
 
 type RocksDB struct {
-	rdb *grocksdb.TransactionDB
+	rdb      *grocksdb.TransactionDB
+	lruCache *grocksdb.Cache
 
 	closeGuard *CloseGuard
 
@@ -39,13 +40,17 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	}
 
 	bbto := grocksdb.NewDefaultBlockBasedTableOptions()
-	bbto.SetBlockCache(grocksdb.NewLRUCache(3 << 30))
+	defer bbto.Destroy()
+	lruCache := grocksdb.NewLRUCache(3 << 30)
+	bbto.SetBlockCache(lruCache)
 
 	opts := grocksdb.NewDefaultOptions()
+	defer opts.Destroy()
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
+	defer txopts.Destroy()
 	rdb, err := grocksdb.OpenTransactionDb(opts, txopts, dbPath)
 	if err != nil {
 		return nil, err
@@ -53,6 +58,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 
 	return &RocksDB{
 		rdb:            rdb,
+		lruCache:       lruCache,
 		closeGuard:     newCloseGuard(),
 		readOnly:       readOnly,
 		tablesCfg:      tablesCfg,
@@ -69,6 +75,9 @@ func (db *RocksDB) Close() {
 	if firstClose {
 		db.rdb.Close()
 		db.rdb = nil
+
+		db.lruCache.Destroy()
+		db.lruCache = nil
 	}
 }
 
