@@ -1016,13 +1016,14 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 			log.Info("[txpool] Started")
 		}
 	}
-
+	log.Info(fmt.Sprintf("AddLocalTxs"))
 	if err = p.senders.registerNewSenders(&newTransactions); err != nil {
 		return nil, err
 	}
 
 	reasons, newTxs, err := p.validateTxs(&newTransactions, cacheView)
 	if err != nil {
+		log.Error(fmt.Sprintf("validatate tx error %x", err))
 		return nil, err
 	}
 
@@ -1077,6 +1078,7 @@ func (p *TxPool) addTxs(blockNum uint64, cacheView kvcache.CacheView, senders *s
 	newTxs types.TxSlots, pendingBaseFee, blockGasLimit uint64,
 	pending *PendingPool, baseFee, queued *SubPool,
 	byNonce *BySenderAndNonce, byHash map[string]*metaTx, add func(*metaTx, *types.Announcements) DiscardReason, discard func(*metaTx, DiscardReason), collect bool) (types.Announcements, []DiscardReason, error) {
+	log.Info(fmt.Sprintf("TxPool add txs num: %d", len(newTxs.Txs)))
 	protocolBaseFee := calcProtocolBaseFee(pendingBaseFee)
 	if assert.Enable {
 		for _, txn := range newTxs.Txs {

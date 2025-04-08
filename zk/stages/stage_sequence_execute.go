@@ -760,9 +760,11 @@ func sequencingBatchStep(
 		}
 
 		if batchContext.sdb.supportAC {
+			log.Info(fmt.Sprintf("supportAC, doFinishBlock: batch number: %d, blk number: %d", batchState.batchNumber, header.Number.Uint64()))
 			quit := batchContext.ctx.Done()
 			batchContext.sdb.eridb.OpenBatch(quit)           // do nothing...
 			batchContext.sdb.eridb.SetCache(s.GetSmtCache()) // will deep copy in internal function
+
 			if block, err = doFinishBlockAndUpdateState(batchContext, ibs, header, parentBlock, batchState, ger, l1BlockHash, l1TreeUpdateIndex, infoTreeIndexProgress, batchCounters); err != nil {
 				batchContext.sdb.eridb.RollbackBatch()
 				return err
@@ -773,6 +775,7 @@ func sequencingBatchStep(
 			}
 			s.SetSmtCache(blockNumber, blockCache)
 		} else {
+			log.Info(fmt.Sprintf("doFinishBlock: batch number: %d, blk number: %d", batchState.batchNumber, header.Number.Uint64()))
 			quit := batchContext.ctx.Done()
 			batchContext.sdb.eridb.OpenBatch(quit)
 			if block, err = doFinishBlockAndUpdateState(batchContext, ibs, header, parentBlock, batchState, ger, l1BlockHash, l1TreeUpdateIndex, infoTreeIndexProgress, batchCounters); err != nil {

@@ -30,8 +30,8 @@ log.dir.disable: false
 zkevm.executor-strict: false
 zkevm.witness-full: false
 
-zkevm.sequencer-block-seal-time: "1h"
-zkevm.sequencer-batch-seal-time: "2h"
+zkevm.sequencer-block-seal-time: "20s"
+zkevm.sequencer-batch-seal-time: "2m"
 zkevm.sequencer-batch-sleep-duration: "0s"
 
 zkevm.data-stream-host: "localhost"
