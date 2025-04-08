@@ -13,6 +13,8 @@ unwindBatch=70
 datastreamPort=6900
 logFile="script.log"
 
+AC_SPLIT=${1:-false}
+
 # Redirect stdout to log file and keep stderr to console
 exec > >(tee -i "$logFile")  # Redirect stdout to log file
 exec 2> >(tee -a "$logFile" >&2)  # Redirect stderr to log file and keep it on console
@@ -71,14 +73,33 @@ dump_data() {
     local stop=$1
     local label=$2
     echo "[$(date)] Dumping data - $label ($stop)"
-    go run ./cmd/hack --action=dumpAll --chaindata="$dataPath/rpc-datadir/chaindata" --output="$dataPath/$stop" || { echo "Failed to dump data for $label"; exit 1; }
+    if [ "$AC_SPLIT" = "ac-split" ]; then
+        go run ./cmd/hack --action=dumpAll --standalone-smt-db=true --smt-db-path="$dataPath/rpc-datadir/smt" --chaindata="$dataPath/rpc-datadir/chaindata" --output="$dataPath/$stop" || { echo "Failed to dump data for $label"; exit 1; }
+    else
+        go run ./cmd/hack --action=dumpAll --chaindata="$dataPath/rpc-datadir/chaindata" --output="$dataPath/$stop" || { echo "Failed to dump data for $label"; exit 1; }
+    fi
 }
+
+CONFIG_FILE="temp-dynamic-integration8.yaml"
+cp zk/tests/unwinds/config/dynamic-integration8.yaml $CONFIG_FILE
+
+if [ "$AC_SPLIT" = "ac-split" ]; then
+    echo "Will use ac-split"
+    printf "\n" >> "$CONFIG_FILE"
+    echo "zkevm.standalone-smt-db: true" >> "$CONFIG_FILE"
+    echo "zkevm.enable-async-commit: true" >> "$CONFIG_FILE"
+else
+    echo "Will not use ac-split"
+    printf "\n" >> "$CONFIG_FILE"
+    echo "zkevm.standalone-smt-db: false" >> "$CONFIG_FILE"
+    echo "zkevm.enable-async-commit: false" >> "$CONFIG_FILE"
+fi
 
 # Run Erigon to first stop
 echo "[$(date)] Running Erigon to BlockHeight: $firstStop"
 ./build/bin/cdk-erigon \
     --datadir="$dataPath/rpc-datadir" \
-    --config="zk/tests/unwinds/config/dynamic-integration8.yaml" \
+    --config="$CONFIG_FILE" \
     --debug.limit="$firstStop"
 
 dump_data "$firstStop" "sync to first stop"
@@ -87,18 +108,28 @@ dump_data "$firstStop" "sync to first stop"
 echo "[$(date)] Running Erigon to BlockHeight: $secondStop"
 ./build/bin/cdk-erigon \
     --datadir="$dataPath/rpc-datadir" \
-    --config="zk/tests/unwinds/config/dynamic-integration8.yaml" \
+    --config="$CONFIG_FILE" \
     --debug.limit="$secondStop"
 
 dump_data "$secondStop" "sync to second stop"
 
 # Unwind to first stop
 echo "[$(date)] Unwinding to batch: $unwindBatch"
-go run ./cmd/integration state_stages_zkevm \
-    --datadir="$dataPath/rpc-datadir" \
-    --config="zk/tests/unwinds/config/dynamic-integration8.yaml" \
-    --chain=dynamic-integration \
-    --unwind-batch-no="$unwindBatch" || { echo "Failed to unwind"; exit 1; }
+if [ "$AC_SPLIT" = "ac-split" ]; then
+    go run ./cmd/integration state_stages_zkevm \
+        --datadir="$dataPath/rpc-datadir" \
+        --config="$CONFIG_FILE" \
+        --chain=dynamic-integration \
+        --unwind-batch-no="$unwindBatch" \
+        --standalone-smt-db=true \
+        --smt-db-path="$dataPath/rpc-datadir/smt"|| { echo "Failed to unwind"; exit 1; }
+else
+    go run ./cmd/integration state_stages_zkevm \
+        --datadir="$dataPath/rpc-datadir" \
+        --config="$CONFIG_FILE" \
+        --chain=dynamic-integration \
+        --unwind-batch-no="$unwindBatch" || { echo "Failed to unwind"; exit 1; }
+fi
 
 dump_data "${firstStop}-unwound" "after unwind"
 
@@ -145,6 +176,16 @@ compare_dumps() {
             exit 1
         fi
 
+        # ignore key "lastHeight" in HermezSmtStats.txt (hex 6c617374486569676874)
+        if [[ "$filename" == "HermezSmtStats.txt" ]]; then
+            found=`grep "6c617374486569676874" $file || true`
+            if [ -z "$found" ]; then
+                # remove key "lastHeight" from comparison file
+                cat $file_comparison | grep -v "6c617374486569676874" | tee temp.txt > /dev/null
+                mv temp.txt $file_comparison
+            fi
+        fi
+
         if cmp -s "$file" "$file_comparison"; then
             # No difference; do nothing
             :
@@ -170,7 +211,7 @@ compare_dumps "$dataPath/${firstStop}" "$dataPath/${firstStop}-unwound" "Unwind 
 echo "[$(date)] Resyncing Erigon to second stop: $secondStop"
 ./build/bin/cdk-erigon \
     --datadir="$dataPath/rpc-datadir" \
-    --config="zk/tests/unwinds/config/dynamic-integration8.yaml" \
+    --config="$CONFIG_FILE" \
     --debug.limit="$secondStop"
 
 dump_data "${secondStop}-sync-again" "after resyncing to second stop"
@@ -185,3 +226,5 @@ second_comparison_expected_diffs=(
 compare_dumps "$dataPath/${secondStop}" "$dataPath/${secondStop}-sync-again" "Sync forward again" second_comparison_expected_diffs[@]
 
 echo "[$(date)] No error"
+
+rm $CONFIG_FILE
