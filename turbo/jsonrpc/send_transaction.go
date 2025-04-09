@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ledgerwatch/log/v3"
 	"math/big"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -29,7 +28,6 @@ func (api *APIImpl) SendRawTransaction(ctx context.Context, encodedTx hexutility
 }
 
 func (api *APIImpl) sendRawTransactionSingle(ctx context.Context, encodedTx hexutility.Bytes) (common.Hash, error) {
-	log.Info("rawTx singleTx sendRawTransactionSingle")
 	t := utils.StartTimer("rpc", "sendrawtransaction")
 	defer t.LogTimer()
 
@@ -53,7 +51,6 @@ func (api *APIImpl) sendRawTransactionSingle(ctx context.Context, encodedTx hexu
 
 		return api.sendTxZk(api.l2RpcUrl, encodedTx, chainId.Uint64())
 	}
-	log.Info("rawTx singleTx sendRawTransactionSingle", "decode", encodedTx)
 	txn, err := types.DecodeWrappedTransaction(encodedTx)
 	if err != nil {
 		return common.Hash{}, err

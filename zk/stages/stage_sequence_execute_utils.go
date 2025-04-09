@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -93,8 +92,7 @@ type SequenceBlockCfg struct {
 
 	infoTreeUpdater *l1infotree.Updater
 
-	decodedTxCache *expirable.LRU[common.Hash, *types.Transaction]
-	doneHook       DoneHook
+	doneHook DoneHook
 }
 
 func StageSequenceBlocksCfg(
@@ -127,7 +125,6 @@ func StageSequenceBlocksCfg(
 	infoTreeUpdater *l1infotree.Updater,
 	doneHook DoneHook,
 ) SequenceBlockCfg {
-	decodedTxCache := expirable.NewLRU[common.Hash, *types.Transaction](zk.SequencerDecodedTxCacheSize, nil, zk.SequencerDecodedTxCacheTTL)
 	return SequenceBlockCfg{
 		db:               db,
 		dbsmt:            dbsmt,
@@ -154,7 +151,6 @@ func StageSequenceBlocksCfg(
 		legacyVerifier:   legacyVerifier,
 		yieldSize:        yieldSize,
 		infoTreeUpdater:  infoTreeUpdater,
-		decodedTxCache:   decodedTxCache,
 		doneHook:         doneHook,
 	}
 }

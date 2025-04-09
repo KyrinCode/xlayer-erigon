@@ -7,8 +7,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
 
-	"io"
-
 	mapset "github.com/deckarep/golang-set/v2"
 	types2 "github.com/ledgerwatch/erigon-lib/types"
 	"github.com/ledgerwatch/erigon/core"
@@ -90,36 +88,11 @@ func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg 
 	transactions := make([]types.Transaction, 0, len(slot.Txs))
 	toRemove := make([]common.Hash, 0)
 
-	for idx, txBytes := range slot.Txs {
-		var err error = nil
+	for idx, _ := range slot.Txs {
 		var transaction types.Transaction
 
-		if slot.DecodedTxs[idx] != nil {
-			// TODO: [cliff] need to handle other case
-			transaction = slot.DecodedTxs[idx].(*types.LegacyTx)
-			//transaction = &*txPtr
-		} else {
-			txPtr, found := cfg.decodedTxCache.Get(slot.TxIds[idx])
-			if !found {
-				transaction, err = types.DecodeTransaction(txBytes)
-				if err == io.EOF {
-					continue
-				}
-				if err != nil {
-					// we have a transaction that cannot be decoded or a similar issue.  We don't want to handle
-					// this tx so just WARN about it and remove it from the pool and continue
-					log.Warn("[extractTransaction] Failed to decode transaction from pool, skipping and removing from pool",
-						"error", err,
-						"id", slot.TxIds[idx])
-					toRemove = append(toRemove, slot.TxIds[idx])
-					continue
-				}
-				cfg.decodedTxCache.Add(slot.TxIds[idx], &transaction)
-			} else {
-				transaction = *txPtr
-			}
-
-		}
+		// TODO: [cliff] we only have LegacyTx
+		transaction = slot.DecodedTxs[idx].(*types.LegacyTx)
 
 		// Recover sender later only for those transactions that are included in the block
 		transactions = append(transactions, transaction)
