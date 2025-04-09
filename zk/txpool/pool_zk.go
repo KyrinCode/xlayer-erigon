@@ -239,7 +239,6 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 
 	best := p.pending.best
 
-	log.Info("resize_len", "len", uint(cmp.Min(int(n), len(best.ms))))
 	txs.Resize(uint(cmp.Min(int(n), len(best.ms))))
 	var toRemove []*metaTx
 	count := 0
@@ -274,7 +273,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 			//log.Trace("Skipping transaction with too high gas", "txID", mt.Tx.IDHash, "gas", mt.Tx.Gas)
 			continue
 		}
-		rlpTx, sender, isLocal, err := p.getRlpLocked(tx, mt.Tx.IDHash[:])
+		rlpTx, decodedTx, sender, isLocal, err := p.getRlpLocked(tx, mt.Tx.IDHash[:])
 		if err != nil {
 			//log.Trace("Error getting RLP of transaction", "txID", mt.Tx.IDHash, "error", err)
 			return false, count, toRemove, err
@@ -309,6 +308,7 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 
 		//log.Trace("Including transaction", "txID", mt.Tx.IDHash)
 		txs.Txs[count] = rlpTx
+		txs.DecodedTxs[count] = decodedTx
 		txs.TxIds[count] = mt.Tx.IDHash
 		copy(txs.Senders.At(count), sender.Bytes())
 		txs.IsLocal[count] = isLocal

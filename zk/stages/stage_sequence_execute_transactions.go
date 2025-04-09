@@ -93,24 +93,32 @@ func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg 
 	for idx, txBytes := range slot.Txs {
 		var err error = nil
 		var transaction types.Transaction
-		txPtr, found := cfg.decodedTxCache.Get(slot.TxIds[idx])
-		if !found {
-			transaction, err = types.DecodeTransaction(txBytes)
-			if err == io.EOF {
-				continue
-			}
-			if err != nil {
-				// we have a transaction that cannot be decoded or a similar issue.  We don't want to handle
-				// this tx so just WARN about it and remove it from the pool and continue
-				log.Warn("[extractTransaction] Failed to decode transaction from pool, skipping and removing from pool",
-					"error", err,
-					"id", slot.TxIds[idx])
-				toRemove = append(toRemove, slot.TxIds[idx])
-				continue
-			}
-			cfg.decodedTxCache.Add(slot.TxIds[idx], &transaction)
+
+		if slot.DecodedTxs[idx] != nil {
+			// TODO: [cliff] need to handle other case
+			transaction = slot.DecodedTxs[idx].(*types.LegacyTx)
+			//transaction = &*txPtr
 		} else {
-			transaction = *txPtr
+			txPtr, found := cfg.decodedTxCache.Get(slot.TxIds[idx])
+			if !found {
+				transaction, err = types.DecodeTransaction(txBytes)
+				if err == io.EOF {
+					continue
+				}
+				if err != nil {
+					// we have a transaction that cannot be decoded or a similar issue.  We don't want to handle
+					// this tx so just WARN about it and remove it from the pool and continue
+					log.Warn("[extractTransaction] Failed to decode transaction from pool, skipping and removing from pool",
+						"error", err,
+						"id", slot.TxIds[idx])
+					toRemove = append(toRemove, slot.TxIds[idx])
+					continue
+				}
+				cfg.decodedTxCache.Add(slot.TxIds[idx], &transaction)
+			} else {
+				transaction = *txPtr
+			}
+
 		}
 
 		// Recover sender later only for those transactions that are included in the block
