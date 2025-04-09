@@ -28,6 +28,9 @@ import (
 
 var shouldCheckForExecutionAndDataStreamAlignment = true
 
+// For X Layer, for auto recovery
+var shouldCheckForExecutionAndSMTAlignment = SMTAlignmentInit
+
 // For X Layer, for local replay feature
 var externalDataStreamServerCreated = false
 
@@ -80,6 +83,11 @@ func SpawnSequencingStage(
 		}
 	}
 
+	// For X Layer, for auto recovery
+	if lastBatch < highestBatchInDs && shouldCheckForExecutionAndSMTAlignment == SMTAlignmentPendingResequence {
+		return resequenceFromSMTAlignment(s, u, ctx, cfg, historyCfg, lastBatch, highestBatchInDs)
+	}
+
 	if lastBatch < highestBatchInDs {
 		return resequence(s, u, ctx, cfg, historyCfg, lastBatch, highestBatchInDs)
 	}
@@ -90,19 +98,32 @@ func SpawnSequencingStage(
 		return nil
 	}
 
+	if cfg.zk.XLayer.EnableAsyncCommit {
+		s.FlushSmtCacheWait()
+	}
+
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
 		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
 
-		// enable split smt db
-		err = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase, false)
+		s.FlushSmtCacheSignalInc()
+		go func() {
+			defer s.FlushSmtCacheDone()
+			// enable split smt db
+			_ = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase, false)
+		}()
 	} else {
 		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
 
-		//s.ResetCurrentBatchCache(s.BlockNumber)
+		s.FlushSmtCacheSignalInc()
+		go func() {
+			defer s.FlushSmtCacheDone()
+
+			s.ResetCurrentBatchCache(s.BlockNumber)
+		}()
 	}
 
 	return err
@@ -197,6 +218,49 @@ func sequencingBatchStep(
 		}
 
 		return sdb.Commit(s, executionAt+1, true)
+	}
+
+	// For X Layer, for auto recovery
+	if shouldCheckForExecutionAndSMTAlignment == SMTAlignmentInit {
+		if !batchState.isAnyRecovery() {
+			smtMaxBlockNumber, err := sdb.eridb.GetLastHeight()
+			if err != nil {
+				log.Error(fmt.Sprintf("[%s] Failed to get smt max block number", logPrefix), "error", err, "smtMaxBlockNumber", smtMaxBlockNumber)
+				return err
+			}
+			if smtMaxBlockNumber != 0 && smtMaxBlockNumber < executionAt {
+				batchNo, err := sdb.hermezDb.GetBatchNoByL2Block(smtMaxBlockNumber)
+				if err != nil || batchNo == 0 {
+					log.Error(fmt.Sprintf("[%s] Failed to get smt max block number, or batchNo is 0", logPrefix), "error", err, "smtMaxBlockNumber", smtMaxBlockNumber, "batchNo", batchNo)
+					return err
+				}
+				highestBlockInBatch, _, err := sdb.hermezDb.GetHighestBlockInBatch(batchNo)
+				if err != nil {
+					log.Error(fmt.Sprintf("[%s] Failed to get highest block in batch", logPrefix), "error", err, "batchNo", batchNo, "highestBlockInBatch", highestBlockInBatch)
+					return err
+				}
+				log.Info(fmt.Sprintf("[%s] Checking for SMT alignment", logPrefix), "executionAt", executionAt, "smtMaxBlockNumber", smtMaxBlockNumber, "highestBlockInBatch", highestBlockInBatch)
+
+				isUnwinding, err := unwindExecutionToSMT(batchContext, executionAt, highestBlockInBatch, u)
+				if err != nil {
+					return err
+				}
+				if isUnwinding {
+					err = sdb.tx.Commit()
+					if err != nil {
+						return err
+					}
+					// set to pending resequence state
+					shouldCheckForExecutionAndSMTAlignment = SMTAlignmentPendingResequence
+					log.Info(fmt.Sprintf("[%s] SMT alignment check triggered resequence", logPrefix))
+					return nil
+				}
+			}
+		}
+
+		// set to terminated state, indicating verification is completed
+		shouldCheckForExecutionAndSMTAlignment = SMTAlignmentTerminated
+		log.Info(fmt.Sprintf("[%s] SMT alignment check completed", logPrefix))
 	}
 
 	if shouldCheckForExecutionAndDataStreamAlignment {
@@ -343,9 +407,6 @@ func sequencingBatchStep(
 			}
 		}
 
-		// For X Layer
-		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
-
 		header, parentBlock, err := prepareHeader(sdb.tx, blockNumber-1, batchState.blockState.getDeltaTimestamp(), batchState.getBlockHeaderForcedTimestamp(), batchState.forkId, batchState.getCoinbase(&cfg), cfg.chainConfig, cfg.miningConfig)
 		if err != nil {
 			return err
@@ -455,9 +516,10 @@ func sequencingBatchStep(
 					return err
 				}
 
-				// For X Layer, local replay's feature of stateroot mismatch detection
-				if cfg.zk.XLayer.SequencerReplay {
+				// For X Layer, local replay and smt alignment's feature of stateroot mismatch detection
+				if cfg.zk.XLayer.SequencerReplay || shouldCheckForExecutionAndSMTAlignment == SMTAlignmentPendingResequence {
 					stateRootBeforeReplay = batchState.resequenceBatchJob.CurrentBlock().StateRoot
+					log.Info(fmt.Sprintf("[%s] State root before replay", logPrefix), "stateRoot", stateRootBeforeReplay)
 				}
 			} else if !batchState.isL1Recovery() {
 
@@ -772,6 +834,7 @@ func sequencingBatchStep(
 		}
 
 		// For X Layer
+		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
 		// Count successful transactions
 		metrics.SeqTxCount.Add(float64(len(batchState.blockState.builtBlockElements.transactions)))
 		metrics.GetLogStatistics().CumulativeValue(metrics.TxCounter, int64(len(batchState.blockState.builtBlockElements.transactions)))
@@ -843,8 +906,8 @@ func sequencingBatchStep(
 
 		cfg.legacyVerifier.StartAsyncVerification(batchContext.s.LogPrefix(), batchState.forkId, batchState.batchNumber, block.Root(), counters.UsedAsMap(), batchState.builtBlocks, useExecutorForVerification, batchContext.cfg.zk.XLayer.ExecutorMock, batchContext.cfg.zk.SequencerBatchVerificationTimeout, batchContext.cfg.zk.SequencerBatchVerificationRetries)
 
-		// For X Layer, local replay's feature of stateroot mismatch detection
-		if cfg.zk.XLayer.SequencerReplay {
+		// For X Layer, local replay and smt alignment's feature of stateroot mismatch detection
+		if cfg.zk.XLayer.SequencerReplay || shouldCheckForExecutionAndSMTAlignment == SMTAlignmentPendingResequence {
 			if stateRootBeforeReplay != block.Root() {
 				err := fmt.Errorf("[%s] State root mismatch of block %d after resequencing, expected %s, got %s",
 					logPrefix,

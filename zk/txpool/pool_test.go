@@ -87,7 +87,7 @@ func TestNonceFromAddress(t *testing.T) {
 		var txSlots types.TxSlots
 		txSlot1 := &types.TxSlot{
 			Tip:    *uint256.NewInt(300000),
-			FeeCap: *uint256.NewInt(300000),
+			FeeCap: *uint256.NewInt(1000000000),
 			Gas:    100000,
 			Nonce:  3,
 		}
@@ -112,14 +112,14 @@ func TestNonceFromAddress(t *testing.T) {
 		txSlots := types.TxSlots{}
 		txSlot2 := &types.TxSlot{
 			Tip:    *uint256.NewInt(300000),
-			FeeCap: *uint256.NewInt(300000),
+			FeeCap: *uint256.NewInt(1000000000),
 			Gas:    100000,
 			Nonce:  4,
 		}
 		txSlot2.IDHash[0] = 2
 		txSlot3 := &types.TxSlot{
 			Tip:    *uint256.NewInt(300000),
-			FeeCap: *uint256.NewInt(300000),
+			FeeCap: *uint256.NewInt(1000000000),
 			Gas:    100000,
 			Nonce:  6,
 		}
@@ -161,7 +161,7 @@ func TestNonceFromAddress(t *testing.T) {
 		var txSlots types.TxSlots
 		txSlot1 := &types.TxSlot{
 			Tip:    *uint256.NewInt(300000),
-			FeeCap: *uint256.NewInt(300000),
+			FeeCap: *uint256.NewInt(1000000000),
 			Gas:    100000,
 			Nonce:  1,
 		}
@@ -446,4 +446,250 @@ func BenchmarkSortingPerformance(b *testing.B) {
 			assert.True(b, isSorted(pool.best), "Second timsort.TimSort failed")
 		}
 	})
+}
+
+type addLocalTxsTest struct {
+	newTransactions types.TxSlots
+	expectReasons   []DiscardReason
+	discardIndex    []int
+	goodTxsIndex    []uint8
+	dupIndex        []uint8
+}
+
+func TestAddLocalTxsInParallel(t *testing.T) {
+	var tests = []addLocalTxsTest{
+		// Case1: single invalid transaction
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  1,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{NonceTooLow},
+			goodTxsIndex:  []uint8{},
+		},
+		// Case2: single valid transaction
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  3,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{Success},
+			goodTxsIndex:  []uint8{0},
+		},
+		// Case3: bulk transactions with invalid ones
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  4,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  5,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  1,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  6,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{Success, Expired, NonceTooLow, Success},
+			discardIndex:  []int{1},
+			goodTxsIndex:  []uint8{0x0, 0x3},
+		},
+		//  Case4: bulk transactions with no invalid ones
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  9,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  8,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  7,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{Success, Success, Success},
+			goodTxsIndex:  []uint8{0x0, 0x1, 0x2},
+		},
+		// Case5:
+		{
+			newTransactions: types.TxSlots{
+				Txs: []*types.TxSlot{
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  10,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  11,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  12,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  1,
+					},
+					{
+						Tip:    *uint256.NewInt(3_000_000),
+						FeeCap: *uint256.NewInt(1_000_000_000),
+						Gas:    100000,
+						Nonce:  14,
+					},
+				},
+			},
+			expectReasons: []DiscardReason{DuplicateHash, Expired, Success, NonceTooLow, Success},
+			goodTxsIndex:  []uint8{0x2, 0x4},
+			discardIndex:  []int{1},
+			dupIndex:      []uint8{0x0},
+		},
+	}
+	kv.InitStandaloneSMT(false)
+
+	assert, require := assert.New(t), require.New(t)
+	ch := make(chan types.Announcements, 100)
+	_, coreDB, _ := temporaltest.NewTestDB(t, datadir.New(t.TempDir()))
+	defer coreDB.Close()
+
+	db := memdb.NewTestPoolDB(t)
+	path := fmt.Sprintf("/tmp/db-test-%v", time.Now().UTC().Format(time.RFC3339Nano))
+	txPoolDB := newTestTxPoolDB(t, path)
+	defer txPoolDB.Close()
+	aclsDB := newTestACLDB(t, path)
+	defer aclsDB.Close()
+
+	// Check if the dbs are created.
+	require.NotNil(t, db)
+	require.NotNil(t, txPoolDB)
+	require.NotNil(t, aclsDB)
+
+	cfg := txpoolcfg.DefaultConfig
+	ethCfg := &ethconfig.Defaults
+	sendersCache := kvcache.New(kvcache.DefaultCoherentConfig)
+	pool, err := New(ch, coreDB, cfg, ethCfg, sendersCache, *u256.N1, nil, nil, aclsDB)
+	assert.NoError(err)
+	require.True(pool != nil)
+	ctx := context.Background()
+	var stateVersionID uint64 = 0
+	pendingBaseFee := uint64(200000)
+	h1 := gointerfaces.ConvertHashToH256([32]byte{})
+
+	// Create address for testing.
+	var addr [20]byte
+	addr[0] = 1
+
+	// Fund addr with 18 Ether for sending transactions.
+	v := make([]byte, types.EncodeSenderLengthForStorage(2, *uint256.NewInt(18 * common.Ether)))
+	types.EncodeSender(2, *uint256.NewInt(18 * common.Ether), v)
+
+	change := &remote.StateChangeBatch{
+		StateVersionId:      stateVersionID,
+		PendingBlockBaseFee: pendingBaseFee,
+		BlockGasLimit:       1000000,
+		ChangeBatch: []*remote.StateChange{
+			{BlockHeight: 0, BlockHash: h1},
+		},
+	}
+	change.ChangeBatch[0].Changes = append(change.ChangeBatch[0].Changes, &remote.AccountChange{
+		Action:  remote.Action_UPSERT,
+		Address: gointerfaces.ConvertAddressToH160(addr),
+		Data:    v,
+	})
+	tx, err := db.BeginRw(ctx)
+	require.NoError(err)
+	defer tx.Rollback()
+	err = pool.OnNewBlock(ctx, change, types.TxSlots{}, types.TxSlots{}, tx)
+	assert.NoError(err)
+
+	dupIDHash := [32]byte{}
+	dupIDHash[0] = 1
+	pool.byHash[string(dupIDHash[:])] = &metaTx{}
+
+	var txCount = 2
+	for _, test := range tests {
+		var txSlots types.TxSlots
+		for i, tx := range test.newTransactions.Txs {
+			tx.IDHash[0] = byte(i + txCount)
+			txSlots.Append(tx, addr[:], true)
+		}
+
+		for _, index := range test.discardIndex {
+			pool.discardReasonsLRU.Add(string(test.newTransactions.Txs[index].IDHash[:]), Expired)
+		}
+
+		for _, index := range test.dupIndex {
+			txSlots.Txs[index].IDHash[0] = 1
+		}
+
+		var tx kv.Tx
+		tx, err = txPoolDB.BeginRw(ctx)
+		require.NoError(err)
+		defer tx.Rollback()
+
+		resaons, err := pool.AddLocalTxs(ctx, txSlots, tx)
+		if err != nil {
+			t.Logf("AddLocalTxs failed: %v", err)
+		}
+		assert.NoError(err)
+		t.Logf("After AddLocalTxs, promoted len: %d", pool.promoted.Len())
+
+		for i, expect := range test.expectReasons {
+			assert.Equal(expect, resaons[i], "The discard reason is wrong")
+		}
+
+		for i, expect := range test.goodTxsIndex {
+			_, _, actual := pool.promoted.At(i)
+			assert.Equal(expect+uint8(txCount), actual[0], "The good transaction is wrong")
+		}
+
+		txCount += len(test.newTransactions.Txs)
+		tx.Commit()
+	}
 }

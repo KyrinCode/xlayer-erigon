@@ -826,21 +826,21 @@ func (p *TxPool) validateTx(txn *types.TxSlot, isLocal bool, stateCache kvcache.
 	}
 
 	// X Layer check if sender is blocked
-	if p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, from) {
+	if p.apolloCfg != nil && p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, from) {
 		log.Info(fmt.Sprintf("TX TRACING: validateTx sender is blocked idHash=%x, txn.sender=%s", txn.IDHash, from))
 		return SenderDisallowedSendTx
 	}
 
 	// X Layer check if receiver is blocked
 	if !txn.Creation {
-		if p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, txn.To) {
+		if p.apolloCfg != nil && p.apolloCfg.CheckBlockedAddr(p.xlayerCfg.BlockedList, txn.To) {
 			log.Info(fmt.Sprintf("TX TRACING: validateTx receiver is blocked idHash=%x, txn.receiver=%s", txn.IDHash, from))
 			return ReceiverDisallowedReceiveTx
 		}
 	}
 
 	// X Layer check if sender is whitelisted
-	if p.apolloCfg.GetEnableWhitelist(p.xlayerCfg.EnableWhitelist) && !p.apolloCfg.CheckWhitelistAddr(p.xlayerCfg.WhiteList, from) {
+	if p.apolloCfg != nil && p.apolloCfg.GetEnableWhitelist(p.xlayerCfg.EnableWhitelist) && !p.apolloCfg.CheckWhitelistAddr(p.xlayerCfg.WhiteList, from) {
 		log.Info(fmt.Sprintf("TX TRACING: validateTx sender is not whitelisted idHash=%x, txn.sender=%s", txn.IDHash, from))
 		return NoWhiteListedSender
 	}
@@ -981,18 +981,16 @@ func (p *TxPool) punishSpammer(spammer uint64) {
 }
 
 func fillDiscardReasons(reasons []DiscardReason, newTxs types.TxSlots, discardReasonsLRU *simplelru.LRU[string, DiscardReason]) []DiscardReason {
-	j := 0
 	for i := range reasons {
 		if reasons[i] != NotSet {
 			continue
 		}
-		reason, ok := discardReasonsLRU.Get(string(newTxs.Txs[j].IDHash[:]))
+		reason, ok := discardReasonsLRU.Get(string(newTxs.Txs[i].IDHash[:]))
 		if ok {
 			reasons[i] = reason
 		} else {
 			reasons[i] = Success
 		}
-		j++
 	}
 	return reasons
 }
@@ -1029,12 +1027,19 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 		return nil, err
 	}
 
+	validIndices := make([]int, 0, len(newTxs.Txs))
+	for i, reason := range reasons {
+		if reason == NotSet {
+			validIndices = append(validIndices, i)
+		}
+	}
+
 	announcements, addReasons, err := p.addTxs(p.lastSeenBlock.Load(), cacheView, p.senders, newTxs,
 		p.pendingBaseFee.Load(), p.blockGasLimit.Load(), p.pending, p.baseFee, p.queued, p.all, p.byHash, p.addLocked, p.discardLocked, true)
 	if err == nil {
 		for i, reason := range addReasons {
 			if reason != NotSet {
-				reasons[i] = reason
+				reasons[validIndices[i]] = reason
 			}
 		}
 	} else {
@@ -1043,16 +1048,14 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 	p.promoted.Reset()
 	p.promoted.AppendOther(announcements)
 
-	reasons = fillDiscardReasons(reasons, newTxs, p.discardReasonsLRU)
-	i := 0
-	for _, reason := range reasons {
+	reasons = fillDiscardReasons(reasons, newTransactions, p.discardReasonsLRU)
+	for i, reason := range reasons {
 		if reason == Success {
-			txn := newTxs.Txs[i]
+			txn := newTransactions.Txs[i]
 			if txn.Traced {
 				log.Info(fmt.Sprintf("TX TRACING: AddLocalTxs promotes idHash=%x, senderId=%d", txn.IDHash, txn.SenderID))
 			}
 			p.promoted.Append(txn.Type, txn.Size, txn.IDHash[:])
-			i++
 		}
 	}
 	if p.promoted.Len() > 0 {
