@@ -17,10 +17,10 @@ import (
 )
 
 func main() {
-	// 命令行参数解析
-	mdbxPath := flag.String("mdbx", "", "源MDBX数据库路径")
-	rocksdbPath := flag.String("rocksdb", "", "目标RocksDB数据库路径")
-	verbose := flag.Bool("verbose", false, "是否输出详细日志")
+	// Command-line argument parsing
+	mdbxPath := flag.String("mdbx", "", "Path to the source MDBX database")
+	rocksdbPath := flag.String("rocksdb", "", "Path to the target RocksDB database")
+	verbose := flag.Bool("verbose", false, "Whether to output detailed logs")
 	flag.Parse()
 
 	if *mdbxPath == "" || *rocksdbPath == "" {
@@ -28,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 配置日志
+	// Configure logging
 	logger := log.New()
 	if *verbose {
 		logger.SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StderrHandler))
@@ -36,13 +36,13 @@ func main() {
 		logger.SetHandler(log.LvlFilterHandler(log.LvlWarn, log.StderrHandler))
 	}
 
-	// 确保目标目录存在
+	// Configure logging
 	if err := os.MkdirAll(*rocksdbPath, 0755); err != nil {
 		logger.Error("Failed to create target directory", "path", *rocksdbPath, "error", err)
 		os.Exit(1)
 	}
 
-	// 打开源MDBX数据库
+	// Open the source MDBX database
 	logger.Info("Opening source MDBX database", "path", *mdbxPath)
 	srcDB, err := openMDBX(*mdbxPath, logger)
 	if err != nil {
@@ -51,7 +51,7 @@ func main() {
 	}
 	defer srcDB.Close()
 
-	// 打开目标RocksDB数据库
+	// Open the target RocksDB database
 	logger.Info("Opening target RocksDB database", "path", *rocksdbPath)
 	dstDB, err := openRocksDB(*rocksdbPath, logger)
 	if err != nil {
@@ -60,11 +60,11 @@ func main() {
 	}
 	defer dstDB.Close()
 
-	// 开始转换过程
+	// Start the conversion process
 	startTime := time.Now()
 	logger.Info("Starting database conversion")
 
-	// 获取所有表名
+	// Get all table names
 	var tableNames []string
 	if err := srcDB.View(context.Background(), func(tx kv.Tx) error {
 		tables, err := tx.ListBuckets()
@@ -78,7 +78,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 创建目标表
+	// Create target tables
 	if err := dstDB.Update(context.Background(), func(tx kv.RwTx) error {
 		for _, table := range tableNames {
 			if err := tx.CreateBucket(table); err != nil {
@@ -91,18 +91,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 设置进度报告变量
+	// Set up progress reporting variables
 	totalRecords := int64(0)
 	processedRecords := int64(0)
 	lastProgressReport := time.Now()
 
-	// 逐表转换数据
+	// Convert data table by table
 	for _, table := range tableNames {
 		logger.Info("Converting table", "name", table)
 		tableStartTime := time.Now()
 		recordCount := int64(0)
 
-		// 开始数据迁移事务
+		// Start data migration transaction
 		if err := srcDB.View(context.Background(), func(srcTx kv.Tx) error {
 			return dstDB.Update(context.Background(), func(dstTx kv.RwTx) error {
 				srcCursor, err := srcTx.Cursor(table)
@@ -117,19 +117,19 @@ func main() {
 				}
 				defer dstCursor.Close()
 
-				// 按批次处理记录，以避免单个大事务
+				// Process records in batches to avoid a single large transaction
 				batchSize := 10000
 				batch := make([]struct {
 					k, v []byte
 				}, 0, batchSize)
 
-				// 遍历源数据库中的记录
+				// Iterate over records in the source database
 				for k, v, err := srcCursor.First(); k != nil; k, v, err = srcCursor.Next() {
 					if err != nil {
 						return err
 					}
 
-					// 复制键值，因为游标可能会在下一次迭代中重用相同的内存
+					// Copy key and value since the cursor might reuse the same memory in the next iteration
 					keyCopy := make([]byte, len(k))
 					valueCopy := make([]byte, len(v))
 					copy(keyCopy, k)
@@ -142,16 +142,14 @@ func main() {
 					recordCount++
 					processedRecords++
 
-					// 当批次达到大小限制或是最后一批时，提交到目标数据库
 					if len(batch) >= batchSize {
 						for _, item := range batch {
 							if err := dstCursor.Put(item.k, item.v); err != nil {
 								return err
 							}
 						}
-						batch = batch[:0] // 清空批次
+						batch = batch[:0]
 
-						// 定期报告进度
 						if time.Since(lastProgressReport) > 5*time.Second {
 							logger.Info("Conversion progress",
 								"processed", processedRecords,
@@ -162,7 +160,6 @@ func main() {
 					}
 				}
 
-				// 处理最后一批
 				for _, item := range batch {
 					if err := dstCursor.Put(item.k, item.v); err != nil {
 						return err
@@ -185,7 +182,6 @@ func main() {
 			"speed", fmt.Sprintf("%.0f records/sec", float64(recordCount)/tableElapsed.Seconds()))
 	}
 
-	// 完成转换
 	elapsed := time.Since(startTime)
 	logger.Info("Conversion completed successfully",
 		"total_records", totalRecords,
@@ -193,7 +189,6 @@ func main() {
 		"avg_speed", fmt.Sprintf("%.0f records/sec", float64(totalRecords)/elapsed.Seconds()))
 }
 
-// 打开MDBX数据库
 func openMDBX(path string, logger log.Logger) (kv.RwDB, error) {
 	roTxLimit := int64(32)
 	roTxsLimiter := semaphore.NewWeighted(roTxLimit)
@@ -206,7 +201,6 @@ func openMDBX(path string, logger log.Logger) (kv.RwDB, error) {
 	return opts.Open(context.Background())
 }
 
-// 打开RocksDB数据库
 func openRocksDB(path string, logger log.Logger) (kv.RwDB, error) {
 	targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
 	if targetSemCount <= 0 {
