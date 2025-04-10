@@ -52,6 +52,12 @@ func (l *statisticsInstance) CumulativeMicroTiming(tag LogTag, duration time.Dur
 	l.statistics[tag] += duration.Microseconds()
 }
 
+func (l *statisticsInstance) SetTiming(tag LogTag, duration time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.statistics[tag] = duration.Milliseconds()
+}
+
 func (l *statisticsInstance) SetTag(tag LogTag, value string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -221,6 +227,8 @@ func (l *statisticsInstance) Summary() string {
 	deleteTime := l.statistics[Delete]
 	appendTime := l.statistics[Append]
 	putTime := l.statistics[Put]
+
+	flushSmtCacheWait := l.statistics[FlushSmtCacheWait]
 	l.mu.RUnlock()
 
 	txProcessDetails := fmt.Sprintf("{ getTx[%dms], getTxPause[%dms] }", getTxTiming, getTxPauseTiming)
@@ -243,7 +251,8 @@ func (l *statisticsInstance) Summary() string {
 	result := fmt.Sprintf("Batch<%s>, Blocks<%d>, Txs<%d>, TotalDuration-batch<%dms> { SequencingBatchTiming<%dms> { ProcessTxTiming<%dms> %s, PbStateTiming<%dms>, ZkIncIntermediateHashesTiming<%dms> %s, FinaliseBlockWriteTiming<%dms>, BatchCommitDBTiming<%dms> } }"+
 		", GasUsed<%d>, GetTxPause<%d>, "+
 		"GasOverTx<%d>, ZKOverflowBlock<%d>, InvalidTx<%d>, "+
-		"zkHashAccCount<account:%d, storage:%d, code:%d>",
+		"zkHashAccCount<account:%d, storage:%d, code:%d>, "+
+		"FlushSmtCacheWait<%dms>",
 		batch, blockCount, tx, batchDuration,
 		sequencingBatchTiming,
 		processTxTiming, txProcessDetails,
@@ -253,26 +262,26 @@ func (l *statisticsInstance) Summary() string {
 		batchCommitDBTiming,
 		gasUsed, getTxPause,
 		gasOverTx, zkOverflowBlock, invalidTx,
-		zkHashAccountCount, zkHashStoreCount, zkHashCodeCount)
+		zkHashAccountCount, zkHashStoreCount, zkHashCodeCount, flushSmtCacheWait)
 
 	log.Info(result)
-	
+
 	// Report metrics to Prometheus
 	// Batch level metrics
 	SeqBatchDuration.Set(float64(batchDuration))
 	SeqSequencingBatchTiming.Set(float64(sequencingBatchTiming))
-	
+
 	// Process transaction metrics
 	SeqProcessTxTiming.Set(float64(processTxTiming))
 	SeqGetTxTiming.Set(float64(getTxTiming))
 	SeqGetTxPauseTiming.Set(float64(getTxPauseTiming))
-	
+
 	// State and finalization metrics
 	SeqPbStateTiming.Set(float64(pbStateTiming))
 	SeqZkIncIntermediateHashesTiming.Set(float64(zkIncIntermediateHashesTiming))
 	SeqFinaliseBlockWriteTiming.Set(float64(finaliseBlockWriteTiming))
 	SeqBatchCommitDBTiming.Set(float64(batchCommitDBTiming))
-	
+
 	l.resetStatistics()
 	return result
 }
