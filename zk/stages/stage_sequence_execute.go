@@ -102,7 +102,7 @@ func SpawnSequencingStage(
 	if cfg.zk.XLayer.EnableAsyncCommit {
 		s.FlushSmtCacheWait()
 	}
-	metrics.GetLogStatistics().CumulativeMicroTiming(metrics.FlushSmtCacheWait, time.Since(startWaitTime))
+	metrics.GetLogStatistics().CumulativeTiming(metrics.FlushSmtCacheWait, time.Since(startWaitTime))
 
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
 		if !cfg.zk.XLayer.EnableAsyncCommit {
