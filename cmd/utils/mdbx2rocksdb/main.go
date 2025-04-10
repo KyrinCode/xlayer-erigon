@@ -16,6 +16,11 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+type dataPair struct {
+	k []byte
+	v []byte
+}
+
 func main() {
 	// Command-line argument parsing
 	mdbxPath := flag.String("mdbx", "", "Path to the source MDBX database")
@@ -93,83 +98,15 @@ func main() {
 
 	// Set up progress reporting variables
 	totalRecords := int64(0)
-	processedRecords := int64(0)
-	lastProgressReport := time.Now()
 
 	// Convert data table by table
 	for _, table := range tableNames {
 		logger.Info("Converting table", "name", table)
 		tableStartTime := time.Now()
-		recordCount := int64(0)
 
-		// Start data migration transaction
-		if err := srcDB.View(context.Background(), func(srcTx kv.Tx) error {
-			return dstDB.Update(context.Background(), func(dstTx kv.RwTx) error {
-				srcCursor, err := srcTx.Cursor(table)
-				if err != nil {
-					return err
-				}
-				defer srcCursor.Close()
-
-				dstCursor, err := dstTx.RwCursor(table)
-				if err != nil {
-					return err
-				}
-				defer dstCursor.Close()
-
-				// Process records in batches to avoid a single large transaction
-				batchSize := 10000
-				batch := make([]struct {
-					k, v []byte
-				}, 0, batchSize)
-
-				// Iterate over records in the source database
-				for k, v, err := srcCursor.First(); k != nil; k, v, err = srcCursor.Next() {
-					if err != nil {
-						return err
-					}
-
-					// Copy key and value since the cursor might reuse the same memory in the next iteration
-					keyCopy := make([]byte, len(k))
-					valueCopy := make([]byte, len(v))
-					copy(keyCopy, k)
-					copy(valueCopy, v)
-
-					batch = append(batch, struct {
-						k, v []byte
-					}{keyCopy, valueCopy})
-
-					recordCount++
-					processedRecords++
-
-					if len(batch) >= batchSize {
-						for _, item := range batch {
-							if err := dstCursor.Put(item.k, item.v); err != nil {
-								return err
-							}
-						}
-						batch = batch[:0]
-
-						if time.Since(lastProgressReport) > 5*time.Second {
-							logger.Info("Conversion progress",
-								"processed", processedRecords,
-								"table", table,
-								"elapsed", time.Since(startTime).Round(time.Second))
-							lastProgressReport = time.Now()
-						}
-					}
-				}
-
-				for _, item := range batch {
-					if err := dstCursor.Put(item.k, item.v); err != nil {
-						return err
-					}
-				}
-
-				return nil
-			})
-		}); err != nil {
-			logger.Error("Error during conversion", "table", table, "error", err)
+		recordCount, err := convertTable(table, srcDB, dstDB)
+		if err != nil {
+			logger.Error("Failed to convert table", "name", table, "error", err)
 			os.Exit(1)
 		}
 
@@ -212,4 +149,73 @@ func openRocksDB(path string, logger log.Logger) (kv.RwDB, error) {
 	writeTxLimiter := semaphore.NewWeighted(targetSemCount)
 
 	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, writeTxLimiter, false)
+}
+
+func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB) (int64, error) {
+	recordCount := int64(0)
+
+	// Process records in batches to avoid a single large transaction
+	batchSize := 10000
+	batch := make([]dataPair, 0, batchSize)
+
+	// Start data migration transaction
+	if err := srcDB.View(context.Background(), func(srcTx kv.Tx) error {
+		srcCursor, err := srcTx.Cursor(table)
+		if err != nil {
+			return err
+		}
+		defer srcCursor.Close()
+
+		// Iterate over records in the source database
+		for k, v, err := srcCursor.First(); k != nil; k, v, err = srcCursor.Next() {
+			if err != nil {
+				return err
+			}
+
+			// Copy key and value since the cursor might reuse the same memory in the next iteration
+			keyCopy := make([]byte, len(k))
+			valueCopy := make([]byte, len(v))
+			copy(keyCopy, k)
+			copy(valueCopy, v)
+
+			batch = append(batch, dataPair{k: keyCopy, v: valueCopy})
+			recordCount++
+
+			if len(batch) >= batchSize {
+				if err := putBatch(dstDB, table, batch); err != nil {
+					return err
+				}
+
+				batch = batch[:0]
+			}
+		}
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	if err := putBatch(dstDB, table, batch); err != nil {
+		return 0, err
+	}
+
+	return recordCount, nil
+}
+
+func putBatch(db kv.RwDB, table string, batch []dataPair) error {
+	if len(batch) == 0 {
+		return nil
+	}
+	return db.Update(context.Background(), func(dstTx kv.RwTx) error {
+		dstCursor, err := dstTx.RwCursor(table)
+		if err != nil {
+			return err
+		}
+		defer dstCursor.Close()
+
+		for _, item := range batch {
+			if err := dstCursor.Put(item.k, item.v); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
