@@ -52,12 +52,6 @@ func (l *statisticsInstance) CumulativeMicroTiming(tag LogTag, duration time.Dur
 	l.statistics[tag] += duration.Microseconds()
 }
 
-func (l *statisticsInstance) SetTiming(tag LogTag, duration time.Duration) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.statistics[tag] = duration.Milliseconds()
-}
-
 func (l *statisticsInstance) SetTag(tag LogTag, value string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -129,6 +123,8 @@ func (l *statisticsInstance) SummaryCheckpoint() string {
 	blockDelete := l.statistics[Delete] - l.statisticsOld[Delete]
 	blockAppend := l.statistics[Append] - l.statisticsOld[Append]
 	blockPut := l.statistics[Put] - l.statisticsOld[Put]
+
+	setSmtCacheTiming := l.statistics[SetSmtCacheTiming] - l.statisticsOld[SetSmtCacheTiming]
 	l.mu.RUnlock()
 
 	txProcessDetails := fmt.Sprintf("{ getTx[%dms], getTxPause[%dms] }",
@@ -160,7 +156,8 @@ func (l *statisticsInstance) SummaryCheckpoint() string {
 		"}, "+
 		"GasUsed<%d>, GetTxPause<%d>, "+
 		"GasOverTx<%d>, ZKOverflowBlock<%t>, InvalidTx<%d>, "+
-		"zkHashAccCount<account:%d, storage:%d, code:%d>",
+		"zkHashAccCount<account:%d, storage:%d, code:%d> "+
+		"SetSmtCacheTiming<%dms>",
 		block, blockTx, blockDuration,
 		blockProcessTxTiming, txProcessDetails,
 		blockPbStateTiming,
@@ -169,7 +166,7 @@ func (l *statisticsInstance) SummaryCheckpoint() string {
 		blockBatchCommitDBTiming,
 		blockGasUsed, blockGetTxPause,
 		blockGasOverTx, blockZkOverflowBlock, blockInvalidTx,
-		blockZKHashAccountCount, blockZKHashStoreCount, blockZKHashCodeCount)
+		blockZKHashAccountCount, blockZKHashStoreCount, blockZKHashCodeCount, setSmtCacheTiming)
 
 	log.Info(result)
 	l.mu.Lock()
@@ -229,6 +226,7 @@ func (l *statisticsInstance) Summary() string {
 	putTime := l.statistics[Put]
 
 	flushSmtCacheWait := l.statistics[FlushSmtCacheWait]
+	setSmtCacheTiming := l.statistics[SetSmtCacheTiming]
 	l.mu.RUnlock()
 
 	txProcessDetails := fmt.Sprintf("{ getTx[%dms], getTxPause[%dms] }", getTxTiming, getTxPauseTiming)
@@ -252,7 +250,7 @@ func (l *statisticsInstance) Summary() string {
 		", GasUsed<%d>, GetTxPause<%d>, "+
 		"GasOverTx<%d>, ZKOverflowBlock<%d>, InvalidTx<%d>, "+
 		"zkHashAccCount<account:%d, storage:%d, code:%d>, "+
-		"FlushSmtCacheWait<%dms>",
+		"FlushSmtCacheWait<%dms>, SetSmtCacheTiming<%dms>",
 		batch, blockCount, tx, batchDuration,
 		sequencingBatchTiming,
 		processTxTiming, txProcessDetails,
@@ -262,7 +260,7 @@ func (l *statisticsInstance) Summary() string {
 		batchCommitDBTiming,
 		gasUsed, getTxPause,
 		gasOverTx, zkOverflowBlock, invalidTx,
-		zkHashAccountCount, zkHashStoreCount, zkHashCodeCount, flushSmtCacheWait)
+		zkHashAccountCount, zkHashStoreCount, zkHashCodeCount, flushSmtCacheWait, setSmtCacheTiming)
 
 	log.Info(result)
 
