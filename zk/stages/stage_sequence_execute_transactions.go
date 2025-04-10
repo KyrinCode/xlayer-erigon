@@ -81,9 +81,6 @@ func getLimboTransaction(ctx context.Context, cfg SequenceBlockCfg, txHash *comm
 }
 
 func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg SequenceBlockCfg) ([]types.Transaction, []common.Hash, []common.Hash, error) {
-	ti := utils.StartTimer("txpool", "extractTransactionsFromSlot")
-	defer ti.LogTimer()
-
 	ids := make([]common.Hash, 0, len(slot.TxIds))
 	transactions := make([]types.Transaction, 0, len(slot.Txs))
 	toRemove := make([]common.Hash, 0)
