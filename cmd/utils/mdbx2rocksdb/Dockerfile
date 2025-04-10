@@ -12,12 +12,14 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
-COPY erigon-lib /app/erigon-lib
-COPY cmd/utils/mdbx2rocksdb /app/cmd/utils/mdbx2rocksdb
-COPY deps/rocksdb /app/deps/rocksdb
+ADD go.mod go.mod
+ADD go.sum go.sum
+ADD erigon-lib/go.mod erigon-lib/go.mod
+ADD erigon-lib/go.sum erigon-lib/go.sum
 
 RUN go mod download
+ADD . .
+
 
 RUN cd deps/rocksdb && \
     make -j$(nproc) static_lib && \
