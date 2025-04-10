@@ -70,7 +70,6 @@ func runErigon(cliCtx *cli.Context) error {
 
 	// Init for X Layer
 	initRunForXLayer(cliCtx, ethCfg)
-
 	ethNode, err := node.New(cliCtx.Context, nodeCfg, ethCfg, logger)
 	if err != nil {
 		log.Error("Erigon startup", "err", err)

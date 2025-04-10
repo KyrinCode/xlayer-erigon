@@ -23,6 +23,8 @@ zkevm.rpc-ratelimit: 0
 zkevm.datastream-version: 2
 
 log.console.verbosity: info
+log.dir.path: /home/erigon/logs/seq
+log.dir.disable: false
 
 #zkevm.executor-urls: xlayer-executor:50071
 zkevm.executor-strict: false
@@ -68,14 +70,15 @@ metrics.addr: "0.0.0.0"
 metrics.port: 9095
 
 db.read.concurrency: 20000
-txpool.globalslots: 100000
-txpool.globalbasefeeslots: 100000
-txpool.globalqueue: 100000
+txpool.globalslots: 1000000
+txpool.globalbasefeeslots: 1000000
+txpool.globalqueue: 1000000
 txpool.packbatchspeciallist : ["0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "0x8f8E2d6cF621f30e9a11309D6A56A876281Fd534"]
 txpool.gaspricemultiple : 2
 txpool.blockedlist: ["0xdD2FD4581271e230360230F9337D5c0430Bf44C0"]
 txpool.enablefreegasbynonce : true
 txpool.freegascountperaddr : 100
+txpool.commit.every: "10m"
 
 gpo.type: "follower"
 gpo.update-period: "3s"
@@ -98,6 +101,7 @@ txpool.enablefreegaslist : true
 txpool.freegaslist : '[{"name":"e2e", "from_list":["0x586cbc95ed16031d9efdaebacf1c1d2bc3ccaa78"], "to_list":["0xad1d01007a56ee0a4ffd0488fb58fc6500cb1fbe"], "method_sigs":["a9059cbb"], "gas_price_multiple": 1}]'
 
 # close a block/batch immediately after the 1st zkCounter overflow TX
+yieldsize: 1000
 zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 5ms
 zkevm.pre-run-address-list: [""]
@@ -109,3 +113,5 @@ zkevm.enable-async-commit: true
 txpool.enabletimsort: true
 zkevm.bulk-add-txs: true
 zkevm.enable-add-tx-notify: true
+
+debug.timers: false

@@ -98,19 +98,32 @@ func SpawnSequencingStage(
 		return nil
 	}
 
+	if cfg.zk.XLayer.EnableAsyncCommit {
+		s.FlushSmtCacheWait()
+	}
+
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
 		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
 
-		// enable split smt db
-		err = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase, false)
+		s.FlushSmtCacheSignalInc()
+		go func() {
+			defer s.FlushSmtCacheDone()
+			// enable split smt db
+			_ = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase, false)
+		}()
 	} else {
 		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
 
-		//s.ResetCurrentBatchCache(s.BlockNumber)
+		s.FlushSmtCacheSignalInc()
+		go func() {
+			defer s.FlushSmtCacheDone()
+
+			s.ResetCurrentBatchCache(s.BlockNumber)
+		}()
 	}
 
 	return err
@@ -394,9 +407,6 @@ func sequencingBatchStep(
 			}
 		}
 
-		// For X Layer
-		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
-
 		header, parentBlock, err := prepareHeader(sdb.tx, blockNumber-1, batchState.blockState.getDeltaTimestamp(), batchState.getBlockHeaderForcedTimestamp(), batchState.forkId, batchState.getCoinbase(&cfg), cfg.chainConfig, cfg.miningConfig)
 		if err != nil {
 			return err
@@ -513,10 +523,9 @@ func sequencingBatchStep(
 				}
 			} else if !batchState.isL1Recovery() {
 
-				var allConditionsOK bool
 				var newTransactions []types.Transaction
 				var newIds []common.Hash
-				newTransactions, newIds, allConditionsOK, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
+				newTransactions, newIds, _, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
 				if err != nil {
 					return err
 				}
@@ -528,18 +537,6 @@ func sequencingBatchStep(
 					batchState.blockState.transactionHashesToSlots[tx.Hash()] = newIds[idx]
 				}
 
-				if len(batchState.blockState.transactionsForInclusion) == 0 {
-					pauseTime := time.Now()
-					if allConditionsOK {
-						time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
-					} else {
-						time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool / 5) // we do not need to sleep too long for txpool not ready
-					}
-					metrics.GetLogStatistics().CumulativeCounting(metrics.GetTxPauseCounter)
-					metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxPauseTiming, time.Since(pauseTime))
-				} else {
-					log.Trace(fmt.Sprintf("[%s] Yielded transactions from the pool", logPrefix), "txCount", len(batchState.blockState.transactionsForInclusion))
-				}
 			}
 
 			// For X Layer
@@ -840,6 +837,7 @@ func sequencingBatchStep(
 		}
 
 		// For X Layer
+		metrics.GetLogStatistics().CumulativeCounting(metrics.BlockCounter)
 		// Count successful transactions
 		metrics.SeqTxCount.Add(float64(len(batchState.blockState.builtBlockElements.transactions)))
 		metrics.GetLogStatistics().CumulativeValue(metrics.TxCounter, int64(len(batchState.blockState.builtBlockElements.transactions)))

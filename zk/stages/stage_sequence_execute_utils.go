@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -14,7 +13,6 @@ import (
 	"math/big"
 
 	"fmt"
-
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon/common/math"
 	"github.com/ledgerwatch/erigon/consensus"
@@ -94,8 +92,7 @@ type SequenceBlockCfg struct {
 
 	infoTreeUpdater *l1infotree.Updater
 
-	decodedTxCache *expirable.LRU[common.Hash, *types.Transaction]
-	doneHook       DoneHook
+	doneHook DoneHook
 }
 
 func StageSequenceBlocksCfg(
@@ -128,7 +125,6 @@ func StageSequenceBlocksCfg(
 	infoTreeUpdater *l1infotree.Updater,
 	doneHook DoneHook,
 ) SequenceBlockCfg {
-
 	return SequenceBlockCfg{
 		db:               db,
 		dbsmt:            dbsmt,
@@ -185,10 +181,10 @@ func (sCfg *SequenceBlockCfg) toErigonExecuteBlockCfg() stagedsync.ExecuteBlockC
 
 func validateIfDatastreamIsAheadOfExecution(
 	s *stagedsync.StageState,
-// u stagedsync.Unwinder,
+	// u stagedsync.Unwinder,
 	ctx context.Context,
 	cfg SequenceBlockCfg,
-// historyCfg stagedsync.HistoryCfg,
+	// historyCfg stagedsync.HistoryCfg,
 ) error {
 	roTx, err := cfg.db.BeginRo(ctx)
 	if err != nil {

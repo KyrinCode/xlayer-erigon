@@ -469,6 +469,7 @@ func (f *Fetch) handleStateChanges(ctx context.Context, client StateChangesClien
 				for i := range change.Txs {
 					minedTxs.Txs[oldSize+i] = &types2.TxSlot{}
 					if err = f.threadSafeParseStateChangeTxn(func(parseContext *types2.TxParseContext) error {
+						// TODO [cliff]: check whether sig recovery can be skipped
 						_, err := parseContext.ParseTransaction(change.Txs[i], 0, minedTxs.Txs[oldSize+i], minedTxs.Senders.At(oldSize+i), false /* hasEnvelope */, false, nil)
 						return err
 					}); err != nil {

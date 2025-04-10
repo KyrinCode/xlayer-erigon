@@ -1427,6 +1427,9 @@ func (p *TxPool) addLocked(mt *metaTx, announcements *types.Announcements) txpoo
 	}
 
 	hashStr := string(mt.Tx.IDHash[:])
+	//if mt.Tx.Rlp == nil {
+	//	log.Warn(fmt.Sprintf("tx has no rlp: %s", hashStr))
+	//}
 	p.byHash[hashStr] = mt
 
 	if replaced := p.all.replaceOrInsert(mt, p.logger); replaced != nil {
@@ -2012,7 +2015,7 @@ func (p *TxPool) flushLocked(tx kv.RwTx) (err error) {
 
 	v := make([]byte, 0, 1024)
 	for txHash, metaTx := range p.byHash {
-		if metaTx.Tx.Rlp == nil {
+		if metaTx.Tx.IsTxSavedOnDb {
 			continue
 		}
 		v = common.EnsureEnoughSize(v, 20+len(metaTx.Tx.Rlp))
@@ -2035,7 +2038,7 @@ func (p *TxPool) flushLocked(tx kv.RwTx) (err error) {
 				return err
 			}
 		}
-		metaTx.Tx.Rlp = nil
+		metaTx.Tx.IsTxSavedOnDb = true
 	}
 
 	binary.BigEndian.PutUint64(encID, p.pendingBaseFee.Load())
@@ -2124,7 +2127,7 @@ func (p *TxPool) fromDB(ctx context.Context, tx kv.Tx, coreTx kv.Tx) error {
 			p.logger.Warn("[txpool] fromDB: parseTransaction", "err", err)
 			continue
 		}
-		txn.Rlp = nil // means that we don't need store it in db anymore
+		txn.IsTxSavedOnDb = true // means that we don't need store it in db anymore
 
 		txn.SenderID, txn.Traced = p.senders.getOrCreateID(addr, p.logger)
 		binary.BigEndian.Uint64(v) // TODO - unnecessary line, remove

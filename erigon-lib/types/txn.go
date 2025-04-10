@@ -64,6 +64,9 @@ type TxParseContext struct {
 	allowPreEip2s   bool // Allow s > secp256k1n/2; see EIP-2
 	chainIDRequired bool
 	IsProtected     bool
+
+	withTxHash bool
+	txHash     [32]byte // sometimes, we already know the tx hash, do not need to recalculate
 }
 
 func NewTxParseContext(chainID uint256.Int) *TxParseContext {
@@ -79,13 +82,14 @@ func NewTxParseContext(chainID uint256.Int) *TxParseContext {
 	// behave as of London enabled
 	ctx.cfg.ChainID.Set(&chainID)
 	ctx.ChainIDMul.Mul(&chainID, u256.N2)
+	ctx.withTxHash = true
 	return ctx
 }
 
 // TxSlot contains information extracted from an Ethereum transaction, which is enough to manage it inside the transaction.
 // Also, it contains some auxillary information, like ephemeral fields, and indices within priority queues
 type TxSlot struct {
-	Rlp            []byte      // Is set to nil after flushing to db, frees memory, later we look for it in the db, if needed
+	Rlp            []byte
 	Value          uint256.Int // Value transferred by the transaction
 	Tip            uint256.Int // Maximum tip that transaction is giving to miner/block proposer
 	FeeCap         uint256.Int // Maximum fee that transaction burns and gives to the miner/block proposer
@@ -110,6 +114,9 @@ type TxSlot struct {
 	Commitments []gokzg4844.KZGCommitment
 	Proofs      []gokzg4844.KZGProof
 	BlobTo      common.Address
+
+	DecodedTx     interface{}
+	IsTxSavedOnDb bool
 }
 
 const (
@@ -130,6 +137,15 @@ func (ctx *TxParseContext) ValidateRLP(f func(txnRlp []byte) error) { ctx.valida
 
 // Set the with sender flag
 func (ctx *TxParseContext) WithSender(v bool) { ctx.withSender = v }
+
+func (ctx *TxParseContext) WithoutTxHash(txHash [32]byte) {
+	ctx.withTxHash = false
+	ctx.txHash = txHash
+}
+
+func (ctx *TxParseContext) WithTxHash() {
+	ctx.withTxHash = true
+}
 
 // Set the AllowPreEIP2s flag
 func (ctx *TxParseContext) WithAllowPreEip2s(v bool) { ctx.allowPreEip2s = v }
@@ -530,14 +546,16 @@ func (ctx *TxParseContext) parseTransactionBody(payload []byte, pos, p0 int, slo
 		return 0, fmt.Errorf("%w: S: %s", ErrParseTxn, err) //nolint
 	}
 
-	// For legacy transactions, hash the full payload
-	if legacy {
-		if _, err = ctx.Keccak1.Write(payload[pos:p]); err != nil {
-			return 0, fmt.Errorf("%w: computing IdHash: %s", ErrParseTxn, err) //nolint
+	if ctx.withTxHash {
+		// For legacy transactions, hash the full payload
+		if legacy {
+			if _, err = ctx.Keccak1.Write(payload[pos:p]); err != nil {
+				return 0, fmt.Errorf("%w: computing IdHash: %s", ErrParseTxn, err) //nolint
+			}
 		}
+		//ctx.keccak1.Sum(slot.IdHash[:0])
+		_, _ = ctx.Keccak1.(io.Reader).Read(slot.IDHash[:32])
 	}
-	//ctx.keccak1.Sum(slot.IdHash[:0])
-	_, _ = ctx.Keccak1.(io.Reader).Read(slot.IDHash[:32])
 
 	if !ctx.withSender {
 		return p, nil
@@ -603,6 +621,7 @@ func (ctx *TxParseContext) parseTransactionBody(payload []byte, pos, p0 int, slo
 	binary.BigEndian.PutUint64(ctx.Sig[56:64], ctx.S[0])
 	ctx.Sig[64] = vByte
 	// recover sender
+
 	if _, err = secp256k1.RecoverPubkeyWithContext(secp256k1.DefaultContext, ctx.Sighash[:], ctx.Sig[:], ctx.buf[:0]); err != nil {
 		return 0, fmt.Errorf("%w: recovering sender from signature: %s", ErrParseTxn, err) //nolint
 	}
@@ -856,16 +875,29 @@ func (s *TxSlots) Append(slot *TxSlot, sender []byte, isLocal bool) {
 }
 
 type TxsRlp struct {
-	TxIds   []common.Hash
-	Txs     [][]byte
-	Senders Addresses
-	IsLocal []bool
+	TxIds      []common.Hash
+	Txs        [][]byte
+	DecodedTxs []interface{}
+	Senders    Addresses
+	IsLocal    []bool
+}
+
+// Note: this is much faster than Resize
+func (s *TxsRlp) Initialize(targetSize uint) {
+	s.Txs = make([][]byte, targetSize)
+	s.DecodedTxs = make([]interface{}, targetSize)
+	s.Senders = make([]byte, length.Addr*targetSize)
+	s.IsLocal = make([]bool, targetSize)
+	s.TxIds = make([]common.Hash, targetSize)
 }
 
 // Resize internal arrays to len=targetSize, shrinks if need. It rely on `append` algorithm to realloc
 func (s *TxsRlp) Resize(targetSize uint) {
 	for uint(len(s.Txs)) < targetSize {
 		s.Txs = append(s.Txs, nil)
+	}
+	for uint(len(s.DecodedTxs)) < targetSize {
+		s.DecodedTxs = append(s.DecodedTxs, nil)
 	}
 	for uint(s.Senders.Len()) < targetSize {
 		s.Senders = append(s.Senders, addressesGrowth...)
@@ -878,6 +910,7 @@ func (s *TxsRlp) Resize(targetSize uint) {
 	}
 	//todo: set nil to overflow txs
 	s.Txs = s.Txs[:targetSize]
+	s.DecodedTxs = s.DecodedTxs[:targetSize]
 	s.Senders = s.Senders[:length.Addr*targetSize]
 	s.IsLocal = s.IsLocal[:targetSize]
 	s.TxIds = s.TxIds[:targetSize]

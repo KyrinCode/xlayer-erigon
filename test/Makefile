@@ -1,5 +1,7 @@
 DOCKER_COMPOSE := docker compose -f docker-compose.yml
 DOCKER_STATELESS_EXECUTOR := xlayer-executor
+DOCKER_STATELESS_EXECUTOR_2 := xlayer-executor-2
+DOCKER_STATELESS_EXECUTOR_3 := xlayer-executor-3
 DOCKER_SEQ_SENDER := xlayer-seqs
 DOCKER_AGGREGATOR := xlayer-agg
 DOCKER_AGGREGATOR_DB := xlayer-agg-db
@@ -26,6 +28,8 @@ DOCKER_MAINNET_SEQ := xlayer-mainnet-seq
 DOCKER_MAINNET_RPC := xlayer-mainnet-rpc
 
 RUN_DOCKER_STATELESS_EXECUTOR := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXECUTOR)
+RUN_DOCKER_STATELESS_EXECUTOR_2 := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXECUTOR_2)
+RUN_DOCKER_STATELESS_EXECUTOR_3 := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXECUTOR_3)
 RUN_DOCKER_SEQ_SENDER := $(DOCKER_COMPOSE) up -d $(DOCKER_SEQ_SENDER)
 RUN_DOCKER_AGGREGATOR := $(DOCKER_COMPOSE) up -d $(DOCKER_AGGREGATOR)
 RUN_DOCKER_AGGREGATOR_DB := $(DOCKER_COMPOSE) up -d $(DOCKER_AGGREGATOR_DB)
@@ -60,6 +64,7 @@ build-docker: ## Build cdk-erigoin for sequencer and rpc
 .PHONY: run_base
 run_base: build-docker ## Runs a full node
 	# base services
+	$(RUN_DOCKER_STATELESS_EXECUTOR)
 	$(RUN_DOCKER_L1_NETWORK)
 	$(RUN_DOCKER_DATA_AVAILABILITY_DB)
 	$(RUN_DOCKER_POOL_DB)
@@ -67,7 +72,6 @@ run_base: build-docker ## Runs a full node
 	sleep 3
 	$(RUN_DOCKER_DATA_AVAILABILITY)
 	$(RUN_DOCKER_APPROVE)
-	$(RUN_DOCKER_STATELESS_EXECUTOR)
 
 .PHONY: run
 run:
@@ -89,6 +93,7 @@ run:
 .PHONY: all
 all: build-docker ## Runs a full node
 	# base services
+	$(RUN_DOCKER_STATELESS_EXECUTOR)
 	$(RUN_DOCKER_L1_NETWORK)
 	$(RUN_DOCKER_DATA_AVAILABILITY_DB)
 	$(RUN_DOCKER_POOL_DB)
@@ -100,7 +105,6 @@ all: build-docker ## Runs a full node
 	sleep 3
 	$(RUN_DOCKER_DATA_AVAILABILITY)
 	$(RUN_DOCKER_APPROVE)
-	$(RUN_DOCKER_STATELESS_EXECUTOR)
 
 	# app services
 	sleep 3
@@ -147,12 +151,26 @@ test-1: stop all ## Runs group 1 e2e tests checking race conditions
 	docker ps -a
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
 
+.PHONY: test-2
+test-2: stop run ## Runs group 2 to check if the true executor is working
+	sleep 30 # wait for the executor to be ready
+	docker ps -a
+	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/... -run "^TestEthTransfer$$"
+
 mainnet: build-docker
 	# base services
 	$(RUN_DOCKER_MAINNET_SEQ)
 	# monitoring services
 	$(RUN_DOCKER_PROMETHEUS)
 	$(RUN_DOCKER_GRAFANA)
+
+mainnet-executor: 
+	chmod +x ./script/mainnet-executor.sh
+	./script/mainnet-executor.sh 
+	$(RUN_DOCKER_STATELESS_EXECUTOR)
+	$(RUN_DOCKER_STATELESS_EXECUTOR_2)
+	$(RUN_DOCKER_STATELESS_EXECUTOR_3)
+	make mainnet
 
 mainnet-rpc: build-docker
 	$(RUN_DOCKER_MAINNET_RPC)

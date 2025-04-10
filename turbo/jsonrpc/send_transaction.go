@@ -51,7 +51,6 @@ func (api *APIImpl) sendRawTransactionSingle(ctx context.Context, encodedTx hexu
 
 		return api.sendTxZk(api.l2RpcUrl, encodedTx, chainId.Uint64())
 	}
-
 	txn, err := types.DecodeWrappedTransaction(encodedTx)
 	if err != nil {
 		return common.Hash{}, err

@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	types2 "github.com/ledgerwatch/erigon/core/types"
 	"math"
 	"math/big"
 	"runtime"
@@ -623,24 +624,26 @@ func (p *TxPool) processRemoteTxs(ctx context.Context) error {
 	//log.Info("[txpool] on new txs", "amount", len(newPendingTxs.txs), "in", time.Since(t))
 	return nil
 }
-func (p *TxPool) getRlpLocked(tx kv.Tx, hash []byte) (rlpTxn []byte, sender common.Address, isLocal bool, err error) {
+func (p *TxPool) getRlpLocked(tx kv.Tx, hash []byte) (rlpTxn []byte, decodedTx types2.Transaction, sender common.Address, isLocal bool, err error) {
 	txn, ok := p.byHash[string(hash)]
-	if ok && txn.Tx.Rlp != nil {
-		return txn.Tx.Rlp, p.senders.senderID2Addr[txn.Tx.SenderID], txn.subPool&IsLocal > 0, nil
+	if ok && txn.Tx.Rlp != nil && txn.Tx.DecodedTx != nil {
+		// TODO [cliff]: needs to handle other cases
+		decodeTx := txn.Tx.DecodedTx.(*types2.LegacyTx)
+		return txn.Tx.Rlp, decodeTx, p.senders.senderID2Addr[txn.Tx.SenderID], txn.subPool&IsLocal > 0, nil
 	}
 	v, err := tx.GetOne(kv.PoolTransaction, hash)
 	if err != nil {
-		return nil, common.Address{}, false, err
+		return nil, nil, common.Address{}, false, err
 	}
 	if v == nil {
-		return nil, common.Address{}, false, nil
+		return nil, nil, common.Address{}, false, nil
 	}
-	return v[20:], *(*[20]byte)(v[:20]), txn != nil && txn.subPool&IsLocal > 0, nil
+	return v[20:], nil, *(*[20]byte)(v[:20]), txn != nil && txn.subPool&IsLocal > 0, nil
 }
 func (p *TxPool) GetRlp(tx kv.Tx, hash []byte) ([]byte, error) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	rlpTx, _, _, err := p.getRlpLocked(tx, hash)
+	rlpTx, _, _, _, err := p.getRlpLocked(tx, hash)
 	return common.Copy(rlpTx), err
 }
 func (p *TxPool) AppendLocalAnnouncements(types []byte, sizes []uint32, hashes []byte) ([]byte, []uint32, []byte) {
@@ -978,18 +981,16 @@ func (p *TxPool) punishSpammer(spammer uint64) {
 }
 
 func fillDiscardReasons(reasons []DiscardReason, newTxs types.TxSlots, discardReasonsLRU *simplelru.LRU[string, DiscardReason]) []DiscardReason {
-	j := 0
 	for i := range reasons {
 		if reasons[i] != NotSet {
 			continue
 		}
-		reason, ok := discardReasonsLRU.Get(string(newTxs.Txs[j].IDHash[:]))
+		reason, ok := discardReasonsLRU.Get(string(newTxs.Txs[i].IDHash[:]))
 		if ok {
 			reasons[i] = reason
 		} else {
 			reasons[i] = Success
 		}
-		j++
 	}
 	return reasons
 }
@@ -1027,12 +1028,19 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 		return nil, err
 	}
 
+	validIndices := make([]int, 0, len(newTxs.Txs))
+	for i, reason := range reasons {
+		if reason == NotSet {
+			validIndices = append(validIndices, i)
+		}
+	}
+
 	announcements, addReasons, err := p.addTxs(p.lastSeenBlock.Load(), cacheView, p.senders, newTxs,
 		p.pendingBaseFee.Load(), p.blockGasLimit.Load(), p.pending, p.baseFee, p.queued, p.all, p.byHash, p.addLocked, p.discardLocked, true)
 	if err == nil {
 		for i, reason := range addReasons {
 			if reason != NotSet {
-				reasons[i] = reason
+				reasons[validIndices[i]] = reason
 			}
 		}
 	} else {
@@ -1041,7 +1049,7 @@ func (p *TxPool) AddLocalTxs(ctx context.Context, newTransactions types.TxSlots,
 	p.promoted.Reset()
 	p.promoted.AppendOther(announcements)
 
-	reasons = fillDiscardReasons(reasons, newTxs, p.discardReasonsLRU)
+	reasons = fillDiscardReasons(reasons, newTransactions, p.discardReasonsLRU)
 	for i, reason := range reasons {
 		if reason == Success {
 			txn := newTransactions.Txs[i]
@@ -1684,7 +1692,8 @@ func (p *TxPool) flushLocked(tx kv.RwTx) (err error) {
 				return err
 			}
 		}
-		metaTx.Tx.Rlp = nil
+		// Comment: Do not delete tx.Rlp from RAM, we bear the memory cost for faster tx yield
+		//metaTx.Tx.Rlp = nil
 	}
 
 	binary.BigEndian.PutUint64(encID, p.pendingBaseFee.Load())
@@ -1751,7 +1760,6 @@ func (p *TxPool) fromDB(ctx context.Context, tx kv.Tx, coreTx kv.Tx) error {
 		}
 		addr, txRlp := *(*[20]byte)(v[:20]), v[20:]
 		txn := &types.TxSlot{}
-
 		_, err = parseCtx.ParseTransaction(txRlp, 0, txn, nil, false /* hasEnvelope */, false, nil)
 		if err != nil {
 			err = fmt.Errorf("err: %w, rlp: %x", err, txRlp)
@@ -1769,7 +1777,7 @@ func (p *TxPool) fromDB(ctx context.Context, tx kv.Tx, coreTx kv.Tx) error {
 			continue
 		}
 		// X Layer fix transaction RLP nil
-		txn.Rlp = nil // means that we don't need store it in db anymore
+		txn.IsTxSavedOnDb = true // means that we don't need store it in db anymore
 		txs.Resize(uint(i + 1))
 		txs.Txs[i] = txn
 		txs.IsLocal[i] = isLocalTx
@@ -1895,7 +1903,7 @@ func (p *TxPool) deprecatedForEach(_ context.Context, f func(rlp []byte, sender 
 	p.all.ascendAll(func(mt *metaTx) bool {
 		slot := mt.Tx
 		slotRlp := slot.Rlp
-		if slot.Rlp == nil {
+		if slot.IsTxSavedOnDb {
 			v, err := tx.GetOne(kv.PoolTransaction, slot.IDHash[:])
 			if err != nil {
 				log.Warn("[txpool] foreach: get tx from db", "err", err)
