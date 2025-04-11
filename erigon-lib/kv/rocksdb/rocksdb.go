@@ -40,18 +40,19 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	}
 
 	bbto := grocksdb.NewDefaultBlockBasedTableOptions()
-	defer bbto.Destroy()
+	// defer bbto.Destroy()
 	lruCache := grocksdb.NewLRUCache(3 << 30)
 	bbto.SetBlockCache(lruCache)
 
 	opts := grocksdb.NewDefaultOptions()
-	defer opts.Destroy()
+	// defer opts.Destroy()
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
 	opts.SetDisableAutoCompactions(true)
+	// opts.EnableStatistics()
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
-	defer txopts.Destroy()
+	// defer txopts.Destroy()
 	rdb, err := grocksdb.OpenTransactionDb(opts, txopts, dbPath)
 	if err != nil {
 		return nil, err

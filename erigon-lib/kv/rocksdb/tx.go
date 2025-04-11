@@ -390,6 +390,25 @@ func (rtx *RocksDbTx) close(action func() error) error {
 		rtx.tx.Destroy()
 		rtx.tx = nil
 		rtx.closed = true
+
+		props := []string{
+			"rocksdb.num-running-compactions",
+			"rocksdb.num-running-flushes",
+			"rocksdb.cur-size-active-mem-table",
+			"rocksdb.cur-size-all-mem-tables",
+			"rocksdb.size-all-mem-tables",
+			"rocksdb.block-cache-usage",
+			"rocksdb.estimate-table-readers-mem",
+			"rocksdb.level0.slowdown",
+			"rocksdb.level0.num-files",
+			"rocksdb.total-sst-files-size",
+			"rocksdb.stats",
+		}
+
+		for _, key := range props {
+			val := rtx.db.rdb.GetProperty(key)
+			fmt.Printf("%s: %s\n", key, val)
+		}
 	}()
 
 	return action()
