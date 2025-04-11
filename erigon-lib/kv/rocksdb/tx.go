@@ -19,6 +19,8 @@ type RocksDbTx struct {
 	db    *RocksDB
 	tx    *grocksdb.Transaction
 	ropts *grocksdb.ReadOptions
+	wopts *grocksdb.WriteOptions
+	txopt *grocksdb.TransactionOptions
 
 	id  uint64 // set only if TRACE_TX=true
 	ctx context.Context
@@ -36,16 +38,17 @@ type RocksDbTx struct {
 
 func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
-	defer wopts.Destroy()
-	wopts.DisableWAL(true)
+	// defer wopts.Destroy()
 	txopt := grocksdb.NewDefaultTransactionOptions()
-	defer txopt.Destroy()
+	// defer txopt.Destroy()
 	tx := db.rdb.TransactionBegin(wopts, txopt, nil)
 
 	return &RocksDbTx{
 		db:    db,
 		tx:    tx,
 		ropts: grocksdb.NewDefaultReadOptions(),
+		wopts: wopts,
+		txopt: txopt,
 
 		ctx: ctx,
 
@@ -379,17 +382,25 @@ func (rtx *RocksDbTx) close(action func() error) error {
 	}
 
 	defer func() {
-		if rtx.ropts != nil {
-			rtx.ropts.Destroy()
-			rtx.ropts = nil
-		}
-
 		rtx.closeCursors()
 		rtx.closeCallback()
 
 		rtx.tx.Destroy()
 		rtx.tx = nil
 		rtx.closed = true
+
+		if rtx.ropts != nil {
+			rtx.ropts.Destroy()
+			rtx.ropts = nil
+		}
+		if rtx.wopts != nil {
+			rtx.wopts.Destroy()
+			rtx.wopts = nil
+		}
+		if rtx.txopt != nil {
+			rtx.txopt.Destroy()
+			rtx.txopt = nil
+		}
 
 		props := []string{
 			"rocksdb.num-running-compactions",
