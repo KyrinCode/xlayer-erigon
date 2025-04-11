@@ -422,6 +422,9 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.total-sst-files-size",
 			"rocksdb.compaction.times.micros",
 			"rocksdb.estimate-pending-compaction-bytes",
+			"rocksdb.compaction-pending",
+			"rocksdb.estimate-pending-compaction-bytes",
+			"rocksdb.background-errors",
 			"rocksdb.stats",
 		}
 

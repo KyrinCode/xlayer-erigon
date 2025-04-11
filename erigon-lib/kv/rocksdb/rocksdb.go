@@ -49,10 +49,13 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
 	opts.SetDisableAutoCompactions(false)
+	opts.SetInfoLog(grocksdb.NewStderrLogger(grocksdb.InfoInfoLogLevel, "rocksdb_log"))
+	opts.EnableStatistics()
+	opts.SetStatsDumpPeriodSec(10)
 	// 1. 写缓冲相关
-	opts.SetWriteBufferSize(64 * 1024 * 1024) // 单个 memtable 64MB
-	opts.SetMaxWriteBufferNumber(6)           // 最多 6 个缓冲 memtable
-	opts.SetMinWriteBufferNumberToMerge(3)    // 合并 memtable 的阈值
+	//opts.SetWriteBufferSize(64 * 1024 * 1024) // 单个 memtable 64MB
+	//opts.SetMaxWriteBufferNumber(6)           // 最多 6 个缓冲 memtable
+	//opts.SetMinWriteBufferNumberToMerge(3)    // 合并 memtable 的阈值
 	// 2. compaction stall 相关
 	//opts.SetLevel0FileNumCompactionTrigger(2) // L0 到 2 就触发 compaction
 	//opts.SetLevel0SlowdownWritesTrigger(20)
