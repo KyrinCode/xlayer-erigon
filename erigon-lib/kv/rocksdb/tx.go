@@ -401,13 +401,12 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			rtx.txopt.Destroy()
 			rtx.txopt = nil
 		}
-		//flushOpts := grocksdb.NewDefaultFlushOptions()
-		//// defer flushOpts.Destroy()
-		//flushOpts.SetWait(true)
-		//err := rtx.db.rdb.Flush(flushOpts)
-		//if err != nil {
-		//	panic(err)
-		//}
+		flushOpts := grocksdb.NewDefaultFlushOptions()
+		defer flushOpts.Destroy()
+		err := rtx.db.rdb.Flush(flushOpts)
+		if err != nil {
+			panic(err)
+		}
 
 		props := []string{
 			"rocksdb.num-running-compactions",
