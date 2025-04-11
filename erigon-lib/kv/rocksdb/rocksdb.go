@@ -48,7 +48,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	// defer opts.Destroy()
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
-	opts.SetDisableAutoCompactions(true)
+	// opts.SetDisableAutoCompactions(true)
 	// 1. 写缓冲相关
 	opts.SetWriteBufferSize(64 * 1024 * 1024) // 单个 memtable 64MB
 	opts.SetMaxWriteBufferNumber(6)           // 最多 6 个缓冲 memtable
