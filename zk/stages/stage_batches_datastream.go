@@ -5,8 +5,9 @@ import (
 	"math/rand"
 	"sync/atomic"
 
-	"github.com/ledgerwatch/log/v3"
 	"time"
+
+	"github.com/ledgerwatch/log/v3"
 )
 
 type DatastreamClientRunner struct {
@@ -24,7 +25,6 @@ func NewDatastreamClientRunner(dsClient DatastreamClient, logPrefix string) *Dat
 }
 
 func (r *DatastreamClientRunner) StartRead(errorChan chan struct{}) error {
-	r.dsClient.RenewEntryChannel()
 	if r.isReading.Load() {
 		return fmt.Errorf("tried starting datastream client runner thread while another is running")
 	}
@@ -44,6 +44,69 @@ func (r *DatastreamClientRunner) StartRead(errorChan chan struct{}) error {
 			time.Sleep(1 * time.Second)
 			errorChan <- struct{}{}
 			log.Warn(fmt.Sprintf("[%s] Error downloading blocks from datastream", r.logPrefix), "error", err)
+		}
+	}()
+
+	return nil
+}
+
+func (r *DatastreamClientRunner) StartRangeRead(
+	errorChan chan struct{},
+	highestDSL2Block, stageProgressBlockNo uint64,
+	blockRange uint64,
+) error {
+	if r.isReading.Load() {
+		return fmt.Errorf("tried starting datastream client runner thread while another is running")
+	}
+
+	r.stopRunner.Store(false)
+
+	entryChan := r.dsClient.GetEntryChan()
+
+	go func() {
+		routineId := rand.Intn(1000000)
+
+		log.Info(fmt.Sprintf("[%s] Started downloading L2Blocks routine ID: %d", r.logPrefix, routineId))
+		defer log.Info(fmt.Sprintf("[%s] Ended downloading L2Blocks routine ID: %d", r.logPrefix, routineId))
+
+		r.isReading.Store(true)
+		defer r.isReading.Store(false)
+
+		from := stageProgressBlockNo + 1
+
+		// first load up the header of the stream
+		if _, err := r.dsClient.GetHeader(); err != nil {
+			errorChan <- struct{}{}
+			log.Warn(fmt.Sprintf("[%s] Error getting block header from datastream", r.logPrefix), "error", err)
+			return
+		}
+
+		for !r.stopRunner.Load() && from < highestDSL2Block {
+			// Wait until all entries in entryChan is consumed
+			for len(*entryChan) > 0 {
+				time.Sleep(100 * time.Millisecond)
+				if r.stopRunner.Load() {
+					return
+				}
+			}
+
+			to := min(from+blockRange, highestDSL2Block)
+			r.dsClient.HandleRestart()
+			if err := r.dsClient.ReadRangeEntriesToChannel(from, to); err != nil {
+				time.Sleep(1 * time.Second)
+				errorChan <- struct{}{}
+				log.Warn(fmt.Sprintf("[%s] Error downloading blocks from datastream", r.logPrefix), "error", err)
+				return
+			}
+			from = to
+		}
+
+		// Send stop signal
+		if err := r.dsClient.TrySendStopSignal(); err != nil {
+			time.Sleep(1 * time.Second)
+			errorChan <- struct{}{}
+			log.Warn(fmt.Sprintf("[%s] Error sending stop signal", r.logPrefix), "error", err)
+			return
 		}
 	}()
 
