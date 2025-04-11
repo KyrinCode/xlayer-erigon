@@ -12,6 +12,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/iter"
 	"github.com/ledgerwatch/erigon-lib/kv/order"
+	"github.com/ledgerwatch/log/v3"
 	"github.com/linxGnu/grocksdb"
 )
 
@@ -473,22 +474,30 @@ func (rtx *RocksDbTx) get(table string, k []byte) (*DBValue, error) {
 }
 
 func (rtx *RocksDbTx) putSorted(table string, k, v []byte) error {
+	t := time.Now()
 	dbv, err := rtx.get(table, k)
+	log.Info("get before put", "cost", time.Since(t))
 	notExist := errors.Is(err, ErrKeyNotExist)
 	if err != nil && !notExist {
 		return err
 	}
 
+	t = time.Now()
 	if notExist {
 		dbv = DBValueWithOneValue(v)
 	} else {
 		dbv.SortedInsert(v)
 	}
+	log.Info("sort or deserialize before put", "cost", time.Since(t))
 	return rtx.putOverwrite(table, k, dbv)
 }
 
 // putOverwrite will overwrite the key if it has exist
 func (rtx *RocksDbTx) putOverwrite(table string, k []byte, v *DBValue) error {
+	t := time.Now()
+	defer func() {
+		log.Info("put overwrite", "cost", time.Since(t))
+	}()
 	return rtx.tx.Put(mergeKey(table, k), v.Serialize())
 }
 

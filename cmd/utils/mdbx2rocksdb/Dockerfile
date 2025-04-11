@@ -20,6 +20,7 @@ ADD erigon-lib/go.sum erigon-lib/go.sum
 RUN go mod download
 ADD . .
 
+ENV EXTRA_CFLAGS="-Wno-error=maybe-uninitialized -Wno-error=uninitialized" EXTRA_CXXFLAGS="-Wno-error=maybe-uninitialized -Wno-error=uninitialized"
 
 RUN cd deps/rocksdb && \
     make -j$(nproc) static_lib && \
@@ -28,6 +29,8 @@ RUN cd deps/rocksdb && \
 ENV CGO_CFLAGS="-I/app/deps/rocksdb/include"
 ENV CGO_LDFLAGS="-L/app/deps/rocksdb -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy -llz4 -lzstd"
 
-ENTRYPOINT ["go", "run", "/app/cmd/utils/mdbx2rocksdb/main.go"]
+RUN cd cmd/utils/mdbx2rocksdb && go build -o mdbx2rocksdb ./main.go
+
+ENTRYPOINT ["/app/cmd/utils/mdbx2rocksdb/mdbx2rocksdb"]
 
 CMD ["--help"]

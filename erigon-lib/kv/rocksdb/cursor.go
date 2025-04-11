@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/erigontech/mdbx-go/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/log/v3"
+	"time"
 )
 
 type RocksDbCursor struct {
@@ -242,7 +244,9 @@ func (c *RocksDbCursor) getBothRange(searchKey, searchV []byte) ([]byte, error) 
 	// _, v, err := c.c.Get(k, v, mdbx.GetBothRange)
 	// return v, err
 
+	t := time.Now()
 	_, v, err := c.it.SeekExactKeyWithGeValue(searchKey, searchV)
+	log.Info("getBothRange", "cost", time.Since(t))
 	return v, err
 }
 
@@ -336,6 +340,10 @@ func (c *RocksDbCursor) putDupSort(key []byte, value []byte) error {
 func (c *RocksDbCursor) putCurrent(k, v []byte) error {
 	// mdbx:
 	// return c.c.Put(k, v, mdbx.Current)
+	start := time.Now()
+	defer func() {
+		log.Info("putCurrent", "cost", time.Since(start))
+	}()
 	curK, valueStamp, err := c.it.currentKeyAndValueStamp()
 	if err != nil {
 		return err
@@ -344,10 +352,12 @@ func (c *RocksDbCursor) putCurrent(k, v []byte) error {
 		return ErrKeyMismatch
 	}
 
+	t := time.Now()
 	dbv, err := c.rtx.get(c.table, curK)
 	if err != nil {
 		return err
 	}
+	log.Info("putCurrent get", "cost", time.Since(t))
 	dbv.Replace(valueStamp, v)
 
 	err = c.rtx.putOverwrite(c.table, k, dbv)
@@ -355,7 +365,9 @@ func (c *RocksDbCursor) putCurrent(k, v []byte) error {
 		return err
 	}
 
+	t = time.Now()
 	c.it.mustSeekToKeyValue(k, v)
+	log.Info("putCurrent seek", "cost", time.Since(t))
 	return nil
 }
 
@@ -382,7 +394,9 @@ func (c *RocksDbCursor) put(k, v []byte) error {
 		return err
 	}
 
+	now := time.Now()
 	c.it.mustSeekToKeyValue(k, v)
+	log.Info("seek after put", "cost", time.Since(now))
 	return nil
 }
 

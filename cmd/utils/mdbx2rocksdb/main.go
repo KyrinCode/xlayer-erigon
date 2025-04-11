@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// Configure logging
-	logger := log.New()
+	logger := log.Root()
 	if *verbose {
 		logger.SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StderrHandler))
 	} else {
@@ -104,7 +104,7 @@ func main() {
 		logger.Info("Converting table", "name", table)
 		tableStartTime := time.Now()
 
-		recordCount, err := convertTable(table, srcDB, dstDB)
+		recordCount, err := convertTable(table, srcDB, dstDB, logger)
 		if err != nil {
 			logger.Error("Failed to convert table", "name", table, "error", err)
 			os.Exit(1)
@@ -151,7 +151,7 @@ func openRocksDB(path string, logger log.Logger) (kv.RwDB, error) {
 	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, writeTxLimiter, false)
 }
 
-func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB) (int64, error) {
+func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB, logger log.Logger) (int64, error) {
 	recordCount := int64(0)
 
 	// Process records in batches to avoid a single large transaction
@@ -182,7 +182,7 @@ func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB) (int64, error) {
 			recordCount++
 
 			if len(batch) >= batchSize {
-				if err := putBatch(dstDB, table, batch); err != nil {
+				if err := putBatch(dstDB, table, batch, logger); err != nil {
 					return err
 				}
 
@@ -193,17 +193,23 @@ func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB) (int64, error) {
 	}); err != nil {
 		return 0, err
 	}
-	if err := putBatch(dstDB, table, batch); err != nil {
+	if err := putBatch(dstDB, table, batch, logger); err != nil {
 		return 0, err
 	}
 
 	return recordCount, nil
 }
 
-func putBatch(db kv.RwDB, table string, batch []dataPair) error {
+func putBatch(db kv.RwDB, table string, batch []dataPair, logger log.Logger) error {
 	if len(batch) == 0 {
 		return nil
 	}
+
+	start := time.Now()
+	defer func() {
+		logger.Info("Put batch", "table", table, "cost", time.Since(start))
+	}()
+
 	return db.Update(context.Background(), func(dstTx kv.RwTx) error {
 		dstCursor, err := dstTx.RwCursor(table)
 		if err != nil {
@@ -212,9 +218,11 @@ func putBatch(db kv.RwDB, table string, batch []dataPair) error {
 		defer dstCursor.Close()
 
 		for _, item := range batch {
+			now := time.Now()
 			if err := dstCursor.Put(item.k, item.v); err != nil {
 				return err
 			}
+			logger.Info("Put single data", "table", table, "cost", time.Since(now))
 		}
 
 		log.Info("putted batch", "table", table, "count", len(batch))
