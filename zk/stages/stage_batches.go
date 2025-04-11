@@ -62,14 +62,18 @@ type DatastreamClient interface {
 	RenewEntryChannel()
 	RenewMaxEntryChannel()
 	ReadAllEntriesToChannel() error
+	ReadRangeEntriesToChannel(from uint64, to uint64) error
 	StopReadingToChannel()
 	GetEntryChan() *chan interface{}
+	GetHeader() (*types.HeaderEntry, error)
 	GetL2BlockByNumber(blockNum uint64) (*types.FullL2Block, error)
 	GetLatestL2Block() (*types.FullL2Block, error)
 	GetProgressAtomic() *atomic.Uint64
 	Start() error
 	Stop() error
 	HandleStart() error
+	HandleRestart() error
+	TrySendStopSignal() error
 }
 
 type dsClientCreatorHandler func(context.Context, *ethconfig.Zk, uint64) (DatastreamClient, error)
@@ -291,16 +295,27 @@ func SpawnStageBatches(
 		return fmt.Errorf("NewBatchesProcessor: %w", err)
 	}
 
-	// start routine to download blocks and push them in a channel
+	// Set maximum block range to be 50% of the entry channel capacity
+	diffBlock := highestDSL2Block - stageProgressBlockNo
+	if diffBlock > client.DefaultEntryChannelSize {
+		dsQueryClient.RenewMaxEntryChannel()
+	} else {
+		dsQueryClient.RenewEntryChannel()
+	}
+	entryChan := dsQueryClient.GetEntryChan()
+	blockRange := uint64(cap(*entryChan) / 2)
+
+	// start routine to download blocks and push them to the channel
 	errorChan := make(chan struct{})
 	dsClientRunner := NewDatastreamClientRunner(dsQueryClient, logPrefix)
-	err = dsClientRunner.StartRead(errorChan, highestDSL2Block-stageProgressBlockNo)
-	if err != nil {
-		return fmt.Errorf("StartRead: %w", err)
+	if diffBlock <= blockRange {
+		dsClientRunner.StartRead(errorChan)
+	} else {
+		// Download blocks from datastream in batches
+		dsClientRunner.StartRangeRead(errorChan, highestDSL2Block, stageProgressBlockNo, blockRange)
 	}
-	defer dsClientRunner.StopRead()
 
-	entryChan := dsQueryClient.GetEntryChan()
+	defer dsClientRunner.StopRead()
 
 	prevAmountBlocksWritten := uint64(0)
 	endLoop := false
