@@ -427,6 +427,9 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.background-errors",
 			"rocksdb.memory-table-stats",
 			"rocksdb.sstables",
+			"rocksdb.num-immutable-mem-table",
+			"rocksdb.live-sst-files-size",
+			"rocksdb.total-sst-files-size",
 			"rocksdb.stats",
 		}
 

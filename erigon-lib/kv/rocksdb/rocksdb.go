@@ -49,14 +49,14 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
 	opts.SetDisableAutoCompactions(false)
-	opts.SetInfoLog(grocksdb.NewStderrLogger(grocksdb.InfoInfoLogLevel, "rocksdb_log"))
+	// opts.SetInfoLog(grocksdb.NewStderrLogger(grocksdb.InfoInfoLogLevel, "rocksdb_log"))
 	opts.EnableStatistics()
 	opts.SetStatsDumpPeriodSec(10)
 
 	opts.IncreaseParallelism(8) // 允许更多后台线程用于 flush/compaction
 	// opts.SetMaxBackgroundJobs(8)
 	opts.SetWriteBufferSize(32 * 1024 * 1024)
-	opts.SetRateLimiter(grocksdb.NewRateLimiter(20*1024*1024, 100*1000, 10))
+	// opts.SetRateLimiter(grocksdb.NewRateLimiter(20*1024*1024, 100*1000, 10))
 	//opts.SetMaxBackgroundFlushes(4)
 	//opts.SetMaxBackgroundCompactions(4)
 
