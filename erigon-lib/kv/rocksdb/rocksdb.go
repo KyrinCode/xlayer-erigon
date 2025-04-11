@@ -53,8 +53,9 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts.EnableStatistics()
 	opts.SetStatsDumpPeriodSec(10)
 
-	opts.IncreaseParallelism(4) // 允许更多后台线程用于 flush/compaction
-	opts.SetMaxBackgroundJobs(4)
+	opts.IncreaseParallelism(8) // 允许更多后台线程用于 flush/compaction
+	opts.SetMaxBackgroundJobs(8)
+	opts.SetWriteBufferSize(32 * 1024 * 1024)
 	//opts.SetMaxBackgroundFlushes(4)
 	//opts.SetMaxBackgroundCompactions(4)
 
