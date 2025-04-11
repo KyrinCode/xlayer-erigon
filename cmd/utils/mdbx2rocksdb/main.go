@@ -216,6 +216,8 @@ func putBatch(db kv.RwDB, table string, batch []dataPair) error {
 				return err
 			}
 		}
+
+		log.Info("putted batch", "table", table, "count", len(batch))
 		return nil
 	})
 }
