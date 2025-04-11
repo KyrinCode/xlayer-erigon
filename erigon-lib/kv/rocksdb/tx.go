@@ -425,6 +425,8 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.compaction-pending",
 			"rocksdb.estimate-pending-compaction-bytes",
 			"rocksdb.background-errors",
+			"rocksdb.memory-table-stats",
+			"rocksdb.sstables",
 			"rocksdb.stats",
 		}
 

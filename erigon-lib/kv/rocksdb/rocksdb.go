@@ -52,6 +52,12 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts.SetInfoLog(grocksdb.NewStderrLogger(grocksdb.InfoInfoLogLevel, "rocksdb_log"))
 	opts.EnableStatistics()
 	opts.SetStatsDumpPeriodSec(10)
+
+	opts.IncreaseParallelism(4) // 允许更多后台线程用于 flush/compaction
+	opts.SetMaxBackgroundJobs(4)
+	//opts.SetMaxBackgroundFlushes(4)
+	//opts.SetMaxBackgroundCompactions(4)
+
 	// 1. 写缓冲相关
 	//opts.SetWriteBufferSize(64 * 1024 * 1024) // 单个 memtable 64MB
 	//opts.SetMaxWriteBufferNumber(6)           // 最多 6 个缓冲 memtable
