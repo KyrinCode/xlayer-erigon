@@ -65,9 +65,9 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	//opts.SetMaxWriteBufferNumber(6)           // 最多 6 个缓冲 memtable
 	//opts.SetMinWriteBufferNumberToMerge(3)    // 合并 memtable 的阈值
 	// 2. compaction stall 相关
-	//opts.SetLevel0FileNumCompactionTrigger(2) // L0 到 2 就触发 compaction
-	//opts.SetLevel0SlowdownWritesTrigger(20)
-	//opts.SetLevel0StopWritesTrigger(40)
+	opts.SetLevel0FileNumCompactionTrigger(2) // L0 到 2 就触发 compaction
+	opts.SetLevel0SlowdownWritesTrigger(8)
+	opts.SetLevel0StopWritesTrigger(12)
 	// opts.EnableStatistics()
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()

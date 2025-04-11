@@ -403,6 +403,7 @@ func (rtx *RocksDbTx) close(action func() error) error {
 		}
 		flushOpts := grocksdb.NewDefaultFlushOptions()
 		defer flushOpts.Destroy()
+		flushOpts.SetWait(true)
 		err := rtx.db.rdb.Flush(flushOpts)
 		if err != nil {
 			panic(err)
