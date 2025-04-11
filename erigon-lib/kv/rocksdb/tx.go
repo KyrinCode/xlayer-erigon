@@ -430,6 +430,8 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.num-immutable-mem-table",
 			"rocksdb.live-sst-files-size",
 			"rocksdb.total-sst-files-size",
+			"rocksdb.num-snapshots",
+			"rocksdb.oldest-snapshot-time",
 			"rocksdb.stats",
 		}
 
