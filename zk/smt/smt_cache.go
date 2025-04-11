@@ -89,14 +89,16 @@ func (cache *SmtCache) GetSmtCache() *immutable.Map[string, *immutable.Map[strin
 
 func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) *immutable.Map[string, *immutable.Map[string, []byte]] {
 	cache.LongLivedSmtCacheLock.RLock()
-	if snapshot, exists := cache.LongLivedSmtCacheHistory[blockNumber]; exists {
-		cache.LongLivedSmtCacheLock.RUnlock()
+	snapshot, exists := cache.LongLivedSmtCacheHistory[blockNumber]
+	cache.LongLivedSmtCacheLock.RUnlock()
+
+	if exists {
 		return snapshot
 	}
 
 	cache.SmtCacheSnapshotLock.RLock()
-	defer cache.SmtCacheSnapshotLock.RUnlock()
 	cacheData, _ := cache.SmtCacheSnapshotList.cascadeGetCacheShapshot(blockNumber)
+	cache.SmtCacheSnapshotLock.RUnlock()
 
 	tmpSnapShot := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	if cacheData != nil && len(cacheData) > 0 {
