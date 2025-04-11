@@ -38,6 +38,7 @@ type RocksDbTx struct {
 func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
 	defer wopts.Destroy()
+	wopts.DisableWAL(true)
 	txopt := grocksdb.NewDefaultTransactionOptions()
 	defer txopt.Destroy()
 	tx := db.rdb.TransactionBegin(wopts, txopt, nil)
@@ -402,12 +403,19 @@ func (rtx *RocksDbTx) closeCursors() {
 		}
 	}
 	rtx.cursors = nil
+
 	for _, c := range rtx.streams {
 		if c != nil {
 			c.Close()
 		}
 	}
 	rtx.streams = nil
+
+	for _, c := range rtx.statelessCursors {
+		if c != nil {
+			c.Close()
+		}
+	}
 	rtx.statelessCursors = nil
 }
 

@@ -48,6 +48,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	defer opts.Destroy()
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
+	opts.SetDisableAutoCompactions(true)
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
 	defer txopts.Destroy()
