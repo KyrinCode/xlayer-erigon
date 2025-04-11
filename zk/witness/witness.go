@@ -216,7 +216,7 @@ func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, 
 			return nil, fmt.Errorf("requested block is too old, block must be within %d blocks of the head block number (currently %d)", g.witnessUnwindLimit, latestBlock)
 		}
 
-		if err := UnwindForWitness(ctx, rwtx, rwtxsmt, startBlock, latestBlock, g.dirs, g.historyV3, g.agg, cache); err != nil {
+		if err := UnwindForWitness(ctx, rwtx, rwtxsmt, startBlock, latestBlock, g.dirs, g.historyV3, g.agg); err != nil {
 			return nil, fmt.Errorf("UnwindForWitness: %w", err)
 		}
 

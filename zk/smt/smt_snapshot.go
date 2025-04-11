@@ -72,21 +72,21 @@ func (l *SmtCacheList) cascadeGetCacheShapshot(blockHeight uint64) (map[string]m
 	l.mutex.RLock() // Read lock for read-only operation
 	defer l.mutex.RUnlock()
 
-	// Initialize the merged cache
-	mergedCache := make(map[string]map[string][]byte)
-
 	// Find the specified node
 	node := l.findNodeUnsafe(blockHeight)
 	if node == nil {
-		return mergedCache, false
+		return map[string]map[string][]byte{}, false
 	}
+
+	// Initialize the merged cache
+	mergedCache := make(map[string]map[string][]byte, len(node.DeltaSmtCache))
 
 	// Traverse from the found node towards older snapshots (tail)
 	current := l.tail
 	for current != node.pre {
 		for table, bucket := range current.DeltaSmtCache {
 			if _, exists := mergedCache[table]; !exists {
-				mergedCache[table] = make(map[string][]byte)
+				mergedCache[table] = make(map[string][]byte, len(bucket))
 			}
 			for key, value := range bucket {
 				mergedCache[table][key] = value

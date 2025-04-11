@@ -152,15 +152,23 @@ func (m *MapmutationWithDoubleCache) Put(table string, k, v []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.modifiedCache[table]; !ok {
-		m.modifiedCache[table] = make(map[string][]byte)
+		m.modifiedCache[table] = make(map[string][]byte, 100)
 	}
 
 	stringKey := string(k)
 
-	var ok bool
-	if _, ok = m.modifiedCache[table][stringKey]; ok {
-		m.size += len(v) - len(m.modifiedCache[table][stringKey])
-		m.modifiedCache[table][stringKey] = v
+	if oldV, ok := m.modifiedCache[table][stringKey]; ok {
+		m.size += len(v) - len(oldV)
+
+		if cap(oldV) > len(v) {
+			oldV = oldV[:len(v)]
+			copy(oldV, v)
+
+			m.modifiedCache[table][stringKey] = oldV
+		} else {
+			m.modifiedCache[table][stringKey] = v
+		}
+
 		return nil
 	}
 	m.modifiedCache[table][stringKey] = v
