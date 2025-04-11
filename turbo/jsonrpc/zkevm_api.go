@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	smt2 "github.com/ledgerwatch/erigon/zk/smt"
 	"math/big"
 
@@ -1100,7 +1101,7 @@ func (api *ZkEvmAPIImpl) getBlockRangeWitness(ctx context.Context, db kv.RoDB, d
 		return nil, err
 	}
 
-	cache := make(map[string]map[string][]byte)
+	var cache *immutable.Map[string, *immutable.Map[string, []byte]]
 	if api.cache != nil {
 		cache = api.cache.CascadeGetCurrentBatchSnapshotCache(endBlockNr)
 	}

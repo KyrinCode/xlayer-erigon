@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/hex"
+	"github.com/benbjohnson/immutable"
 	"math/big"
 	"unsafe"
 
@@ -93,9 +94,9 @@ func (m *EriDb) OpenBatch(quitCh <-chan struct{}) {
 	m.kvTxRoSMT = batch
 }
 
-func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {
+func (m *EriDb) SetCache(smtCachedMapValue *immutable.Map[string, *immutable.Map[string, []byte]]) {
 	if smtCachedMapValue == nil {
-		smtCachedMapValue = make(map[string]map[string][]byte)
+		smtCachedMapValue = immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	}
 
 	mapCache, ok := m.tx.(*membatch.Mapmutation)
@@ -103,7 +104,25 @@ func (m *EriDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {
 		return // don't roll back a kvRw tx
 	}
 
-	mapCache.SetCache(smtCachedMapValue)
+	cache := make(map[string]map[string][]byte, smtCachedMapValue.Len())
+	// Convert smtCachedMapValue to cache
+	outerIter := smtCachedMapValue.Iterator()
+	for !outerIter.Done() {
+		table, innerMap, _ := outerIter.Next()
+		// Create inner map for this table
+		innerCache := make(map[string][]byte, innerMap.Len())
+
+		// Iterate over inner map
+		innerIter := innerMap.Iterator()
+		for !innerIter.Done() {
+			key, value, _ := innerIter.Next()
+			innerCache[key] = value
+		}
+
+		cache[table] = innerCache
+	}
+
+	mapCache.SetCache(cache)
 }
 
 func (m *EriDb) RetriveAndCleanCache() map[string]map[string][]byte {

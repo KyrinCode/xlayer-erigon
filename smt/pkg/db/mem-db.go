@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"math/big"
 	"sync"
 
@@ -42,7 +43,7 @@ func NewMemDb() *MemDb {
 func (m *MemDb) OpenBatch(quitCh <-chan struct{}) {
 }
 
-func (m *MemDb) SetCache(map[string]map[string][]byte) {}
+func (m *MemDb) SetCache(*immutable.Map[string, *immutable.Map[string, []byte]]) {}
 
 func (m *MemDb) RetriveAndCleanCache() map[string]map[string][]byte {
 	return nil

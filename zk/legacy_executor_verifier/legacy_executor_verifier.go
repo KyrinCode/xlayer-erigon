@@ -2,6 +2,7 @@ package legacy_executor_verifier
 
 import (
 	"context"
+	"github.com/benbjohnson/immutable"
 	"github.com/ledgerwatch/erigon/eth/stagedsync/stages"
 	"github.com/ledgerwatch/erigon/zk/smt"
 	"strconv"
@@ -113,7 +114,7 @@ func (vb *VerifierBundle) isInternalError() bool {
 }
 
 type WitnessGenerator interface {
-	GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, cache map[string]map[string][]byte) ([]byte, error)
+	GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, cache *immutable.Map[string, *immutable.Map[string, []byte]]) ([]byte, error)
 }
 
 type LegacyExecutorVerifier struct {
@@ -273,7 +274,7 @@ func (v *LegacyExecutorVerifier) VerifyAsync(request *VerifierRequest) *Promise[
 		}
 
 		block := minUint64(latestBlock, blockNumbers[len(blockNumbers)-1])
-		cache := map[string]map[string][]byte{}
+		var cache *immutable.Map[string, *immutable.Map[string, []byte]]
 		if v.cache != nil {
 			cache = v.cache.CascadeGetCurrentBatchSnapshotCache(block)
 		}
@@ -397,7 +398,7 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 		}
 
 		block := minUint64(latestBlock, blockNumbers[len(blockNumbers)-1])
-		cache := map[string]map[string][]byte{}
+		var cache *immutable.Map[string, *immutable.Map[string, []byte]]
 		if v.cache != nil {
 			cache = v.cache.CascadeGetCurrentBatchSnapshotCache(block)
 		}

@@ -3,6 +3,7 @@ package smt
 import (
 	"context"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"github.com/ledgerwatch/erigon-lib/kv/membatchwithdb"
 	"math"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/ledgerwatch/erigon/zkevm/log"
 )
 
-func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.RwTx, txsmt kv.RwTx, checkRoot bool, expectedRootHash *common.Hash, quiet bool, cache map[string]map[string][]byte) (common.Hash, error) {
+func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.RwTx, txsmt kv.RwTx, checkRoot bool, expectedRootHash *common.Hash, quiet bool, cache *immutable.Map[string, *immutable.Map[string, []byte]]) (common.Hash, error) {
 	if !quiet {
 		log.Info(fmt.Sprintf("[%s] Unwind trie hashes started", logPrefix))
 		defer log.Info(fmt.Sprintf("[%s] Unwind ended", logPrefix))

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"sort"
 	"strings"
 	"sync"
@@ -18,7 +19,7 @@ import (
 
 type MapmutationWithDoubleCache struct {
 	modifiedCache  map[string]map[string][]byte // table -> key -> value ie. blocks -> hash -> blockBod
-	immutableCache map[string]map[string][]byte
+	immutableCache *immutable.Map[string, *immutable.Map[string, []byte]]
 	db             kv.Tx
 	quit           <-chan struct{}
 	clean          func()
@@ -64,10 +65,12 @@ func (m *MapmutationWithDoubleCache) getMem(table string, key []byte) ([]byte, b
 		}
 	}
 
-	if _, ok := m.immutableCache[table]; !ok {
+	bucket, ok := m.immutableCache.Get(table)
+	if !ok {
 		return nil, false
 	}
-	if value, ok := m.immutableCache[table][*(*string)(unsafe.Pointer(&key))]; ok {
+
+	if value, ok := bucket.Get(*(*string)(unsafe.Pointer(&key))); ok {
 		return value, ok
 	}
 
@@ -199,15 +202,20 @@ func (m *MapmutationWithDoubleCache) ForEach(bucket string, fromPrefix []byte, w
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	tmpCache := make(map[string]map[string][]byte, len(m.immutableCache))
-	for table, bucket := range m.immutableCache {
-		if _, ok := tmpCache[table]; !ok {
-			tmpCache[table] = make(map[string][]byte, len(bucket)*2)
+	tmpCache := make(map[string]map[string][]byte, m.immutableCache.Len())
+	outerIter := m.immutableCache.Iterator()
+	for !outerIter.Done() {
+		table, innerMap, _ := outerIter.Next()
+		innerCache := make(map[string][]byte, innerMap.Len())
+
+		// Iterate over inner map
+		innerIter := innerMap.Iterator()
+		for !innerIter.Done() {
+			key, value, _ := innerIter.Next()
+			innerCache[key] = value
 		}
 
-		for k, v := range bucket {
-			tmpCache[table][k] = v
-		}
+		tmpCache[table] = innerCache
 	}
 
 	for table, bucket := range m.modifiedCache {
@@ -330,7 +338,7 @@ func (m *MapmutationWithDoubleCache) Flush(ctx context.Context, tx kv.RwTx) erro
 	}
 
 	m.modifiedCache = map[string]map[string][]byte{}
-	m.immutableCache = map[string]map[string][]byte{}
+	m.immutableCache = immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	m.size = 0
 	m.count = 0
 	return nil
@@ -344,7 +352,7 @@ func (m *MapmutationWithDoubleCache) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.modifiedCache = map[string]map[string][]byte{}
-	m.immutableCache = map[string]map[string][]byte{}
+	m.immutableCache = immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	m.size = 0
 	m.count = 0
 	m.size = 0
@@ -362,7 +370,7 @@ func (m *MapmutationWithDoubleCache) panicOnEmptyDB() {
 	}
 }
 
-func (m *MapmutationWithDoubleCache) SetCache(cache map[string]map[string][]byte) {
+func (m *MapmutationWithDoubleCache) SetCache(cache *immutable.Map[string, *immutable.Map[string, []byte]]) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

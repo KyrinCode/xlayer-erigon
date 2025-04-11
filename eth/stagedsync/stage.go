@@ -1,6 +1,7 @@
 package stagedsync
 
 import (
+	"github.com/benbjohnson/immutable"
 	"github.com/ledgerwatch/log/v3"
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
@@ -47,11 +48,11 @@ type StageState struct {
 	BlockNumber uint64 // BlockNumber is the current block number of the stage at the beginning of the state execution.
 }
 
-func (s *StageState) GetSmtCache() map[string]map[string][]byte {
+func (s *StageState) GetSmtCache() *immutable.Map[string, *immutable.Map[string, []byte]] {
 	return s.state.GetSmtCache()
 }
 
-func (s *StageState) GetSmtHistorySnapshotCache(blockNumber uint64) map[string]map[string][]byte {
+func (s *StageState) GetSmtHistorySnapshotCache(blockNumber uint64) *immutable.Map[string, *immutable.Map[string, []byte]] {
 	return s.state.GetSmtSnapshotCache(blockNumber)
 }
 

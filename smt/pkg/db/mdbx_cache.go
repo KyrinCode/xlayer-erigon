@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/hex"
+	"github.com/benbjohnson/immutable"
 	"math/big"
 
 	"fmt"
@@ -37,9 +38,9 @@ func NewEriCacheDb(ctx context.Context, txsmt kv.Tx, txcdb kv.RwTx) *EriCacheDb 
 
 func (m *EriCacheDb) OpenBatch(quitCh <-chan struct{}) {}
 
-func (m *EriCacheDb) SetCache(smtCachedMapValue map[string]map[string][]byte) {
+func (m *EriCacheDb) SetCache(smtCachedMapValue *immutable.Map[string, *immutable.Map[string, []byte]]) {
 	if smtCachedMapValue == nil {
-		smtCachedMapValue = make(map[string]map[string][]byte)
+		smtCachedMapValue = immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	}
 
 	mapCache, ok := m.cacheTx.(*membatch.MapmutationWithDoubleCache)

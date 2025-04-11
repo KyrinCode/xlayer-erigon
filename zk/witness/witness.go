@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"math/big"
 	"time"
 
@@ -126,7 +127,7 @@ func (g *Generator) GetWitnessByBadBatch(tx kv.Tx, txsmt kv.Tx, ctx context.Cont
 	return g.generateWitness(tx, txsmt, ctx, batchNum, blocks, debug, witnessFull, nil)
 }
 
-func (g *Generator) GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, cache map[string]map[string][]byte) ([]byte, error) {
+func (g *Generator) GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Context, startBlock, endBlock uint64, debug, witnessFull bool, cache *immutable.Map[string, *immutable.Map[string, []byte]]) ([]byte, error) {
 	t := zkUtils.StartTimer("witness", "getwitnessbyblockrange")
 	defer t.LogTimer()
 
@@ -158,7 +159,7 @@ func (g *Generator) GetWitnessByBlockRange(tx kv.Tx, txsmt kv.Tx, ctx context.Co
 	return g.generateWitness(tx, txsmt, ctx, firstBatch, blocks, debug, witnessFull, cache)
 }
 
-func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, batchNum uint64, blocks []*eritypes.Block, debug, witnessFull bool, cache map[string]map[string][]byte) ([]byte, error) {
+func (g *Generator) generateWitness(tx kv.Tx, txsmt kv.Tx, ctx context.Context, batchNum uint64, blocks []*eritypes.Block, debug, witnessFull bool, cache *immutable.Map[string, *immutable.Map[string, []byte]]) ([]byte, error) {
 	now := time.Now()
 	defer func() {
 		diff := time.Since(now)

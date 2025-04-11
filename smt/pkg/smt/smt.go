@@ -1,6 +1,7 @@
 package smt
 
 import (
+	"github.com/benbjohnson/immutable"
 	"math/big"
 
 	"context"
@@ -33,7 +34,7 @@ type DB interface {
 	CommitBatch() error
 	OpenBatch(quitCh <-chan struct{})
 	RollbackBatch()
-	SetCache(cache map[string]map[string][]byte)
+	SetCache(cache *immutable.Map[string, *immutable.Map[string, []byte]])
 	RetriveAndCleanCache() map[string]map[string][]byte
 	RoDB
 }

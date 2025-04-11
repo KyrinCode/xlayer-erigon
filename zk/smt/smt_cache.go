@@ -8,7 +8,7 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
-var flushSmtCachePeriod = uint64(100)
+var flushSmtCachePeriod = uint64(50)
 
 type SmtCacheSave struct {
 	SmtData     map[string]map[string][]byte
@@ -80,48 +80,36 @@ func (cache *SmtCache) TruncateSmtCacheList(blockHeight uint64) {
 	}
 }
 
-func (cache *SmtCache) GetSmtCache() map[string]map[string][]byte {
+func (cache *SmtCache) GetSmtCache() *immutable.Map[string, *immutable.Map[string, []byte]] {
 	cache.LongLivedSmtCacheLock.RLock()
 	defer cache.LongLivedSmtCacheLock.RUnlock()
 
-	result := make(map[string]map[string][]byte, cache.LongLivedSmtCache.Len())
-	iter := cache.LongLivedSmtCache.Iterator()
-	for !iter.Done() {
-		table, innerMap, _ := iter.Next()
-		innerResult := make(map[string][]byte, innerMap.Len())
-		innerIter := innerMap.Iterator()
-		for !innerIter.Done() {
-			k, v, _ := innerIter.Next()
-			innerResult[k] = v
-		}
-		result[table] = innerResult
-	}
-	return result
+	return cache.LongLivedSmtCache
 }
 
-func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) map[string]map[string][]byte {
+func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) *immutable.Map[string, *immutable.Map[string, []byte]] {
 	cache.LongLivedSmtCacheLock.RLock()
 	if snapshot, exists := cache.LongLivedSmtCacheHistory[blockNumber]; exists {
-		result := make(map[string]map[string][]byte, snapshot.Len())
-		iter := snapshot.Iterator()
-		for !iter.Done() {
-			table, innerMap, _ := iter.Next()
-			innerResult := make(map[string][]byte, innerMap.Len())
-			innerIter := innerMap.Iterator()
-			for !innerIter.Done() {
-				k, v, _ := innerIter.Next()
-				innerResult[k] = v
-			}
-			result[table] = innerResult
-		}
 		cache.LongLivedSmtCacheLock.RUnlock()
-		return result
+		return snapshot
 	}
 
 	cache.SmtCacheSnapshotLock.RLock()
 	defer cache.SmtCacheSnapshotLock.RUnlock()
 	cacheData, _ := cache.SmtCacheSnapshotList.cascadeGetCacheShapshot(blockNumber)
-	return cacheData
+
+	tmpSnapShot := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
+	if cacheData != nil && len(cacheData) > 0 {
+		for table, bucket := range cacheData {
+			innerMap := immutable.NewMap[string, []byte](nil)
+			for k, v := range bucket {
+				innerMap = innerMap.Set(k, v)
+			}
+			tmpSnapShot = tmpSnapShot.Set(table, innerMap)
+		}
+	}
+
+	return tmpSnapShot
 }
 
 func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map[string][]byte) {

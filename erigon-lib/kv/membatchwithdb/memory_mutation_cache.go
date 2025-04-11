@@ -2,6 +2,7 @@ package membatchwithdb
 
 import (
 	"bytes"
+	"github.com/benbjohnson/immutable"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 
@@ -12,15 +13,15 @@ import (
 // MemoryMutationWithCache extends MemoryMutation with a caching layer
 type MemoryMutationWithCache struct {
 	*MemoryMutation
-	cache       map[string]map[string][]byte // Read-only cache, passed externally
-	modifyCache map[string]map[string][]byte // Writable cache for modifications
+	cache       *immutable.Map[string, *immutable.Map[string, []byte]] // Read-only cache, passed externally
+	modifyCache map[string]map[string][]byte                           // Writable cache for modifications
 }
 
 // NewMemoryBatchWithSizeNoSequenceWithCache creates a cached version with custom size
-func NewMemoryBatchWithSizeNoSequenceWithCache(tx kv.Tx, tmpDir string, mapSize datasize.ByteSize, cache map[string]map[string][]byte) *MemoryMutationWithCache {
+func NewMemoryBatchWithSizeNoSequenceWithCache(tx kv.Tx, tmpDir string, mapSize datasize.ByteSize, cache *immutable.Map[string, *immutable.Map[string, []byte]]) *MemoryMutationWithCache {
 	base := NewMemoryBatchWithSizeNoSequence(tx, tmpDir, mapSize)
 	if cache == nil {
-		cache = make(map[string]map[string][]byte)
+		cache = immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	}
 
 	return &MemoryMutationWithCache{
@@ -42,8 +43,8 @@ func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, erro
 	}
 
 	// 2. Check read-only cache
-	if keys, ok := m.cache[table]; ok {
-		if val, exists := keys[keyStr]; exists {
+	if buckets, ok := m.cache.Get(table); ok {
+		if val, exists := buckets.Get(keyStr); exists {
 			return val, nil
 		}
 	}
@@ -76,8 +77,8 @@ func (m *MemoryMutationWithCache) Has(table string, key []byte) (bool, error) {
 	}
 
 	// 2. Check read-only cache
-	if keys, ok := m.cache[table]; ok {
-		if _, exists := keys[keyStr]; exists {
+	if buckets, ok := m.cache.Get(table); ok {
+		if _, exists := buckets.Get(keyStr); exists {
 			return true, nil
 		}
 	}

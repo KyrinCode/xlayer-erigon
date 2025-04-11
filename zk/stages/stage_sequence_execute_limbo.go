@@ -3,6 +3,7 @@ package stages
 import (
 	"bytes"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
@@ -11,7 +12,7 @@ import (
 	"github.com/ledgerwatch/log/v3"
 )
 
-func handleLimbo(batchContext *BatchContext, batchState *BatchState, verifierBundle *legacy_executor_verifier.VerifierBundle, cache map[string]map[string][]byte) error {
+func handleLimbo(batchContext *BatchContext, batchState *BatchState, verifierBundle *legacy_executor_verifier.VerifierBundle, cache *immutable.Map[string, *immutable.Map[string, []byte]]) error {
 	legacyVerifier := batchContext.cfg.legacyVerifier
 	request := verifierBundle.Request
 	blockNumber := request.GetLastBlockNumber()

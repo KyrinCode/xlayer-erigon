@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/benbjohnson/immutable"
 	"sync"
 	"time"
 
@@ -52,11 +53,11 @@ func (s *Sync) GetCache() *smt.SmtCache {
 	return s.cache
 }
 
-func (s *Sync) GetSmtCache() map[string]map[string][]byte {
+func (s *Sync) GetSmtCache() *immutable.Map[string, *immutable.Map[string, []byte]] {
 	return s.cache.GetSmtCache()
 }
 
-func (s *Sync) GetSmtSnapshotCache(blockNumber uint64) map[string]map[string][]byte {
+func (s *Sync) GetSmtSnapshotCache(blockNumber uint64) *immutable.Map[string, *immutable.Map[string, []byte]] {
 	return s.cache.CascadeGetCurrentBatchSnapshotCache(blockNumber)
 }
 
