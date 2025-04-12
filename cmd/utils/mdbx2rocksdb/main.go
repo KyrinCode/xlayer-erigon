@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"runtime"
 	"time"
@@ -22,6 +23,9 @@ type dataPair struct {
 }
 
 func main() {
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 	// Command-line argument parsing
 	mdbxPath := flag.String("mdbx", "", "Path to the source MDBX database")
 	rocksdbPath := flag.String("rocksdb", "", "Path to the target RocksDB database")
@@ -207,7 +211,7 @@ func putBatch(db kv.RwDB, table string, batch []dataPair, logger log.Logger) err
 
 	start := time.Now()
 	defer func() {
-		logger.Info("Put batch", "table", table, "cost", time.Since(start))
+		logger.Info("Put batch", "table", table, "count", len(batch), "cost", time.Since(start))
 	}()
 
 	return db.Update(context.Background(), func(dstTx kv.RwTx) error {
@@ -218,14 +222,10 @@ func putBatch(db kv.RwDB, table string, batch []dataPair, logger log.Logger) err
 		defer dstCursor.Close()
 
 		for _, item := range batch {
-			now := time.Now()
 			if err := dstCursor.Put(item.k, item.v); err != nil {
 				return err
 			}
-			logger.Info("Put single data", "table", table, "cost", time.Since(now))
 		}
-
-		log.Info("putted batch", "table", table, "count", len(batch))
 		return nil
 	})
 }

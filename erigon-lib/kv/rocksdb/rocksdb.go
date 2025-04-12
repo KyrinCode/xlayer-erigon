@@ -50,10 +50,12 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts.SetCreateIfMissing(true)
 	opts.SetDisableAutoCompactions(false)
 	// opts.SetInfoLog(grocksdb.NewStderrLogger(grocksdb.InfoInfoLogLevel, "rocksdb_log"))
+	wbm := grocksdb.NewWriteBufferManager(512*1024*1024 /* 512 MB */, false)
+	opts.SetWriteBufferManager(wbm)
 	opts.EnableStatistics()
 	opts.SetStatsDumpPeriodSec(10)
 
-	opts.IncreaseParallelism(8) // 允许更多后台线程用于 flush/compaction
+	opts.IncreaseParallelism(4) // 允许更多后台线程用于 flush/compaction
 	// opts.SetMaxBackgroundJobs(8)
 	opts.SetWriteBufferSize(32 * 1024 * 1024)
 	// opts.SetRateLimiter(grocksdb.NewRateLimiter(20*1024*1024, 100*1000, 10))
