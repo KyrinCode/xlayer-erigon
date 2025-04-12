@@ -38,6 +38,8 @@ type RocksDbTx struct {
 
 func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
+	wopts.SetSync(true)
+	wopts.DisableWAL(false)
 	// defer wopts.Destroy()
 	txopt := grocksdb.NewDefaultTransactionOptions()
 	// defer txopt.Destroy()
@@ -405,6 +407,10 @@ func (rtx *RocksDbTx) close(action func() error) error {
 		defer flushOpts.Destroy()
 		flushOpts.SetWait(true)
 		err := rtx.db.rdb.Flush(flushOpts)
+		if err != nil {
+			panic(err)
+		}
+		err = rtx.db.rdb.FlushWAL(true)
 		if err != nil {
 			panic(err)
 		}
