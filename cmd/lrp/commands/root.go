@@ -60,27 +60,26 @@ var rootCmd = &cobra.Command{
 			path = config.WorkPath
 		}
 
-		if err = utils.CheckEnviorment(path); err != nil {
-			fmt.Printf("Checking enviornment returns an error: %v", err)
-			return
-		}
-
 		// Step 0.5: Check for running containers and monitor them
 		if busy, runningContainer, _ := utils.IsLRPBusy(); busy {
 			fmt.Printf("There are currently running lrp tests: %s\n", runningContainer)
 			if runningContainer != "" {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
 				defer monitorCancel()
-				if strings.Contains(strings.ToLower(runningContainer), "unwind") {
-					go monitorContainer(monitorCtx, runningContainer, "", sampleIntv, false)
-				} else {
-					go monitorContainer(monitorCtx, runningContainer, "", sampleIntv, true)
-				}
+				isReplay := strings.Contains(strings.ToLower(runningContainer), "replay")
+				csvFile := filepath.Join(path, fmt.Sprintf("%s-container-stats.csv", strings.Split(runningContainer, "-")[3]))
+				go monitorContainer(monitorCtx, runningContainer, csvFile, sampleIntv, isReplay)
 				if _, err := utils.RunDockerWait(ctx, monitorCancel, runningContainer, ""); err != nil {
-					fmt.Printf("Receive an error during monitoring the running container %s: %v\n", runningContainer, err)
+					fmt.Printf("Error monitoring running container %s: %v\n", runningContainer, err)
 					return
 				}
+				fmt.Printf("Container %s has completed\n", runningContainer)
 			}
+			return
+		}
+
+		if err = utils.CheckEnviorment(path); err != nil {
+			fmt.Printf("Checking enviornment returns an error: %v", err)
 			return
 		}
 

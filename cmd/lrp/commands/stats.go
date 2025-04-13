@@ -834,7 +834,6 @@ func showReport(path, workDir, commitID string) error {
 	// Function to update table sizes based on terminal dimensions
 	updateLayout := func() {
 		termWidth, termHeight := ui.TerminalDimensions()
-		log.Printf("Terminal dimensions: width=%d, height=%d", termWidth, termHeight)
 
 		// Current table: Half width, full height for 10 rows
 		currentFullHeight := len(currentTable.Rows)*2 + 1 // 10 rows * 2 (with separator) + 1 for title
