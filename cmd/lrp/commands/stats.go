@@ -24,34 +24,33 @@ import (
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
 	"github.com/ledgerwatch/erigon/cmd/lrp/utils"
-	"github.com/spf13/cobra"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
 
-var StatsCmd = &cobra.Command{
-	Use:   "stats [batchStart] [batchEnd]",
-	Short: "Display the test report for a specified batch range",
-	Long:  `Specify batchStart and batchEnd as arguments to display the top 5 historical test reports for that batch range in a table.`,
-	Args:  cobra.ExactArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
-		// Parse batchStart and batchEnd from arguments
-		batchStart, err := strconv.Atoi(args[0])
-		if err != nil {
-			log.Fatalf("Invalid batchStart: %v", err)
-		}
-		batchEnd, err := strconv.Atoi(args[1])
-		if err != nil {
-			log.Fatalf("Invalid batchEnd: %v", err)
-		}
+// var StatsCmd = &cobra.Command{
+// 	Use:   "stats [batchStart] [batchEnd]",
+// 	Short: "Display the test report for a specified batch range",
+// 	Long:  `Specify batchStart and batchEnd as arguments to display the top 5 historical test reports for that batch range in a table.`,
+// 	Args:  cobra.ExactArgs(2),
+// 	Run: func(cmd *cobra.Command, args []string) {
+// 		// Parse batchStart and batchEnd from arguments
+// 		batchStart, err := strconv.Atoi(args[0])
+// 		if err != nil {
+// 			log.Fatalf("Invalid batchStart: %v", err)
+// 		}
+// 		batchEnd, err := strconv.Atoi(args[1])
+// 		if err != nil {
+// 			log.Fatalf("Invalid batchEnd: %v", err)
+// 		}
 
-		// Call showHistoryReport with the parsed batch range
-		err = showHistoryReport(path, batchStart, batchEnd)
-		if err != nil {
-			log.Fatalf("Failed to display test report: %v", err)
-		}
-	},
-}
+// 		// Call showHistoryReport with the parsed batch range
+// 		err = showHistoryReport(path, batchStart, batchEnd)
+// 		if err != nil {
+// 			log.Fatalf("Failed to display test report: %v", err)
+// 		}
+// 	},
+// }
 
 func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIntv time.Duration, showTPS bool) error {
 	// Initialize Docker client
@@ -426,8 +425,8 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 		batchRegex := regexp.MustCompile(`Batch<(\d+)>`)
-		durationRegex := regexp.MustCompile(`TotalDuration<(\d+)ms>`)
-		txRegex := regexp.MustCompile(`Tx<(\d+)>`)
+		durationRegex := regexp.MustCompile(`TotalDuration-batch<(\d+)ms>`)
+		txRegex := regexp.MustCompile(`Txs<(\d+)>`)
 
 		for {
 			select {

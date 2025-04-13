@@ -9,18 +9,14 @@ import (
 
 func main() {
 	rootCmd := commands.RootCommand()
-	rootCmd.AddCommand(commands.KeyCmd)
-	rootCmd.AddCommand(commands.StatsCmd)
 	rootCmd.AddCommand(commands.AddCmd)
-	// rootCmd.AddCommand(commands.RenderCmd)
-	// rootCmd.AddCommand(commands.DockerCmd)
+	rootCmd.AddCommand(commands.InitCmd)
 
 	commands.WithPathFlags(rootCmd)
 	commands.WithGitFlags(rootCmd)
 	commands.WithExtraFlags(rootCmd)
-	commands.WithPathFlags(commands.KeyCmd)
-	commands.WithPathFlags(commands.StatsCmd)
 	commands.WithPathFlags(commands.AddCmd)
+	commands.WithPathFlags(commands.InitCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

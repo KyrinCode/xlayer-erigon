@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,8 +17,16 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "lrp",
-	Short: "LRP is the root command of running lrp test",
-	Long:  `LRP is the root command of running lrp test`,
+	Short: "Run local replay tests for blockchain data",
+	Long: `LRP (Local Replay) is a command-line tool for running local replay tests on blockchain data.
+	It automates the process of checking out a target Git commit, preparing a working directory, copying chain data,
+	and executing unwind and replay steps using Docker containers. This tool is designed for developers to replay blockchain
+	data locally, allowing them to test and debug blockchain nodes with specific batch ranges or configurations.
+
+	Before running this command, please run lrp init to initialize the configuration file and set the RPC key.
+	
+	Usage example:
+	  lrp -c COMMIT_ID`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -31,49 +40,63 @@ var rootCmd = &cobra.Command{
 		}()
 
 		// Step 0: Check flags and the environment
-		if err := checkFlags(); err != nil {
-			fmt.Printf("Checking flag variables return an error: %v\n", err)
+		var (
+			config   *utils.LRPConfig
+			workDir  string
+			commitID string
+		)
+
+		err := checkFlags()
+		if err != nil {
+			fmt.Printf("Checking flag variables return an error: %v", err)
 			return
 		}
-		if err := utils.CheckEnviorment(path); err != nil {
-			fmt.Printf("Checking enviornment returns an error: %v\n", err)
+		if config, err = utils.CheckEnviorment(path); err != nil {
+			fmt.Printf("Checking enviornment returns an error: %v", err)
 			return
 		}
 
-		if !ignoreRunning {
-			if busy, _ := utils.IsLRPBusy(); busy {
-				fmt.Println("There are currently running lrp tests")
-				return
+		// Step 0.5: Check for running containers and monitor them
+		if busy, runningContainer, _ := utils.IsLRPBusy(); busy {
+			fmt.Println("There are currently running lrp tests")
+			if runningContainer != "" {
+				monitorCtx, monitorCancel := context.WithCancel(ctx)
+				defer monitorCancel()
+				if strings.Contains(strings.ToLower(runningContainer), "unwind") {
+					go monitorContainer(monitorCtx, runningContainer, "", sampleIntv, false)
+				} else {
+					go monitorContainer(monitorCtx, runningContainer, "", sampleIntv, true)
+				}
+				if _, err := utils.RunDockerWait(ctx, monitorCancel, runningContainer, ""); err != nil {
+					fmt.Printf("Receive an error during monitoring the running container %s: %v\n", runningContainer, err)
+					return
+				}
 			}
+			return
 		}
 
 		// Step 1: checkout to the target branch or commit
 		repoPath := filepath.Join(path, utils.REPO_NAME)
-		commitID, err := utils.CheckoutGitTarget(repoPath, branch, commitID)
+		// commitID flag has the high priority than config file
+		if commitID == "" && config.GitCommit != "" {
+			commitID = config.GitCommit
+		}
+		commitID, err = utils.CheckoutGitTarget(repoPath, branch, commitID)
 		if err != nil {
 			fmt.Printf("Can't checkout to %s as error: %v\n", commitID, err)
 			return
 		}
+		config.GitCommit = commitID
 
 		// Step 2-1: prepare - create a work directory
-		var workDir string
-		var config *utils.LRPConfig
-
-		if custom {
-			if workDir, config, err = utils.SpawnWorkDirectoryCustomized(path, commitID, parallel); err != nil {
-				fmt.Printf("Creating customized work directory returns an error: %v\n", err)
-				return
-			}
-		} else {
-			selected, err := selectBatchRange(path)
-			if err != nil {
-				fmt.Printf("Got an error while selecting batch range: %v\n", err)
-				return
-			}
-			if workDir, config, err = utils.SpawnWorkDirectoryByDefault(path, commitID, parallel, selected.BatchFrom, selected.BatchTo); err != nil {
-				fmt.Printf("Creating work directory returns an error: %v\n", err)
-				return
-			}
+		selected, err := selectBatchRange(path)
+		if err != nil {
+			fmt.Printf("Got an error while selecting batch range: %v\n", err)
+			return
+		}
+		if workDir, config, err = utils.SpawnWorkDirectoryByDefault(path, commitID, selected.BatchFrom, selected.BatchTo); err != nil {
+			fmt.Printf("Creating work directory returns an error: %v\n", err)
+			return
 		}
 
 		if !vmtouch {
@@ -125,7 +148,7 @@ var rootCmd = &cobra.Command{
 		// backup the unwound chaindata if necessary
 		if backupUnwound && needUnwind {
 			if err := utils.RunMainnetDataCompact(workDir); err != nil {
-				fmt.Printf("Received an error while backup unwound mainnet data from %s to %s: %v\n", filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath, err)
+				fmt.Printf("Received an error while compact mainnet data: %v\n", err)
 				return
 			}
 			copyProgress := utils.CopyProgress{Title: "Backing Up Unwound Mainnet Data Progress", Mu: sync.Mutex{}}
@@ -133,7 +156,6 @@ var rootCmd = &cobra.Command{
 				fmt.Printf("Received an error while backup unwound mainnet data from %s to %s: %v\n", filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), backupTargetPath, err)
 				return
 			}
-
 		}
 
 		replayCSV := filepath.Join(workDir, "replay-container-stats.csv")

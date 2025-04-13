@@ -13,20 +13,34 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func SpawnWorkDirectoryByDefault(path, commitID string, processCount, batchFrom, batchTo int) (string, *LRPConfig, error) {
+func SpawnWorkDirectoryByDefault(path, commitID string, batchFrom, batchTo int) (string, *LRPConfig, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	portDiff, _ := getFreePortDiff()
 
+	rawConfigPath := filepath.Join(".", LRP_CONFIG_FILE)
+	data, err := os.ReadFile(rawConfigPath)
+	if err != nil {
+		fmt.Printf("Failed to read config file: %v\n", err)
+		return "", nil, err
+	}
+
+	var rawConfig LRPConfig
+	err = yaml.Unmarshal(data, &rawConfig)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal config file: %v\n", err)
+		return "", nil, err
+	}
+
 	config := &LRPConfig{
-		User:                   DEFAULT_USER,
+		User:                   rawConfig.User,
 		GitCommit:              commitID,
 		PortDiff:               int64(portDiff),
 		BatchFrom:              uint64(batchFrom),
 		BatchTo:                uint64(batchTo),
-		UseExternalDatastream:  DEFAULT_USE_EXTERNAL_DATASTREAM,
-		ExternalDataStreamPath: filepath.Join(GetDefaultPath(""), DEFAULT_EXTERNAL_DATASTREAM_PATH),
-		SrcMainnetDataPath:     filepath.Join(GetDefaultPath(""), DEFAULT_SOURCE_MAINNET_DATA_PATH),
-		ProcessCount:           processCount,
+		UseExternalDatastream:  rawConfig.UseExternalDatastream,
+		ExternalDataStreamPath: rawConfig.ExternalDataStreamPath,
+		SrcMainnetDataPath:     rawConfig.SrcMainnetDataPath,
+		ProcessCount:           rawConfig.ProcessCount,
 	}
 
 	workDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s-%s-%d-%d", timestamp, commitID, config.User, config.BatchFrom, config.BatchTo))
@@ -37,11 +51,11 @@ func SpawnWorkDirectoryByDefault(path, commitID string, processCount, batchFrom,
 	makefilePath := filepath.Join(workDir, "Makefile")
 	dockerFilePath := filepath.Join(workDir, "docker-compose.yml")
 
-	if err := createFileIfNotExist(makefilePath, testscripts.MakefileContent); err != nil {
+	if err := CreateFileIfNotExist(makefilePath, testscripts.MakefileContent); err != nil {
 		return "", nil, err
 	}
 
-	if err := createFileIfNotExist(dockerFilePath, testscripts.DockerComposeFileContent); err != nil {
+	if err := CreateFileIfNotExist(dockerFilePath, testscripts.DockerComposeFileContent); err != nil {
 		return "", nil, err
 	}
 
@@ -56,7 +70,7 @@ func SpawnWorkDirectoryByDefault(path, commitID string, processCount, batchFrom,
 	}
 
 	configPath := filepath.Join(workDir, LRP_CONFIG_FILE)
-	data, _ := yaml.Marshal(&config)
+	data, _ = yaml.Marshal(&config)
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return "", nil, fmt.Errorf("failed to write config file: %v", err)
 	}
@@ -64,64 +78,7 @@ func SpawnWorkDirectoryByDefault(path, commitID string, processCount, batchFrom,
 	return workDir, config, nil
 }
 
-func SpawnWorkDirectoryCustomized(path, commitID string, processCount int) (string, *LRPConfig, error) {
-	timestamp := time.Now().Format("20060102-150405")
-	workDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s", timestamp, commitID))
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return "", nil, fmt.Errorf("failed to create work folder: %v", err)
-	}
-
-	makefilePath := filepath.Join(workDir, "Makefile")
-	dockerFilePath := filepath.Join(workDir, "docker-compose.yml")
-
-	if err := createFileIfNotExist(makefilePath, testscripts.MakefileContent); err != nil {
-		return "", nil, err
-	}
-
-	if err := createFileIfNotExist(dockerFilePath, testscripts.DockerComposeFileContent); err != nil {
-		return "", nil, err
-	}
-
-	rpcKeyFile := filepath.Join(path, "rpc.key")
-	rpcKey, err := os.ReadFile(rpcKeyFile)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if err := createXlayerConfigFile(string(rpcKey), workDir); err != nil {
-		return "", nil, err
-	}
-
-	// use 'make lrp-config' to generate new config file
-	if err := runLRPConfig(workDir); err != nil {
-		return "", nil, err
-	}
-
-	configPath := filepath.Join(workDir, LRP_CONFIG_FILE)
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return "", nil, err
-	}
-
-	var config LRPConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return "", nil, fmt.Errorf("failed to read config file: %v", err)
-	}
-	config.GitCommit = commitID
-	config.ProcessCount = processCount
-
-	// override the config file
-	data, _ = yaml.Marshal(&config)
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return "", nil, fmt.Errorf("failed to overwrite config file: %v", err)
-	}
-
-	// rename work directory
-	newWorkDir := filepath.Join(path, "workspace", fmt.Sprintf("%s-%s-%s-%d-%d", timestamp, commitID, config.User, config.BatchFrom, config.BatchTo))
-	return newWorkDir, &config, os.Rename(workDir, newWorkDir)
-}
-
-func createFileIfNotExist(path string, content []byte) error {
+func CreateFileIfNotExist(path string, content []byte) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		err = os.WriteFile(path, content, 0644)
 		if err != nil {
@@ -236,7 +193,7 @@ func WriteReplayContainerLog(containerID, workDir string) error {
 	return writeContainerLogs(containerID, filepath.Join(workDir, REPLAY_LOG))
 }
 
-func IsLRPBusy() (bool, error) {
+func IsLRPBusy() (bool, string, error) {
 	return isLRPBusy()
 }
 

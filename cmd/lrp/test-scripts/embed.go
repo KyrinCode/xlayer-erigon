@@ -12,3 +12,9 @@ var DockerComposeFileContent []byte
 
 //go:embed xlayerconfig-mainnet.yaml
 var XlayerConfigMainnetContent []byte
+
+//go:embed lrp.config.yaml.example
+var XlayerLRPConfigExampleContent []byte
+
+//go:embed Dockerfile.local
+var DockerfileLocalContent []byte

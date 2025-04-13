@@ -1,0 +1,5 @@
+user: kyrin
+processCount: 1
+useExternalDatastream: true
+srcMainnetDataPath: $HOME/Downloads/mainnet-compact-170700-9510470/seq
+externalDatastreamPath:

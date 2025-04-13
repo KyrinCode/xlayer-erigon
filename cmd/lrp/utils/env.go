@@ -13,11 +13,12 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	testscripts "github.com/ledgerwatch/erigon/cmd/lrp/test-scripts"
+	"gopkg.in/yaml.v2"
 )
 
 var dependencies = []string{
 	".dockerignore",
-	"Dockerfile.local",
 	"go.mod",
 	"go.sum",
 	"erigon-lib/go.mod",
@@ -48,6 +49,7 @@ func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		UseExternalDatastream  bool   `yaml:"useExternalDatastream"`
 		ExternalDataStreamPath string `yaml:"externalDatastreamPath"`
 		SrcMainnetDataPath     string `yaml:"srcMainnetDataPath"`
+		ProcessCount           int    `yaml:"processCount"`
 	}
 
 	var raw rawConfig
@@ -56,19 +58,22 @@ func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	c.SrcMainnetDataPath = raw.SrcMainnetDataPath
-	if c.SrcMainnetDataPath == "" {
-		c.SrcMainnetDataPath = filepath.Join(GetDefaultPath(""), DEFAULT_SOURCE_MAINNET_DATA_PATH)
-	}
-
-	if raw.ExternalDataStreamPath == "" {
-		c.ExternalDataStreamPath = filepath.Join(GetDefaultPath(""), DEFAULT_EXTERNAL_DATASTREAM_PATH)
-	}
-
+	c.ExternalDataStreamPath = raw.ExternalDataStreamPath
 	c.User = raw.User
 	c.PortDiff = raw.PortDiff
 	c.BatchFrom = raw.BatchFrom
 	c.BatchTo = raw.BatchTo
 	c.UseExternalDatastream = raw.UseExternalDatastream
+	c.ProcessCount = raw.ProcessCount
+	c.GitCommit = raw.GitCommit
+
+	// if c.SrcMainnetDataPath == "" {
+	// 	c.SrcMainnetDataPath = filepath.Join(GetDefaultPath(""), DEFAULT_SOURCE_MAINNET_DATA_PATH)
+	// }
+
+	// if raw.ExternalDataStreamPath == "" {
+	// 	c.ExternalDataStreamPath = filepath.Join(GetDefaultPath(""), DEFAULT_EXTERNAL_DATASTREAM_PATH)
+	// }
 
 	return nil
 }
@@ -86,51 +91,69 @@ func GetDefaultPath(path string) string {
 }
 
 // CheckEnviorment checks the environment for required tools and files
-func CheckEnviorment(path string) error {
+func CheckEnviorment(path string) (*LRPConfig, error) {
+	var config *LRPConfig
 	// Check if git is installed
 	if _, err := exec.LookPath("git"); err != nil {
-		return fmt.Errorf("git is not installed")
+		return nil, fmt.Errorf("git is not installed")
 	}
 
 	// Check if docker is installed
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker is not installed")
+		return nil, fmt.Errorf("docker is not installed")
 	}
 
 	// Check if Docker daemon is running
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("docker daemon is not running: %v", err)
+		return nil, fmt.Errorf("docker daemon is not running: %v", err)
 	}
 	defer cli.Close()
 
 	// Test connection to Docker daemon with a simple ping
 	_, err = cli.Ping(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to connect to docker daemon, ensure it is running: %v", err)
+		return nil, fmt.Errorf("failed to connect to docker daemon, ensure it is running: %v", err)
 	}
 	cli.Close() // Close the client after checking
 
 	// Check if rpc.key exists
 	rpcKeyPath := filepath.Join(path, "rpc.key")
 	if _, err := os.Stat(rpcKeyPath); err != nil {
-		fmt.Println("rpc.key is not set, please run 'lrp setkey -h' for help")
-		return err
+		fmt.Println("rpc.key is not set, please run 'lrp init -h' for help")
+		return nil, err
+	}
+
+	// Get the content of lrp.config.yaml file if it exists
+	configPath := filepath.Join(".", LRP_CONFIG_FILE)
+	if data, err := os.ReadFile(configPath); err != nil {
+		fmt.Println("lrp.config.yaml is not initialized, please run 'lrp init -h' for help")
+		return nil, err
+	} else {
+		if err := yaml.Unmarshal(data, &config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal lrp.config.yaml: %v", err)
+		}
 	}
 
 	// Fetch repo
 	if err := pullCode(path); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check if dependended files exist, if not, copy them from repo
 	repoPath := filepath.Join(path, REPO_NAME)
 	if err := copyDependencies(repoPath, path); err != nil {
-		return err
+		return nil, err
+	}
+
+	// Check if Dockerfile.local exists, if not, create it
+	dockerfileLocalPath := filepath.Join(path, "Dockerfile.local")
+	if err := CreateFileIfNotExist(dockerfileLocalPath, testscripts.DockerfileLocalContent); err != nil {
+		return nil, err
 	}
 
 	fmt.Println("Check environment done")
-	return nil
+	return config, nil
 }
 
 // copyDependencies copies dependency files from repoPath to destPath, overwriting existing files.
@@ -195,54 +218,54 @@ func copyDependencies(repoPath, destPath string) error {
 
 // isLRPBusy checks if there are running Docker containers or active lrp commands
 // Returns true if either condition is met
-func isLRPBusy() (bool, error) {
+func isLRPBusy() (bool, string, error) {
 	// Check running Docker containers
-	hasRunningContainers, err := checkRunningContainers()
+	runningContainer, err := getRunningContainers()
 	if err != nil {
-		return false, fmt.Errorf("failed to check Docker containers: %v", err)
+		return false, "", fmt.Errorf("failed to check Docker containers: %v", err)
 	}
-	if hasRunningContainers {
-		return true, nil
+	if runningContainer != "" {
+		return true, runningContainer, nil
 	}
 
 	// Check active lrp commands, excluding the current process
 	hasActiveLRP, err := checkActiveLRPCommands()
 	if err != nil {
-		return false, fmt.Errorf("failed to check lrp commands: %v", err)
+		return false, "", fmt.Errorf("failed to check lrp commands: %v", err)
 	}
 	if hasActiveLRP {
-		return true, nil
+		return true, "", nil
 	}
 
-	return false, nil
+	return false, "", nil
 }
 
-// checkRunningContainers checks if there are running Docker containers
-func checkRunningContainers() (bool, error) {
+// getRunningContainers gets container id if there are running Docker containers
+func getRunningContainers() (string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	containers, err := cli.ContainerList(context.Background(), container.ListOptions{
 		All: false, // Only list running containers
 	})
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	for _, container := range containers {
 		for _, name := range container.Names {
 			if strings.Contains(strings.ToLower(name), "unwind") {
-				return true, nil
+				return name, nil
 			}
 			if strings.Contains(strings.ToLower(name), "replay") {
-				return true, nil
+				return name, nil
 			}
 		}
 	}
 
-	return false, nil
+	return "", nil
 }
 
 // checkActiveLRPCommands checks if there are any active lrp commands excluding the current process
