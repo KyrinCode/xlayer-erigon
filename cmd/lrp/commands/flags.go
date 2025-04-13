@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"path/filepath"
 	"time"
 
 	"github.com/ledgerwatch/erigon/cmd/lrp/utils"
@@ -13,18 +12,18 @@ var (
 	branch   string
 	commitID string
 
-	chaindata     string
 	backupUnwound bool
 	fuse          bool
+	vmtouch       bool
 
-	vmtouch bool
-	// parallel   int
 	sampleIntv time.Duration
+
+	// parallel   int
 	// custom     bool
 )
 
 func WithPathFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&path, "path", "p", utils.GetDefaultPath(path), "the root directory which will store the whole testing data, including repo and workspace(recommended to use default)")
+	cmd.Flags().StringVarP(&path, "path", "p", utils.DEFAULT_DESTINATION_DIR, "the root directory which will store the whole testing data, including repo and workspace(recommended to use default)")
 }
 
 func WithGitFlags(cmd *cobra.Command) {
@@ -33,7 +32,6 @@ func WithGitFlags(cmd *cobra.Command) {
 }
 
 func WithExtraFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&chaindata, "chaindata", filepath.Join(utils.GetDefaultPath(path), utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), "the directory which will be imported to the testing environment(e.g. ~/Downloads/mainnet/seq)")
 	cmd.Flags().BoolVar(&backupUnwound, "backup", false, "determine whether to backup unwound chaindata")
 	cmd.Flags().BoolVar(&fuse, "fuse", false, "if true, monitor the mainnet data directory size and fuse replay when the size exceeds the limit")
 	cmd.Flags().DurationVar(&sampleIntv, "sample", utils.DEFAULT_SAMPLE_INTERVAL, "set the sampling interval for the Docker container, the minimum value is 1 second")

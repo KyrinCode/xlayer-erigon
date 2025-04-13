@@ -3,7 +3,7 @@ package utils
 import "time"
 
 const (
-	DEFAULT_DESTINATION_DIR = ".lrp"
+	DEFAULT_DESTINATION_DIR = "/data/.lrp"
 
 	DEFAULT_SAMPLE_INTERVAL = 10 * time.Second
 	MIN_SMAPLE_INTERVAL     = time.Second

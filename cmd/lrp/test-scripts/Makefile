@@ -13,7 +13,6 @@ export PPROF_PORT RPC_PORT DS_PORT METRICS_PORT EXTERNAL_DS_PORT
 
 DOCKER_COMPOSE := docker compose -f docker-compose.yml -p $(USER_PREFIX)-xlayer-lrp
 DOCKER_MAINNET_UNWIND := xlayer-mainnet-unwind
-DOCKER_MAINNET_UNWIND_WITH_STANDALONE_SMT_DB := xlayer-mainnet-unwind-with-standalone-smt-db
 DOCKER_MAINNET_UNWIND_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-unwind
 DOCKER_MAINNET_REPLAY := xlayer-mainnet-replay
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := xlayer-mainnet-replay-with-external-datastream
@@ -21,20 +20,17 @@ DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := xlayer-mainnet-replay-with-vmtouch
 DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := xlayer-mainnet-replay-with-external-datastream-and-vmtouch
 DOCKER_MAINNET_REPLAY_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-replay
 DOCKER_MAINNET_UNWIND_SEQ := xlayer-mainnet-unwind-seq
-DOCKER_MAINNET_UNWIND_SEQ_WITH_STANDALONE_SMT_DB := xlayer-mainnet-unwind-seq-with-standalone-smt-db
 DOCKER_MAINNET_UNWIND_SEQ_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-unwind-seq
 DOCKER_MAINNET_L1_SYNC := xlayer-mainnet-l1-sync
 DOCKER_MAINNET_L1_SYNC_CONTAINER := $(USER_PREFIX)-xlayer-mainnet-l1-sync
 
 RUN_DOCKER_STATELESS_EXECUTOR := $(DOCKER_COMPOSE) up -d $(DOCKER_STATELESS_EXECUTOR)
-RUN_DOCKER_MAINNET_UNWIND := $(DOCKER_COMPOSE) --profile legacy-db up -d $(DOCKER_MAINNET_UNWIND)
-RUN_DOCKER_MAINNET_UNWIND_WITH_STANDALONE_SMT_DB := $(DOCKER_COMPOSE) --profile split-db up -d $(DOCKER_MAINNET_UNWIND_WITH_STANDALONE_SMT_DB)
+RUN_DOCKER_MAINNET_UNWIND := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND)
 RUN_DOCKER_MAINNET_REPLAY := $(DOCKER_COMPOSE) --profile internal-ds up -d $(DOCKER_MAINNET_REPLAY)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM := $(DOCKER_COMPOSE) --profile external-ds up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM)
 RUN_DOCKER_MAINNET_REPLAY_WITH_VMTOUCH := $(DOCKER_COMPOSE) --profile internal-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_VMTOUCH)
 RUN_DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH := $(DOCKER_COMPOSE) --profile external-ds-vmtouch up -d $(DOCKER_MAINNET_REPLAY_WITH_EXTERNAL_DATASTREAM_AND_VMTOUCH)
-RUN_DOCKER_MAINNET_UNWIND_SEQ := $(DOCKER_COMPOSE) --profile legacy-db up -d $(DOCKER_MAINNET_UNWIND_SEQ)
-RUN_DOCKER_MAINNET_UNWIND_SEQ_WITH_STANDALONE_SMT_DB := $(DOCKER_COMPOSE) --profile split-db up -d $(DOCKER_MAINNET_UNWIND_SEQ_WITH_STANDALONE_SMT_DB)
+RUN_DOCKER_MAINNET_UNWIND_SEQ := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_UNWIND_SEQ)
 RUN_DOCKER_MAINNET_L1_SYNC := $(DOCKER_COMPOSE) up -d $(DOCKER_MAINNET_L1_SYNC)
 
 UNWIND_LOG_FILE := unwind.log
@@ -78,7 +74,7 @@ lrp-config:
 	GIT_COMMIT=$$(git rev-parse --short HEAD); \
 	if [ ! -f lrp.config.yaml ]; then \
 		echo "user: $$USER_NAME" > lrp.config.yaml; \
-		echo "gitCommit: " >> lrp.config.yaml; \
+		echo "gitCommit: $$GIT_COMMIT" >> lrp.config.yaml; \
 		echo "portDiff: $$PORT_DIFF" >> lrp.config.yaml; \
 		echo "fromBatchNumber: $$FROM_BATCH_NO" >> lrp.config.yaml; \
 		echo "toBatchNumber: $$TO_BATCH_NO" >> lrp.config.yaml; \
@@ -155,13 +151,7 @@ lrp-config-apply:
 
 .PHONY: lrp-mainnet
 lrp-mainnet: lrp-config-apply lrp-build-docker
-	@if [ -f "./mainnet/seq/smt/mdbx.dat" ]; then \
-		echo "Found standalone SMT database, using split-db mode..."; \
-		$(RUN_DOCKER_MAINNET_UNWIND_WITH_STANDALONE_SMT_DB); \
-	else \
-		echo "No standalone SMT database found, using legacy-db mode..."; \
-		$(RUN_DOCKER_MAINNET_UNWIND); \
-	fi
+	@$(RUN_DOCKER_MAINNET_UNWIND)
 	@docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER) > /dev/null; \
 	docker logs $(DOCKER_MAINNET_UNWIND_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 	@# $(RUN_DOCKER_STATELESS_EXECUTOR)
@@ -175,14 +165,7 @@ lrp-mainnet: lrp-config-apply lrp-build-docker
 
 .PHONY: lrp-mainnet-unwind
 lrp-mainnet-unwind: lrp-config-apply lrp-build-docker
-	$(RUN_DOCKER_MAINNET_UNWIND)
-	@if [ -f "./mainnet/seq/smt/mdbx.dat" ]; then \
-		echo "Found standalone SMT database, using split-db mode..."; \
-		$(RUN_DOCKER_MAINNET_UNWIND_WITH_STANDALONE_SMT_DB); \
-	else \
-		echo "No standalone SMT database found, using legacy-db mode..."; \
-		$(RUN_DOCKER_MAINNET_UNWIND); \
-	fi
+	@$(RUN_DOCKER_MAINNET_UNWIND)
 	# @docker wait $(DOCKER_MAINNET_UNWIND_CONTAINER) > /dev/null; \
 	# docker logs $(DOCKER_MAINNET_UNWIND_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 
@@ -208,13 +191,7 @@ lrp-mainnet-replay-pause:
 
 .PHONY: lrp-mainnet-unwind-seq
 lrp-mainnet-unwind-seq: lrp-config-apply lrp-build-docker
-	@if [ -f "./mainnet/seq/smt/mdbx.dat" ]; then \
-		echo "Found standalone SMT database, using split-db mode..."; \
-		$(RUN_DOCKER_MAINNET_UNWIND_SEQ_WITH_STANDALONE_SMT_DB); \
-	else \
-		echo "No standalone SMT database found, using legacy-db mode..."; \
-		$(RUN_DOCKER_MAINNET_UNWIND_SEQ); \
-	fi
+	@$(RUN_DOCKER_MAINNET_UNWIND_SEQ)
 	@docker wait $(DOCKER_MAINNET_UNWIND_SEQ_CONTAINER) > /dev/null; \
 	docker logs $(DOCKER_MAINNET_UNWIND_SEQ_CONTAINER) > $(UNWIND_LOG_FILE) 2>&1
 
@@ -400,4 +377,3 @@ lrp-stop-parallel: lrp-stop
 	for i in $$(seq 1 $$PROCESS_COUNT); do \
 		rm -f docker-compose-$$i.yml; \
 	done
-

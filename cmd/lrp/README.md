@@ -113,7 +113,6 @@ The `lrp` command executes the test in the following steps:
 | `--path`      | `-p`      | `~/.lrp`                    | Root directory for test data (repo and workspace, recommended to use default). |
 | `--commitID`  | `-c`      | Empty                       | Git commit ID to checkout (overrides `GitCommit` in config).               |
 | `--branch`    | `-b`      | `main`                      | Git branch to checkout (used if `commitID` is not set).                    |
-| `--chaindata` |           | `~/.lrp/mainnet/seq`        | Directory containing blockchain data to import into the test environment.  |
 | `--backup`    |           | `false`                     | Whether to back up unwound chain data.                                     |
 | `--fuse`      |           | `false`                     | Monitor mainnet data directory size and fuse replay if size exceeds limit. |
 | `--sample`    |           | `10s`                       | Sampling interval for Docker container, minimum 1 second.                  |

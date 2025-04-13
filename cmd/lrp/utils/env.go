@@ -28,26 +28,28 @@ var dependencies = []string{
 }
 
 type LRPConfig struct {
+	WorkPath               string `yaml:"workPath"`
 	User                   string `yaml:"user"`
 	GitCommit              string `yaml:"gitCommit"`
 	PortDiff               int64  `yaml:"portDiff"`
 	BatchFrom              uint64 `yaml:"fromBatchNumber"`
 	BatchTo                uint64 `yaml:"toBatchNumber"`
 	UseExternalDatastream  bool   `yaml:"useExternalDatastream"`
-	ExternalDataStreamPath string `yaml:"externalDatastreamPath"`
+	ExternalDataStreamPath string `yaml:"externalDatastreamPath,omitempty"`
 	SrcMainnetDataPath     string `yaml:"srcMainnetDataPath"`
 	ProcessCount           int    `yaml:"processCount"`
 }
 
 func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type rawConfig struct {
+		WorkPath               string `yaml:"workPath"`
 		User                   string `yaml:"user"`
 		GitCommit              string `yaml:"gitCommit"`
 		PortDiff               int64  `yaml:"portDiff"`
 		BatchFrom              uint64 `yaml:"fromBatchNumber"`
 		BatchTo                uint64 `yaml:"toBatchNumber"`
 		UseExternalDatastream  bool   `yaml:"useExternalDatastream"`
-		ExternalDataStreamPath string `yaml:"externalDatastreamPath"`
+		ExternalDataStreamPath string `yaml:"externalDatastreamPath,omitempty"`
 		SrcMainnetDataPath     string `yaml:"srcMainnetDataPath"`
 		ProcessCount           int    `yaml:"processCount"`
 	}
@@ -57,8 +59,7 @@ func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	c.SrcMainnetDataPath = raw.SrcMainnetDataPath
-	c.ExternalDataStreamPath = raw.ExternalDataStreamPath
+	c.WorkPath = raw.WorkPath
 	c.User = raw.User
 	c.PortDiff = raw.PortDiff
 	c.BatchFrom = raw.BatchFrom
@@ -67,28 +68,28 @@ func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	c.ProcessCount = raw.ProcessCount
 	c.GitCommit = raw.GitCommit
 
-	// if c.SrcMainnetDataPath == "" {
-	// 	c.SrcMainnetDataPath = filepath.Join(GetDefaultPath(""), DEFAULT_SOURCE_MAINNET_DATA_PATH)
-	// }
+	if raw.SrcMainnetDataPath != "" {
+		c.SrcMainnetDataPath = raw.SrcMainnetDataPath
+	}
 
-	// if raw.ExternalDataStreamPath == "" {
-	// 	c.ExternalDataStreamPath = filepath.Join(GetDefaultPath(""), DEFAULT_EXTERNAL_DATASTREAM_PATH)
-	// }
+	if raw.ExternalDataStreamPath != "" {
+		c.ExternalDataStreamPath = raw.ExternalDataStreamPath
+	}
 
 	return nil
 }
 
-func getHomeDir(path string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return path
-	}
-	return home
-}
+// func getHomeDir(path string) string {
+// 	home, err := os.UserHomeDir()
+// 	if err != nil {
+// 		return path
+// 	}
+// 	return home
+// }
 
-func GetDefaultPath(path string) string {
-	return filepath.Join(getHomeDir(path), DEFAULT_DESTINATION_DIR)
-}
+// func GetDefaultPath(path string) string {
+// 	return filepath.Join(getHomeDir(path), DEFAULT_DESTINATION_DIR)
+// }
 
 // CheckEnviorment checks the environment for required tools and files
 func CheckEnviorment(path string) (*LRPConfig, error) {

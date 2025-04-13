@@ -1,3 +1,4 @@
+workPath: /data/.lrp
 user: kyrin
 processCount: 1
 useExternalDatastream: true
