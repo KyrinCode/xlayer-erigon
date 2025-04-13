@@ -60,15 +60,6 @@ func main() {
 	}
 	defer srcDB.Close()
 
-	// Open the target RocksDB database
-	logger.Info("Opening target RocksDB database", "path", *rocksdbPath)
-	dstDB, err := openRocksDB(*rocksdbPath, logger)
-	if err != nil {
-		logger.Error("Failed to open RocksDB database", "path", *rocksdbPath, "error", err)
-		os.Exit(1)
-	}
-	defer dstDB.Close()
-
 	// Start the conversion process
 	startTime := time.Now()
 	logger.Info("Starting database conversion")
@@ -87,19 +78,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create target tables
-	if err := dstDB.Update(context.Background(), func(tx kv.RwTx) error {
-		for _, table := range tableNames {
-			if err := tx.CreateBucket(table); err != nil {
-				return fmt.Errorf("failed to create bucket %s: %w", table, err)
-			}
-		}
-		return nil
-	}); err != nil {
-		logger.Error("Failed to create target buckets", "error", err)
-		os.Exit(1)
-	}
-
 	// Set up progress reporting variables
 	totalRecords := int64(0)
 
@@ -108,7 +86,7 @@ func main() {
 		logger.Info("Converting table", "name", table)
 		tableStartTime := time.Now()
 
-		recordCount, err := convertTable(table, srcDB, dstDB, logger)
+		recordCount, err := convertTable(*rocksdbPath, table, srcDB, logger)
 		if err != nil {
 			logger.Error("Failed to convert table", "name", table, "error", err)
 			os.Exit(1)
@@ -155,11 +133,11 @@ func openRocksDB(path string, logger log.Logger) (kv.RwDB, error) {
 	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, writeTxLimiter, false)
 }
 
-func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB, logger log.Logger) (int64, error) {
+func convertTable(rocksdbPath, table string, srcDB kv.RwDB, logger log.Logger) (int64, error) {
 	recordCount := int64(0)
 
 	// Process records in batches to avoid a single large transaction
-	batchSize := 10000
+	batchSize := 100000
 	batch := make([]dataPair, 0, batchSize)
 
 	// Start data migration transaction
@@ -186,7 +164,7 @@ func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB, logger log.Logger)
 			recordCount++
 
 			if len(batch) >= batchSize {
-				if err := putBatch(dstDB, table, batch, logger); err != nil {
+				if err := putBatch(rocksdbPath, table, batch, logger); err != nil {
 					return err
 				}
 
@@ -197,24 +175,33 @@ func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB, logger log.Logger)
 	}); err != nil {
 		return 0, err
 	}
-	if err := putBatch(dstDB, table, batch, logger); err != nil {
+	if err := putBatch(rocksdbPath, table, batch, logger); err != nil {
 		return 0, err
 	}
 
 	return recordCount, nil
 }
 
-func putBatch(db kv.RwDB, table string, batch []dataPair, logger log.Logger) error {
+func putBatch(rocksdbPath string, table string, batch []dataPair, logger log.Logger) error {
 	if len(batch) == 0 {
 		return nil
 	}
+
+	// Open the target RocksDB database
+	logger.Info("Opening target RocksDB database", "path", rocksdbPath)
+	dstDB, err := openRocksDB(rocksdbPath, logger)
+	if err != nil {
+		logger.Error("Failed to open RocksDB database", "path", rocksdbPath, "error", err)
+		os.Exit(1)
+	}
+	defer dstDB.Close()
 
 	start := time.Now()
 	defer func() {
 		logger.Info("Put batch", "table", table, "count", len(batch), "cost", time.Since(start))
 	}()
 
-	return db.Update(context.Background(), func(dstTx kv.RwTx) error {
+	return dstDB.Update(context.Background(), func(dstTx kv.RwTx) error {
 		dstCursor, err := dstTx.RwCursor(table)
 		if err != nil {
 			return err
