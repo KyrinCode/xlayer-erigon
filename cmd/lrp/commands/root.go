@@ -88,6 +88,8 @@ var rootCmd = &cobra.Command{
 		}
 		config.GitCommit = commitID
 
+		utils.CommentOutLine(utils.COMMENT_OUT_FILE, utils.COMMENT_TARGET_LINE)
+
 		// Step 2-1: prepare - create a work directory
 		selected, err := selectBatchRange(path)
 		if err != nil {

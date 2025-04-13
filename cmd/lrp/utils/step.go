@@ -1,12 +1,14 @@
 package utils
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	testscripts "github.com/ledgerwatch/erigon/cmd/lrp/test-scripts"
@@ -94,8 +96,24 @@ func CreateFileIfNotExist(path string, content []byte) error {
 }
 
 func createXlayerConfigFile(rpcKey, path string) error {
+	// Define the destination file path
+	configPath := filepath.Join(path, "xlayerconfig-mainnet.yaml")
+
+	// Copy the source file to the destination
+	sourceData, err := os.ReadFile(LRP_MAINNET_CONFIG_FILE)
+	if err != nil {
+		return fmt.Errorf("failed to read source file: %v", err)
+	}
+
+	// Write the source data to the destination file
+	err = os.WriteFile(configPath, sourceData, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to copy file to %s: %v", configPath, err)
+	}
+
 	var config map[string]interface{}
-	err := yaml.Unmarshal([]byte(testscripts.XlayerConfigMainnetContent), &config)
+
+	err = yaml.Unmarshal(sourceData, &config)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal config file: %v", err)
 	}
@@ -109,7 +127,6 @@ func createXlayerConfigFile(rpcKey, path string) error {
 		return fmt.Errorf("failed to marshal YAML: %v", err)
 	}
 
-	configPath := filepath.Join(path, "xlayerconfig-mainnet.yaml")
 	err = os.WriteFile(configPath, modifiedData, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write config file: %v", err)
@@ -276,4 +293,37 @@ func getFolderSize(chaindataDir string) (int64, error) {
 		return 0, fmt.Errorf("failed to calculate size of %s: %v", chaindataDir, err)
 	}
 	return size, nil
+}
+
+func CommentOutLine(filePath, targetLine string) error {
+	// Open the file for reading
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	// Store modified lines
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Comment out the target line
+		if strings.TrimSpace(line) == targetLine {
+			line = "// " + line
+		}
+		lines = append(lines, line)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+
+	// Write back to the file
+	err = os.WriteFile(filePath, []byte(strings.Join(lines, "\n")+"\n"), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+
+	return nil
 }

@@ -8,6 +8,7 @@ const (
 	DEFAULT_SAMPLE_INTERVAL = 10 * time.Second
 	MIN_SMAPLE_INTERVAL     = time.Second
 	DEFAULT_CHAINDATA_LIMIT = 100 * 1024 * 1024 * 1024
+	LRP_MAINNET_CONFIG_FILE = "xlayer-erigon/test/lrp/xlayerconfig-mainnet.yaml"
 
 	// default test params
 	DEFAULT_PROCESS_COUNT            = 1
@@ -36,4 +37,8 @@ const (
 
 	// stop sign
 	REPLAY_STOP_SIGN = "Resequencing completed"
+
+	// comment out code
+	COMMENT_OUT_FILE    = "cmd/integration/root.go"
+	COMMENT_TARGET_LINE = `opts = opts.Accede()`
 )

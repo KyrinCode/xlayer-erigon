@@ -10,9 +10,6 @@ var MakefileContent []byte
 //go:embed docker-compose.yml
 var DockerComposeFileContent []byte
 
-//go:embed xlayerconfig-mainnet.yaml
-var XlayerConfigMainnetContent []byte
-
 //go:embed lrp.config.yaml.example
 var XlayerLRPConfigExampleContent []byte
 
