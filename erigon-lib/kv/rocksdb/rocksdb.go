@@ -57,13 +57,12 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 
 	opts.IncreaseParallelism(8) // 允许更多后台线程用于 flush/compaction
 	// opts.SetMaxBackgroundJobs(8)
-	opts.SetWriteBufferSize(32 * 1024 * 1024)
 	// opts.SetRateLimiter(grocksdb.NewRateLimiter(20*1024*1024, 100*1000, 10))
 	//opts.SetMaxBackgroundFlushes(4)
 	//opts.SetMaxBackgroundCompactions(4)
 
 	// 1. 写缓冲相关
-	//opts.SetWriteBufferSize(64 * 1024 * 1024) // 单个 memtable 64MB
+	opts.SetWriteBufferSize(32 * 1024 * 1024)
 	opts.SetMaxWriteBufferNumber(3)        // 最多 6 个缓冲 memtable
 	opts.SetMinWriteBufferNumberToMerge(3) // 合并 memtable 的阈值
 	// 2. compaction stall 相关

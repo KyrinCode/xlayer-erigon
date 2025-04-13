@@ -414,6 +414,7 @@ func (rtx *RocksDbTx) close(action func() error) error {
 		if err != nil {
 			panic(err)
 		}
+		rtx.db.rdb.GetBaseDB().CompactRange(grocksdb.Range{})
 
 		props := []string{
 			"rocksdb.num-running-compactions",
@@ -438,6 +439,9 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.total-sst-files-size",
 			"rocksdb.num-snapshots",
 			"rocksdb.oldest-snapshot-time",
+			"rocksdb.cfstats",
+			"rocksdb.flushes",
+			"rocksdb.thread-status",
 			"rocksdb.stats",
 		}
 

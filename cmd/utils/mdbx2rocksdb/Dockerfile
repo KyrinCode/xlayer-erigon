@@ -30,8 +30,10 @@ ADD . .
 ENV CGO_CFLAGS="-I/app/deps/rocksdb/include"
 ENV CGO_LDFLAGS="-L/app/deps/rocksdb -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy -llz4 -lzstd"
 
+RUN cd cmd/utils/commitrdb && go build -o commitrdb ./main.go
 RUN cd cmd/utils/mdbx2rocksdb && go build -o mdbx2rocksdb ./main.go
+RUN cp cmd/utils/commitrdb/commitrdb cmd/utils/mdbx2rocksdb/
+RUN chmod +x cmd/utils/mdbx2rocksdb/commitrdb
 
 ENTRYPOINT ["/app/cmd/utils/mdbx2rocksdb/mdbx2rocksdb"]
-
 CMD ["--help"]
