@@ -25,7 +25,6 @@ var dependencies = []string{
 	"erigon-lib/go.sum",
 	"tools.go",
 	"Makefile",
-	"test/lrp/docker-compose.yml",
 }
 
 type LRPConfig struct {
