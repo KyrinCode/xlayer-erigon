@@ -55,7 +55,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts.EnableStatistics()
 	opts.SetStatsDumpPeriodSec(10)
 
-	opts.IncreaseParallelism(4) // 允许更多后台线程用于 flush/compaction
+	opts.IncreaseParallelism(8) // 允许更多后台线程用于 flush/compaction
 	// opts.SetMaxBackgroundJobs(8)
 	opts.SetWriteBufferSize(32 * 1024 * 1024)
 	// opts.SetRateLimiter(grocksdb.NewRateLimiter(20*1024*1024, 100*1000, 10))
@@ -64,12 +64,12 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 
 	// 1. 写缓冲相关
 	//opts.SetWriteBufferSize(64 * 1024 * 1024) // 单个 memtable 64MB
-	//opts.SetMaxWriteBufferNumber(6)           // 最多 6 个缓冲 memtable
-	//opts.SetMinWriteBufferNumberToMerge(3)    // 合并 memtable 的阈值
+	opts.SetMaxWriteBufferNumber(3)        // 最多 6 个缓冲 memtable
+	opts.SetMinWriteBufferNumberToMerge(3) // 合并 memtable 的阈值
 	// 2. compaction stall 相关
-	opts.SetLevel0FileNumCompactionTrigger(2) // L0 到 2 就触发 compaction
-	opts.SetLevel0SlowdownWritesTrigger(8)
-	opts.SetLevel0StopWritesTrigger(12)
+	opts.SetLevel0FileNumCompactionTrigger(1) // L0 到 2 就触发 compaction
+	opts.SetLevel0SlowdownWritesTrigger(1)
+	opts.SetLevel0StopWritesTrigger(1)
 	// opts.EnableStatistics()
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
