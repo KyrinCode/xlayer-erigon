@@ -44,17 +44,24 @@ func pullCode(path string) error {
 		fmt.Println("Removed stale git lock file")
 	}
 
+	// Git reset
 	originalDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %v", err)
+		return fmt.Errorf("failed to get original directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
 
 	if err := os.Chdir(repoPath); err != nil {
 		return fmt.Errorf("failed to change to directory %s: %v", repoPath, err)
 	}
+	cmd := exec.Command("git", "reset", "--hard")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to git reset repo: %v", err)
+	}
 
-	cmd := exec.Command("git", "fetch", "origin", "--prune")
+	cmd = exec.Command("git", "fetch", "origin", "--prune")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

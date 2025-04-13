@@ -51,14 +51,23 @@ var rootCmd = &cobra.Command{
 			fmt.Printf("Checking flag variables return an error: %v", err)
 			return
 		}
-		if config, err = utils.CheckEnviorment(path); err != nil {
+
+		if config, err = utils.ParseLRPConfigFIle(); err != nil {
+			fmt.Printf("Parsing LRP config file returns an error: %v", err)
+			return
+		}
+		if config.WorkPath != "" {
+			path = config.WorkPath
+		}
+
+		if err = utils.CheckEnviorment(path); err != nil {
 			fmt.Printf("Checking enviornment returns an error: %v", err)
 			return
 		}
 
 		// Step 0.5: Check for running containers and monitor them
 		if busy, runningContainer, _ := utils.IsLRPBusy(); busy {
-			fmt.Println("There are currently running lrp tests")
+			fmt.Printf("There are currently running lrp tests: %s\n", runningContainer)
 			if runningContainer != "" {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
 				defer monitorCancel()
@@ -88,7 +97,8 @@ var rootCmd = &cobra.Command{
 		}
 		config.GitCommit = commitID
 
-		utils.CommentOutLine(utils.COMMENT_OUT_FILE, utils.COMMENT_TARGET_LINE)
+		fmt.Println("comment file: ", filepath.Join(path, utils.COMMENT_OUT_FILE))
+		utils.CommentOutLine(filepath.Join(path, utils.COMMENT_OUT_FILE), utils.COMMENT_TARGET_LINE)
 
 		// Step 2-1: prepare - create a work directory
 		selected, err := selectBatchRange(path)

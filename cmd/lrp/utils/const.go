@@ -39,6 +39,6 @@ const (
 	REPLAY_STOP_SIGN = "Resequencing completed"
 
 	// comment out code
-	COMMENT_OUT_FILE    = "cmd/integration/root.go"
+	COMMENT_OUT_FILE    = "xlayer-erigon/cmd/integration/commands/root.go"
 	COMMENT_TARGET_LINE = `opts = opts.Accede()`
 )

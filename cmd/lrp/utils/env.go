@@ -79,51 +79,8 @@ func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// func getHomeDir(path string) string {
-// 	home, err := os.UserHomeDir()
-// 	if err != nil {
-// 		return path
-// 	}
-// 	return home
-// }
-
-// func GetDefaultPath(path string) string {
-// 	return filepath.Join(getHomeDir(path), DEFAULT_DESTINATION_DIR)
-// }
-
-// CheckEnviorment checks the environment for required tools and files
-func CheckEnviorment(path string) (*LRPConfig, error) {
+func ParseLRPConfigFIle() (*LRPConfig, error) {
 	var config *LRPConfig
-	// Check if git is installed
-	if _, err := exec.LookPath("git"); err != nil {
-		return nil, fmt.Errorf("git is not installed")
-	}
-
-	// Check if docker is installed
-	if _, err := exec.LookPath("docker"); err != nil {
-		return nil, fmt.Errorf("docker is not installed")
-	}
-
-	// Check if Docker daemon is running
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, fmt.Errorf("docker daemon is not running: %v", err)
-	}
-	defer cli.Close()
-
-	// Test connection to Docker daemon with a simple ping
-	_, err = cli.Ping(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to docker daemon, ensure it is running: %v", err)
-	}
-	cli.Close() // Close the client after checking
-
-	// Check if rpc.key exists
-	rpcKeyPath := filepath.Join(path, "rpc.key")
-	if _, err := os.Stat(rpcKeyPath); err != nil {
-		fmt.Println("rpc.key is not set, please run 'lrp init -h' for help")
-		return nil, err
-	}
 
 	// Get the content of lrp.config.yaml file if it exists
 	configPath := filepath.Join(".", LRP_CONFIG_FILE)
@@ -135,26 +92,62 @@ func CheckEnviorment(path string) (*LRPConfig, error) {
 			return nil, fmt.Errorf("failed to unmarshal lrp.config.yaml: %v", err)
 		}
 	}
+	return config, nil
+
+}
+
+// CheckEnviorment checks the environment for required tools and files
+func CheckEnviorment(path string) error {
+	// Check if git is installed
+	if _, err := exec.LookPath("git"); err != nil {
+		return fmt.Errorf("git is not installed")
+	}
+
+	// Check if docker is installed
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("docker is not installed")
+	}
+
+	// Check if Docker daemon is running
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("docker daemon is not running: %v", err)
+	}
+	defer cli.Close()
+
+	// Test connection to Docker daemon with a simple ping
+	_, err = cli.Ping(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to connect to docker daemon, ensure it is running: %v", err)
+	}
+	cli.Close() // Close the client after checking
+
+	// Check if rpc.key exists
+	rpcKeyPath := filepath.Join(path, "rpc.key")
+	if _, err := os.Stat(rpcKeyPath); err != nil {
+		fmt.Println("rpc.key is not set, please run 'lrp init -h' for help")
+		return err
+	}
 
 	// Fetch repo
 	if err := pullCode(path); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Check if dependended files exist, if not, copy them from repo
 	repoPath := filepath.Join(path, REPO_NAME)
 	if err := copyDependencies(repoPath, path); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Check if Dockerfile.local exists, if not, create it
 	dockerfileLocalPath := filepath.Join(path, "Dockerfile.local")
 	if err := CreateFileIfNotExist(dockerfileLocalPath, testscripts.DockerfileLocalContent); err != nil {
-		return nil, err
+		return err
 	}
 
 	fmt.Println("Check environment done")
-	return config, nil
+	return nil
 }
 
 // copyDependencies copies dependency files from repoPath to destPath, overwriting existing files.
