@@ -49,15 +49,15 @@ func SpawnWorkDirectoryByDefault(path, commitID string, batchFrom, batchTo int) 
 	}
 
 	makefilePath := filepath.Join(workDir, "Makefile")
-	dockerFilePath := filepath.Join(workDir, "docker-compose.yml")
+	// dockerFilePath := filepath.Join(workDir, "docker-compose.yml")
 
 	if err := CreateFileIfNotExist(makefilePath, testscripts.MakefileContent); err != nil {
 		return "", nil, err
 	}
 
-	if err := CreateFileIfNotExist(dockerFilePath, testscripts.DockerComposeFileContent); err != nil {
-		return "", nil, err
-	}
+	// if err := CreateFileIfNotExist(dockerFilePath, testscripts.DockerComposeFileContent); err != nil {
+	// 	return "", nil, err
+	// }
 
 	rpcKeyFile := filepath.Join(path, "rpc.key")
 	rpcKey, err := os.ReadFile(rpcKeyFile)

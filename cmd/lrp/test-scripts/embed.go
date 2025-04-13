@@ -8,7 +8,7 @@ import (
 var MakefileContent []byte
 
 //go:embed docker-compose.yml
-var DockerComposeFileContent []byte
+// var DockerComposeFileContent []byte
 
 //go:embed xlayerconfig-mainnet.yaml
 var XlayerConfigMainnetContent []byte
