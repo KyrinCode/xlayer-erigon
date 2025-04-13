@@ -67,7 +67,7 @@ func SpawnWorkDirectoryByDefault(path, commitID string, batchFrom, batchTo int) 
 		return "", nil, err
 	}
 
-	if err := createXlayerConfigFile(string(rpcKey), workDir); err != nil {
+	if err := createXlayerConfigFile(string(rpcKey), path, workDir); err != nil {
 		return "", nil, err
 	}
 
@@ -95,12 +95,12 @@ func CreateFileIfNotExist(path string, content []byte) error {
 	return nil
 }
 
-func createXlayerConfigFile(rpcKey, path string) error {
+func createXlayerConfigFile(rpcKey, path, workDir string) error {
 	// Define the destination file path
-	configPath := filepath.Join(path, "xlayerconfig-mainnet.yaml")
+	configPath := filepath.Join(workDir, "xlayerconfig-mainnet.yaml")
 
 	// Copy the source file to the destination
-	sourceData, err := os.ReadFile(LRP_MAINNET_CONFIG_FILE)
+	sourceData, err := os.ReadFile(filepath.Join(path, LRP_MAINNET_CONFIG_FILE))
 	if err != nil {
 		return fmt.Errorf("failed to read source file: %v", err)
 	}
