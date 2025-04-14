@@ -17,11 +17,11 @@ type SmtCacheSave struct {
 
 type SmtCache struct {
 	PushedHeap       *Uint64MinHeap
-	LastPushedHeight uint64
 	ConfirmedHeap    *Uint64MinHeap
+	LastPushedHeight uint64
 
-	SmtCacheSnapshotList *SmtCacheList
-	SmtCacheSnapshotLock sync.RWMutex
+	DeltaSnapshotList *SmtDeltaList
+	DeltaSnapshotLock sync.RWMutex
 
 	CurrentBatchBlockSnapshotList *SmtCacheList
 	CurrentBatchSnapshotLock      sync.RWMutex
@@ -29,9 +29,9 @@ type SmtCache struct {
 	SmtCacheDataCh   chan SmtCacheSave
 	ToPushedSmtCache map[string]map[string][]byte
 
-	LongLivedSmtCache        *immutable.Map[string, *immutable.Map[string, []byte]]
-	LongLivedSmtCacheHistory map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]]
-	LongLivedSmtCacheLock    sync.RWMutex
+	PrimaryCache        *immutable.Map[string, *immutable.Map[string, []byte]]
+	PrimaryCacheHistory map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]]
+	PrimaryCacheLock    sync.RWMutex
 
 	LastResetHeight       uint64
 	LastRecordBlockHeight uint64
@@ -43,14 +43,15 @@ func CreateNewSmtCache() *SmtCache {
 		ConfirmedHeap:    NewUint64MinHeap(),
 		LastPushedHeight: 0,
 
-		SmtCacheSnapshotList:          NewSmtCacheList(),
+		DeltaSnapshotList: NewSmtDeltaList(),
+
 		CurrentBatchBlockSnapshotList: NewSmtCacheList(),
 
 		SmtCacheDataCh:   make(chan SmtCacheSave, 1000),
 		ToPushedSmtCache: make(map[string]map[string][]byte),
 
-		LongLivedSmtCache:        immutable.NewMap[string, *immutable.Map[string, []byte]](nil),
-		LongLivedSmtCacheHistory: make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]]),
+		PrimaryCache:        immutable.NewMap[string, *immutable.Map[string, []byte]](nil),
+		PrimaryCacheHistory: make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]]),
 
 		LastResetHeight:       0,
 		LastRecordBlockHeight: 0,
@@ -74,39 +75,54 @@ func (cache *SmtCache) TruncateSmtCacheList(blockHeight uint64) {
 	}
 
 	if maxConfirmedHeight > 0 {
-		cache.SmtCacheSnapshotLock.Lock()
-		cache.SmtCacheSnapshotList.cascadeDeleteCache(maxConfirmedHeight)
-		cache.SmtCacheSnapshotLock.Unlock()
+		cache.DeltaSnapshotLock.Lock()
+		cache.DeltaSnapshotList.DeleteUpTo(maxConfirmedHeight)
+		cache.DeltaSnapshotLock.Unlock()
 	}
 }
 
 func (cache *SmtCache) GetSmtCache() *immutable.Map[string, *immutable.Map[string, []byte]] {
-	cache.LongLivedSmtCacheLock.RLock()
-	defer cache.LongLivedSmtCacheLock.RUnlock()
+	cache.PrimaryCacheLock.RLock()
+	defer cache.PrimaryCacheLock.RUnlock()
 
-	return cache.LongLivedSmtCache
+	return cache.PrimaryCache
 }
 
 func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) *immutable.Map[string, *immutable.Map[string, []byte]] {
-	cache.LongLivedSmtCacheLock.RLock()
-	snapshot, exists := cache.LongLivedSmtCacheHistory[blockNumber]
-	cache.LongLivedSmtCacheLock.RUnlock()
+	cache.PrimaryCacheLock.RLock()
+	snapshot, exists := cache.PrimaryCacheHistory[blockNumber]
+	cache.PrimaryCacheLock.RUnlock()
 
 	if exists {
 		return snapshot
 	}
 
-	cache.SmtCacheSnapshotLock.RLock()
-	cacheData, _ := cache.SmtCacheSnapshotList.cascadeGetCacheShapshot(blockNumber)
-	cache.SmtCacheSnapshotLock.RUnlock()
+	cache.DeltaSnapshotLock.RLock()
+	deltas := cache.DeltaSnapshotList.GetDeltaSnapshotUpTo(blockNumber)
+	cache.DeltaSnapshotLock.RUnlock()
+
+	cache.PrimaryCacheLock.RLock()
+	defer cache.PrimaryCacheLock.RUnlock()
 
 	tmpSnapShot := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
-	if cacheData != nil && len(cacheData) > 0 {
-		for table, bucket := range cacheData {
-			innerMap := immutable.NewMap[string, []byte](nil)
-			for k, v := range bucket {
-				innerMap = innerMap.Set(k, v)
+	for _, delta := range deltas {
+		for table, keys := range delta.ChangedKeys {
+			innerMap, _ := tmpSnapShot.Get(table)
+			if innerMap == nil {
+				innerMap = immutable.NewMap[string, []byte](nil)
 			}
+
+			currentInner, _ := cache.PrimaryCache.Get(table)
+			if currentInner == nil {
+				continue
+			}
+
+			for key := range keys {
+				if val, ok := currentInner.Get(key); ok {
+					innerMap = innerMap.Set(key, val)
+				}
+			}
+
 			tmpSnapShot = tmpSnapShot.Set(table, innerMap)
 		}
 	}
@@ -115,21 +131,22 @@ func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) *
 }
 
 func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map[string][]byte) {
-	cache.SmtCacheSnapshotLock.Lock()
-	cache.SmtCacheSnapshotList.Push(blockNumber, blockCache)
-	cache.SmtCacheSnapshotLock.Unlock()
-
+	// Push to CurrentBatchBlockSnapshotList
 	cache.CurrentBatchSnapshotLock.Lock()
 	cache.CurrentBatchBlockSnapshotList.Push(blockNumber, blockCache)
 	cache.CurrentBatchSnapshotLock.Unlock()
 
-	cache.LongLivedSmtCacheLock.Lock()
-	newSnapshot := cache.LongLivedSmtCache
+	changedKeys := make(map[string]map[string]struct{})
+
+	// Update PrimaryCache
+	cache.PrimaryCacheLock.Lock()
+	newSnapshot := cache.PrimaryCache
 
 	var wg sync.WaitGroup
 	resultChan := make(chan struct {
-		table string
-		inner *immutable.Map[string, []byte]
+		table      string
+		inner      *immutable.Map[string, []byte]
+		changeKeys map[string]struct{}
 	}, len(blockCache))
 
 	// Process each table concurrently
@@ -138,41 +155,46 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map
 		go func(table string, bucket map[string][]byte) {
 			defer wg.Done()
 
-			// Get or create inner map
 			existingInner, _ := newSnapshot.Get(table)
 			newInner := existingInner
 			if newInner == nil {
 				newInner = immutable.NewMap[string, []byte](nil)
 			}
 
-			// Update inner map
+			changeKeys := make(map[string]struct{}, len(bucket))
 			for key, value := range bucket {
 				newInner = newInner.Set(key, value)
+				changeKeys[key] = struct{}{}
 			}
 
-			// Send result
 			resultChan <- struct {
-				table string
-				inner *immutable.Map[string, []byte]
-			}{table, newInner}
+				table      string
+				inner      *immutable.Map[string, []byte]
+				changeKeys map[string]struct{}
+			}{table, newInner, changeKeys}
 		}(table, bucket)
 	}
 
-	// Collect results in a separate goroutine
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
-	// Update snapshot with results
 	for result := range resultChan {
 		newSnapshot = newSnapshot.Set(result.table, result.inner)
+		changedKeys[result.table] = result.changeKeys
 	}
 
-	cache.LongLivedSmtCacheHistory[blockNumber] = cache.LongLivedSmtCache
-	cache.LongLivedSmtCache = newSnapshot
+	cache.PrimaryCacheHistory[blockNumber] = cache.PrimaryCache
+	cache.PrimaryCache = newSnapshot
 	cache.LastRecordBlockHeight = blockNumber
-	cache.LongLivedSmtCacheLock.Unlock()
+	cache.PrimaryCacheLock.Unlock()
+
+	// Push to DeltaSnapshotList
+	cache.DeltaSnapshotLock.Lock()
+	cache.DeltaSnapshotList.Push(blockNumber, changedKeys)
+	cache.DeltaSnapshotLock.Unlock()
+
 }
 
 func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
@@ -199,29 +221,11 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 	}
 
 	if height-cache.LastResetHeight > 10*flushSmtCachePeriod {
-		cache.SmtCacheSnapshotLock.RLock()
-		tmpSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot()
-		cache.SmtCacheSnapshotLock.RUnlock()
-
-		cache.LongLivedSmtCacheLock.Lock()
-		newSnapshot := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
-		if tmpSmtCache != nil && len(tmpSmtCache) > 0 {
-			for table, bucket := range tmpSmtCache {
-				innerMap := immutable.NewMap[string, []byte](nil)
-				for k, v := range bucket {
-					innerMap = innerMap.Set(k, v)
-				}
-				newSnapshot = newSnapshot.Set(table, innerMap)
-			}
-		}
-		cache.LongLivedSmtCache = newSnapshot
-		cache.LongLivedSmtCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
-		cache.LastResetHeight = height
-		cache.LongLivedSmtCacheLock.Unlock()
+		cache.resetPrimaryCache(height)
 	} else {
-		cache.LongLivedSmtCacheLock.Lock()
-		cache.LongLivedSmtCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
-		cache.LongLivedSmtCacheLock.Unlock()
+		cache.PrimaryCacheLock.Lock()
+		cache.PrimaryCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
+		cache.PrimaryCacheLock.Unlock()
 	}
 
 	if batchPush && (height-cache.LastPushedHeight < flushSmtCachePeriod) && !grace {
@@ -244,6 +248,42 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 	}
 }
 
+func (cache *SmtCache) resetPrimaryCache(currentHeight uint64) {
+	cache.DeltaSnapshotLock.RLock()
+	allDeltas := cache.DeltaSnapshotList.GetAllChanges()
+	cache.DeltaSnapshotLock.RUnlock()
+
+	cache.PrimaryCacheLock.Lock()
+	defer cache.PrimaryCacheLock.Unlock()
+
+	newCache := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
+	for _, delta := range allDeltas {
+		for table, keys := range delta.ChangedKeys {
+			innerMap, _ := newCache.Get(table)
+			if innerMap == nil {
+				innerMap = immutable.NewMap[string, []byte](nil)
+			}
+
+			currentInner, _ := cache.PrimaryCache.Get(table)
+			if currentInner == nil {
+				continue
+			}
+
+			for key := range keys {
+				if val, ok := currentInner.Get(key); ok {
+					innerMap = innerMap.Set(key, val)
+				}
+			}
+
+			newCache = newCache.Set(table, innerMap)
+		}
+	}
+	cache.PrimaryCache = newCache
+	cache.LastResetHeight = currentHeight
+
+	cache.PrimaryCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
+}
+
 func (cache *SmtCache) ResetCurrentBatch(resetBlockHeight uint64) {
 	if resetBlockHeight > cache.LastRecordBlockHeight {
 		return
@@ -260,27 +300,40 @@ func (cache *SmtCache) ResetCurrentBatch(resetBlockHeight uint64) {
 	}
 	cache.CurrentBatchSnapshotLock.Unlock()
 
-	cache.SmtCacheSnapshotLock.Lock()
+	cache.DeltaSnapshotLock.Lock()
 	for _, blockNumber := range deleteBlockList {
-		cache.SmtCacheSnapshotList.deleteTargetCache(blockNumber)
+		cache.DeltaSnapshotList.DeleteUpTo(blockNumber)
 	}
-	tmpSmtCache, _ := cache.SmtCacheSnapshotList.getAllCacheShapshot()
-	cache.SmtCacheSnapshotLock.Unlock()
+	allDeltas := cache.DeltaSnapshotList.GetAllChanges()
+	cache.DeltaSnapshotLock.RUnlock()
 
-	cache.LongLivedSmtCacheLock.Lock()
-	newSnapshot := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
-	if tmpSmtCache != nil && len(tmpSmtCache) > 0 {
-		for table, bucket := range tmpSmtCache {
-			innerMap := immutable.NewMap[string, []byte](nil)
-			for k, v := range bucket {
-				innerMap = innerMap.Set(k, v)
+	cache.PrimaryCacheLock.Lock()
+	defer cache.PrimaryCacheLock.Unlock()
+
+	newCache := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
+	for _, delta := range allDeltas {
+		for table, keys := range delta.ChangedKeys {
+			innerMap, _ := newCache.Get(table)
+			if innerMap == nil {
+				innerMap = immutable.NewMap[string, []byte](nil)
 			}
-			newSnapshot = newSnapshot.Set(table, innerMap)
+
+			currentInner, _ := cache.PrimaryCache.Get(table)
+			if currentInner == nil {
+				continue
+			}
+
+			for key := range keys {
+				if val, ok := currentInner.Get(key); ok {
+					innerMap = innerMap.Set(key, val)
+				}
+			}
+
+			newCache = newCache.Set(table, innerMap)
 		}
 	}
-	cache.LongLivedSmtCache = newSnapshot
-	cache.LongLivedSmtCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
+	cache.PrimaryCache = newCache
+	cache.PrimaryCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
 	cache.LastResetHeight = resetBlockHeight - 1
 	cache.LastRecordBlockHeight = resetBlockHeight - 1
-	cache.LongLivedSmtCacheLock.Unlock()
 }
