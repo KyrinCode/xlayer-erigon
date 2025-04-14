@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"os/signal"
 	"sync"
@@ -31,6 +30,10 @@ import (
 type txRequest struct {
 	ctx        context.Context
 	encodedTx  hexutility.Bytes
+	sender     common.Address
+	txn        types.Transaction
+	header     *types.Block
+	cc         *chain.Config
 	resultChan chan txResult
 }
 
@@ -64,10 +67,35 @@ func (api *APIImpl) sendRawTransactionBulk(ctx context.Context, encodedTx hexuti
 		return api.sendTxZk(api.l2RpcUrl, encodedTx, chainId.Uint64())
 	}
 
+	txn, err := types.DecodeWrappedTransaction(encodedTx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	latestBlockNumber, err := rpchelper.GetLatestFinishedBlockNumber(tx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	header, err := api.blockByNumber(ctx, rpc.BlockNumber(latestBlockNumber), tx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
+
+	sender, err := txn.Sender(*signer)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
 	resultChan := make(chan txResult, 1)
 	req := txRequest{
 		ctx:        ctx,
 		encodedTx:  encodedTx,
+		txn:        txn,
+		sender:     sender,
+		cc:         cc,
 		resultChan: resultChan,
 	}
 
@@ -159,29 +187,10 @@ func (api *APIImpl) processBulk(bulk []txRequest) error {
 	}
 	defer tx.Rollback()
 
-	cc, err := api.chainConfig(ctx, tx)
-	if err != nil {
-		return err
-	}
-	chainId := cc.ChainID
-
-	latestBlockNumber, err := rpchelper.GetLatestFinishedBlockNumber(tx)
-	if err != nil {
-		return err
-	}
-
-	header, err := api.blockByNumber(ctx, rpc.BlockNumber(latestBlockNumber), tx)
-	if err != nil {
-		return err
-	}
-
-	// now get the sender and put a lock in place for them
-	signer := types.MakeSigner(cc, latestBlockNumber, header.Time())
-
 	var rlpTxs [][]byte
 	var results []txResult
 	for _, req := range bulk {
-		hash, err := api.validateTransaction(req.ctx, req.encodedTx, tx, cc, signer, chainId, header)
+		hash, err := api.validateTransaction(req.ctx, req.encodedTx, tx, req.cc, req.txn, req.sender, req.header)
 		if err != nil {
 			log.Error("validateTransaction failed", "err", err)
 			if req.resultChan != nil {
@@ -220,16 +229,8 @@ func (api *APIImpl) processBulk(bulk []txRequest) error {
 	return nil
 }
 
-func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutility.Bytes, tx kv.Tx, cc *chain.Config, signer *types.Signer, chainId *big.Int, header *types.Block) (common.Hash, error) {
-	txn, err := types.DecodeWrappedTransaction(encodedTx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	sender, err := txn.Sender(*signer)
-	if err != nil {
-		return common.Hash{}, err
-	}
+func (api *APIImpl) validateTransaction(ctx context.Context, encodedTx hexutility.Bytes, tx kv.Tx, cc *chain.Config, txn types.Transaction, sender common.Address, header *types.Block) (common.Hash, error) {
+	chainId := cc.ChainID
 	api.SenderLocks.AddLock(sender)
 	defer api.SenderLocks.ReleaseLock(sender)
 
