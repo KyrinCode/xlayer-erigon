@@ -426,7 +426,6 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.estimate-table-readers-mem",
 			"rocksdb.level0.slowdown",
 			"rocksdb.level0.num-files",
-			"rocksdb.total-sst-files-size",
 			"rocksdb.compaction.times.micros",
 			"rocksdb.estimate-pending-compaction-bytes",
 			"rocksdb.compaction-pending",
@@ -442,7 +441,7 @@ func (rtx *RocksDbTx) close(action func() error) error {
 			"rocksdb.cfstats",
 			"rocksdb.flushes",
 			"rocksdb.thread-status",
-			"rocksdb.stats",
+			// "rocksdb.stats",
 		}
 
 		for _, key := range props {
