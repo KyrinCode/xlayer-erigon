@@ -114,7 +114,14 @@ func replay(
 		batchJob := NewResequenceBatchJob(batch)
 		subBatchCount := 0
 		for batchJob.HasMoreBlockToProcess() {
+			if cfg.zk.XLayer.EnableAsyncCommit {
+				s.FlushSmtCacheWait()
+			}
 			if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, batchJob); err == nil {
+				if !cfg.zk.XLayer.EnableAsyncCommit {
+					return err
+				}
+
 				s.FlushSmtCacheSignalInc()
 				go func() {
 					defer s.FlushSmtCacheDone()
@@ -151,8 +158,11 @@ func replay(
 		}
 	}
 	log.Info(fmt.Sprintf("[%s] Replay completed.", s.LogPrefix()))
-	time.Sleep(3 * time.Second)
-	os.Exit(0)
+	if cfg.zk.XLayer.EnableAsyncCommit {
+		doneChan <- struct{}{}
+	} else {
+		os.Exit(0)
+	}
 	return nil
 }
 
