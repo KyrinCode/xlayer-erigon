@@ -17,7 +17,9 @@
 package crypto
 
 import (
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/holiman/uint256"
+	"time"
 
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 )
@@ -26,6 +28,12 @@ var (
 	secp256k1N     = new(uint256.Int).SetBytes(hexutility.MustDecodeHex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"))
 	secp256k1halfN = new(uint256.Int).Rsh(secp256k1N, 1)
 )
+
+var Secp256K1EcRecoverCache *expirable.LRU[[97]byte, []byte]
+
+func init() {
+	Secp256K1EcRecoverCache = expirable.NewLRU[[97]byte, []byte](16384, nil, 30*time.Second)
+}
 
 // See Appendix F "Signing Transactions" of the Yellow Paper
 func TransactionSignatureIsValid(v byte, r, s *uint256.Int, allowPreEip2s bool) bool {

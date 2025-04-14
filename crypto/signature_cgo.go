@@ -22,7 +22,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"fmt"
-
+	"github.com/ledgerwatch/erigon-lib/crypto"
 	"github.com/ledgerwatch/erigon/common/math"
 	"github.com/ledgerwatch/secp256k1"
 )
@@ -34,7 +34,22 @@ func Ecrecover(hash, sig []byte) ([]byte, error) {
 
 // Ecrecover returns the uncompressed public key that created the given signature.
 func EcrecoverWithContext(context *secp256k1.Context, hash, sig []byte) ([]byte, error) {
-	return secp256k1.RecoverPubkeyWithContext(context, hash, sig, nil)
+	//log.Info(fmt.Sprintf("[Ecrecover] hash: %x, sig: %x", hash, sig))
+	key := [97]byte{}
+	copy(key[:], hash[:32])
+	copy(key[32:], sig[:])
+	//log.Info(fmt.Sprintf("[Ecrecover] cache_key: %x", key))
+	val, ok := crypto.Secp256K1EcRecoverCache.Get(key)
+
+	if ok {
+		//log.Info("[Ecrecover] cached")
+		return val, nil
+	}
+	pubKey, err := secp256k1.RecoverPubkeyWithContext(context, hash, sig, nil)
+	if err == nil {
+		crypto.Secp256K1EcRecoverCache.Add(key, pubKey)
+	}
+	return pubKey, err
 }
 
 // SigToPub returns the public key that created the given signature.

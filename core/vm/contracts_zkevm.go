@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"github.com/ledgerwatch/secp256k1"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -159,7 +160,7 @@ func (c *ecrecover_zkevm) Run(input []byte) ([]byte, error) {
 	}
 
 	// v needs to be at the end for libsecp256k1
-	pubKey, err := crypto.Ecrecover(input[:32], sig)
+	pubKey, err := crypto.EcrecoverWithContext(secp256k1.DefaultContext, input[:32], sig)
 	// make sure the public key is a valid one
 	if err != nil {
 		return nil, nil

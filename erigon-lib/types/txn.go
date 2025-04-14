@@ -624,9 +624,25 @@ func (ctx *TxParseContext) parseTransactionBody(payload []byte, pos, p0 int, slo
 	ctx.Sig[64] = vByte
 	// recover sender
 
-	if _, err = secp256k1.RecoverPubkeyWithContext(secp256k1.DefaultContext, ctx.Sighash[:], ctx.Sig[:], ctx.buf[:0]); err != nil {
-		return 0, fmt.Errorf("%w: recovering sender from signature: %s", ErrParseTxn, err) //nolint
+	key := [97]byte{}
+	copy(key[:], ctx.Sighash[:32])
+	copy(key[32:], ctx.Sig[:])
+	//log.Info(fmt.Sprintf("[Ecrecover] cache_key: %x", key))
+	_, ok := crypto.Secp256K1EcRecoverCache.Get(key)
+
+	if !ok {
+		pubKey, err := secp256k1.RecoverPubkeyWithContext(secp256k1.DefaultContext, ctx.Sighash[:], ctx.Sig[:], ctx.buf[:0])
+		if err == nil {
+			crypto.Secp256K1EcRecoverCache.Add(key, pubKey)
+		} else {
+			return 0, fmt.Errorf("%w: recovering sender from signature: %s", ErrParseTxn, err) //nolint
+		}
 	}
+	//pubKey, err := secp256k1.RecoverPubkeyWithContext(context, hash, sig, nil)
+
+	//if _, err = secp256k1.RecoverPubkeyWithContext(secp256k1.DefaultContext, ctx.Sighash[:], ctx.Sig[:], ctx.buf[:0]); err != nil {
+	//	return 0, fmt.Errorf("%w: recovering sender from signature: %s", ErrParseTxn, err) //nolint
+	//}
 	//apply keccak to the public key
 	ctx.Keccak2.Reset()
 	if _, err = ctx.Keccak2.Write(ctx.buf[1:65]); err != nil {
