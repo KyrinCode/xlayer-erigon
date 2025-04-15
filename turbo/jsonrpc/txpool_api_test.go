@@ -49,7 +49,10 @@ func TestTxPoolContent(t *testing.T) {
 	err = txn.MarshalBinary(buf)
 	require.NoError(err)
 
-	reply, err := txPool.Add(ctx, &txpool.AddRequest{RlpTxs: [][]byte{buf.Bytes()}})
+	sender, _ := txn.GetSender()
+	senders := make([][20]byte, 1)
+	senders = append(senders, sender)
+	reply, err := txPool.Add(ctx, &txpool.AddRequest{RlpTxs: [][]byte{buf.Bytes()}, DecodedTx: []interface{}{txn}, RecoveredSender: senders})
 	require.NoError(err)
 	for _, res := range reply.Imported {
 		require.Equal(res, txPoolProto.ImportResult_SUCCESS, fmt.Sprintf("%s", reply.Errors))

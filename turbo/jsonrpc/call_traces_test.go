@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ledgerwatch/erigon-lib/common/hexutil"
-
 	"github.com/holiman/uint256"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
