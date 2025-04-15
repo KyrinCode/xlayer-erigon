@@ -199,7 +199,7 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 		txSlot := &types.TxSlot{}
 
 		if in.DecodedTx == nil || in.DecodedTx[i] == nil {
-			log.Warn("tx decode not cached")
+			//log.Warn("tx decode not cached")
 			in.DecodedTx[i], err = types3.DecodeTransaction(in.RlpTxs[i])
 			if err != nil {
 				reply.Errors[i] = TxDecodeFail.String()
@@ -211,7 +211,7 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 
 		sender := make([]byte, 20)
 		if in.RecoveredSender == nil {
-			log.Warn("ecrecover not cached")
+			//log.Warn("ecrecover not cached")
 			parseCtx.WithSender(true)
 		} else { // Note: we can skip sender recovery because we can get it from gprc request input
 			parseCtx.WithSender(false)
