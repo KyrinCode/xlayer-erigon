@@ -346,6 +346,44 @@ func TestModifyCodeCase6(t *testing.T) {
 	}
 }
 
+// comment smt alignment, disable the auto recovery
+func TestModifyCodeCase7(t *testing.T) {
+	// File to modify
+	filePath := "../../zk/stages/stage_sequence_execute.go"
+
+	// Read the file contents
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal("Error reading file:", err)
+	}
+
+	// Convert data to string for easier manipulation
+	content := string(data)
+
+	blockToReplace := `
+// For data loss
+var shouldCheckForExecutionAndSMTAlignment = SMTAlignmentTerminated`
+
+	lines := strings.Split(content, "\n")
+	replaced := false
+	for i, line := range lines {
+		if strings.Contains(line, "var shouldCheckForExecutionAndSMTAlignment = SMTAlignmentInit") {
+			lines[i] = blockToReplace
+			replaced = true
+			break
+		}
+	}
+	require.True(t, replaced, "Expected to find and replace the shouldCheckForExecutionAndSMTAlignment line")
+
+	content = strings.Join(lines, "\n")
+
+	// Write the modified content back to the file
+	err = os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatal("Error writing file:", err)
+	}
+}
+
 func TestStressAndStopSeq(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
