@@ -157,6 +157,7 @@ const (
 	// For X Layer
 	ReceiverDisallowedReceiveTx DiscardReason = 127 // receiver is not allowed to receive transactions
 	NoWhiteListedSender         DiscardReason = 128 // the transaction is sent by a non-whitelisted account
+	TxDecodeFail                DiscardReason = 129
 )
 
 func (r DiscardReason) String() string {

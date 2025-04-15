@@ -197,12 +197,29 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 	j := 0
 	for i := 0; i < len(in.RlpTxs); i++ { // some incoming txs may be rejected, so - need secnod index
 		txSlot := &types.TxSlot{}
-		sender := in.RecoveredSender[i]
+
+		if in.DecodedTx == nil || in.DecodedTx[i] == nil {
+			log.Warn("tx decode not cached")
+			in.DecodedTx[i], err = types3.DecodeTransaction(in.RlpTxs[i])
+			if err != nil {
+				reply.Errors[i] = TxDecodeFail.String()
+				reply.Imported[i] = txpool_proto.ImportResult_INTERNAL_ERROR
+				continue
+			}
+		}
 		txn := in.DecodedTx[i].(*types3.LegacyTx)
+
+		sender := make([]byte, 20)
+		if in.RecoveredSender == nil {
+			log.Warn("ecrecover not cached")
+			parseCtx.WithSender(true)
+		} else { // Note: we can skip sender recovery because we can get it from gprc request input
+			parseCtx.WithSender(false)
+			copy(sender[:], in.RecoveredSender[i][:])
+		}
+
 		txHash := txn.Hash()
 
-		// Note: we can skip sender recovery because we cat get it from gprc request input
-		parseCtx.WithSender(false)
 		parseCtx.WithoutTxHash(txHash)
 		if _, err := parseCtx.ParseTransaction(in.RlpTxs[i], 0, txSlot, sender[:], false /* hasEnvelope */, false, func(hash []byte) error {
 			if known, _ := s.txPool.IdHashKnown(tx, hash); known {
