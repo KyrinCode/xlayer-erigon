@@ -10,6 +10,7 @@ import (
 	"math/bits"
 	"strconv"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"sort"
@@ -303,41 +304,56 @@ func ConvertBigIntToHex(n *big.Int) string {
 	return unsafe.String(&buf[0], len(buf))
 }
 
+var hexBytesPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 32)
+	},
+}
+
 func ConvertHexToBigInt(hexStr string) *big.Int {
+	buf := hexBytesPool.Get().([]byte)
+	defer func() {
+		buf = buf[:0]
+		hexBytesPool.Put(buf)
+	}()
+
 	hexStr = strings.TrimPrefix(hexStr, "0x")
-	isOdd := len(hexStr)%2 != 0
-	dstLen := len(hexStr) / 2
-	if isOdd {
-		dstLen += 1
+	if len(hexStr) == 0 {
+		return new(big.Int)
 	}
 
-	dst := make([]byte, dstLen)
+	requiredLen := (len(hexStr) + 1) / 2
+	if cap(buf) < requiredLen {
+		buf = make([]byte, requiredLen)
+	} else {
+		buf = buf[:requiredLen]
+	}
 
+	isOdd := len(hexStr)%2 != 0
 	if isOdd {
-		singleChar := hexStr[0]
-		if singleChar >= 'a' && singleChar <= 'f' {
-			dst[0] = singleChar - 'a' + 10
-		} else if singleChar >= 'A' && singleChar <= 'F' {
-			dst[0] = singleChar - 'A' + 10
-		} else {
-			dst[0] = singleChar - '0'
+		firstChar := hexStr[0]
+		switch {
+		case '0' <= firstChar && firstChar <= '9':
+			buf[0] = firstChar - '0'
+		case 'a' <= firstChar && firstChar <= 'f':
+			buf[0] = firstChar - 'a' + 10
+		case 'A' <= firstChar && firstChar <= 'F':
+			buf[0] = firstChar - 'A' + 10
 		}
 		hexStr = hexStr[1:]
 	}
-	if len(hexStr) != 0 {
-		var newDst = dst[:]
+
+	if len(hexStr) > 0 {
+		dst := buf
 		if isOdd {
-			newDst = dst[1:]
+			dst = buf[1:]
 		}
-		n, _ := hex.Decode(newDst, unsafe.Slice(unsafe.StringData(hexStr), len(hexStr)))
-		if isOdd {
-			dst = dst[:n+1]
-		} else {
-			dst = dst[:n]
-		}
+		hex.Decode(dst, []byte(hexStr))
 	}
 
-	return new(big.Int).SetBytes(dst)
+	resultBytes := make([]byte, len(buf))
+	copy(resultBytes, buf)
+	return new(big.Int).SetBytes(resultBytes)
 }
 
 func ConvertHexToAddress(hex string) common.Address {
@@ -345,21 +361,43 @@ func ConvertHexToAddress(hex string) common.Address {
 	return common.BigToAddress(bigInt)
 }
 
+var wordSlicePool = sync.Pool{
+	New: func() interface{} {
+		return make([]big.Word, 0, 4)
+	},
+}
+
 func ArrayToScalar(array []uint64) *big.Int {
+	tmp := wordSlicePool.Get().([]big.Word)
+
+	requiredLen := len(array)
+	if strconv.IntSize == 32 {
+		requiredLen *= 2
+	}
+
+	var abs []big.Word
+	if cap(tmp) >= requiredLen {
+		abs = tmp[:requiredLen]
+	} else {
+		abs = make([]big.Word, requiredLen)
+	}
+
 	if strconv.IntSize == 64 {
-		abs := make([]big.Word, len(array))
 		for i, v := range array {
 			abs[i] = big.Word(v)
 		}
-		return new(big.Int).SetBits(abs)
 	} else {
-		abs := make([]big.Word, len(array)*2)
 		for i, v := range array {
 			abs[i*2] = big.Word(v)
 			abs[i*2+1] = big.Word(v >> 32)
 		}
-		return new(big.Int).SetBits(abs)
 	}
+
+	result := new(big.Int).SetBits(append([]big.Word(nil), abs...))
+
+	wordSlicePool.Put(tmp[:0])
+
+	return result
 }
 
 const hextable = "0123456789abcdef"
