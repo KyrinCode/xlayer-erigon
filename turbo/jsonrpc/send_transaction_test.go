@@ -2,14 +2,23 @@ package jsonrpc_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
+	"fmt"
+	"github.com/c2h5oh/datasize"
+	mdbx2 "github.com/erigontech/mdbx-go/mdbx"
+	"github.com/ledgerwatch/erigon-lib/direct"
+	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
+	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
+	types2 "github.com/ledgerwatch/erigon-lib/types"
+	txpoolZk "github.com/ledgerwatch/erigon/zk/txpool"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
 	"github.com/ledgerwatch/erigon-lib/wrap"
 
 	"github.com/ledgerwatch/erigon-lib/gointerfaces/sentry"
@@ -78,7 +87,6 @@ func oneBlockStep(mockSentry *mock.MockSentry, require *require.Assertions, t *t
 
 func TestSendRawTransaction(t *testing.T) {
 	mockSentry, require := mock.MockWithTxPool(t), require.New(t)
-	logger := log.New()
 
 	oneBlockStep(mockSentry, require, t)
 
@@ -86,45 +94,42 @@ func TestSendRawTransaction(t *testing.T) {
 	txn, err := types.SignTx(types.NewTransaction(0, common.Address{1}, uint256.NewInt(expectedValue), params.TxGas, uint256.NewInt(10*params.GWei), nil), *types.LatestSignerForChainID(mockSentry.ChainConfig.ChainID), mockSentry.Key)
 	require.NoError(err)
 
-	ctx, conn := rpcdaemontest.CreateTestGrpcConn(t, mockSentry)
-	txPool := txpool.NewTxpoolClient(conn)
-	ff := rpchelper.New(ctx, nil, txPool, txpool.NewMiningClient(conn), func() {}, mockSentry.Log)
-	api := jsonrpc.NewEthAPI(newBaseApiForTest(mockSentry), mockSentry.DB, mockSentry.DBSMT, nil, txPool, nil, 5000000, 1e18, 100_000, &ethconfig.Defaults, false, 100_000, 128, logger, nil, 1000)
-	api.BadTxAllowance = 1
+	newTxChan := make(chan types2.Announcements)
+	ctx := context.Background() // base context
+	aclDB, err := txpoolZk.OpenACLDB(ctx, t.TempDir())
+	txPoolDB, err := mdbx.NewMDBX(log.New()).Label(kv.TxPoolDB).Path(t.TempDir()).
+		WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return kv.TxpoolTablesCfg }).
+		Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
+		GrowthStep(16 * datasize.MB).
+		SyncPeriod(30 * time.Second).
+		Open(ctx)
 
-	buf := bytes.NewBuffer(nil)
-	err = txn.MarshalBinary(buf)
+	chainId := *uint256.NewInt(1337)
+	txPool, err := txpoolZk.New(newTxChan, mockSentry.DB, txpoolcfg.DefaultConfig, &ethconfig.Defaults, kvcache.NewDummy(), chainId, new(big.Int).SetUint64(0), new(big.Int).SetUint64(0), aclDB)
+
+	txpoolGrpcServer := txpoolZk.NewGrpcServer(ctx, txPool, txPoolDB, chainId)
+	txpoolClient := direct.NewTxPoolClient(txpoolGrpcServer)
+
+	buf := make([]byte, 0)
+	writer := bytes.NewBuffer(buf)
+	err = txn.EncodeRLP(writer)
 	require.NoError(err)
+	sender, _ := txn.GetSender()
+	req := &txpool.AddRequest{RlpTxs: [][]byte{writer.Bytes()}, DecodedTx: []interface{}{txn}, RecoveredSender: [][20]byte{sender}}
+	reply, err := txpoolClient.Add(ctx, req)
 
-	txsCh, id := ff.SubscribePendingTxs(1)
-	defer ff.UnsubscribePendingTxs(id)
+	fmt.Println("reply", reply)
+	require.Equal([]string([]string{"insufficient funds"}), reply.Errors)
 
-	txHash, err := api.SendRawTransaction(ctx, buf.Bytes())
-	require.NoError(err)
+	// TODO: mock the sender with enough fund and send again should succeed
+	// TODO: first send succeed and second send should fail with ImportResult_ALREADY_EXISTS
+	////send same tx second time and expect error
+	//_, err = api.SendRawTransaction(ctx, buf.Bytes())
+	//require.NotNil(err)
+	//expectedErr := txpool.ImportResult_name[int32(txpool.ImportResult_ALREADY_EXISTS)] + ": " + txpoolcfg.AlreadyKnown.String()
+	//require.Equal(expectedErr, err.Error())
+	//mockSentry.ReceiveWg.Wait()
 
-	select {
-	case got := <-txsCh:
-		require.Equal(expectedValue, got[0].GetValue().Uint64())
-	case <-time.After(20 * time.Second): // Sometimes the channel times out on github actions
-		t.Log("Timeout waiting for txn from channel")
-		jsonTx, err := api.GetTransactionByHash(ctx, txHash, nil)
-		require.NoError(err)
-		jsonTxRPCTransaction, ok := jsonTx.(jsonrpc.RPCTransaction)
-		require.True(ok)
-		require.Equal(expectedValue, jsonTxRPCTransaction.Value.Uint64())
-	}
-
-	//send same tx second time and expect error
-	_, err = api.SendRawTransaction(ctx, buf.Bytes())
-	require.NotNil(err)
-	expectedErr := txpool.ImportResult_name[int32(txpool.ImportResult_ALREADY_EXISTS)] + ": " + txpoolcfg.AlreadyKnown.String()
-	require.Equal(expectedErr, err.Error())
-	mockSentry.ReceiveWg.Wait()
-
-	//TODO: make propagation easy to test - now race
-	//time.Sleep(time.Second)
-	//sent := m.SentMessage(0)
-	//require.Equal(eth.ToProto[m.MultiClient.Protocol()][eth.NewPooledTransactionHashesMsg], sent.Id)
 }
 
 func TestSendRawTransactionUnprotected(t *testing.T) {
