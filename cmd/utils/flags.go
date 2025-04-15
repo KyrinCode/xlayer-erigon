@@ -591,6 +591,16 @@ var (
 		Usage: "Reuse the L1 info index for resequencing",
 		Value: true,
 	}
+	SequencerDecodedTxCacheSize = cli.IntFlag{
+		Name:  "zkevm.sequencer-decoded-tx-cache-size",
+		Usage: "Sequencer decoded transaction cache size",
+		Value: 4096,
+	}
+	SequencerDecodedTxCacheTTL = cli.DurationFlag{
+		Name:  "zkevm.sequencer-decoded-tx-cache-ttl",
+		Usage: "Sequencer decoded transaction cache time-to-live",
+		Value: 600 * time.Second,
+	}
 	StandaloneSMTDatabase = cli.BoolFlag{
 		Name:  "zkevm.standalone-smt-db",
 		Usage: "Use standalone SMT database, not integrated with chaindb",

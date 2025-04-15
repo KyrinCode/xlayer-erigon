@@ -129,6 +129,8 @@ func StageSequenceBlocksCfg(
 	doneHook DoneHook,
 ) SequenceBlockCfg {
 
+	decodedTxCache := expirable.NewLRU[common.Hash, *types.Transaction](zk.SequencerDecodedTxCacheSize, nil, zk.SequencerDecodedTxCacheTTL)
+
 	return SequenceBlockCfg{
 		db:               db,
 		dbsmt:            dbsmt,
@@ -155,6 +157,7 @@ func StageSequenceBlocksCfg(
 		legacyVerifier:   legacyVerifier,
 		yieldSize:        yieldSize,
 		infoTreeUpdater:  infoTreeUpdater,
+		decodedTxCache:   decodedTxCache,
 		doneHook:         doneHook,
 	}
 }
@@ -185,10 +188,10 @@ func (sCfg *SequenceBlockCfg) toErigonExecuteBlockCfg() stagedsync.ExecuteBlockC
 
 func validateIfDatastreamIsAheadOfExecution(
 	s *stagedsync.StageState,
-// u stagedsync.Unwinder,
+	// u stagedsync.Unwinder,
 	ctx context.Context,
 	cfg SequenceBlockCfg,
-// historyCfg stagedsync.HistoryCfg,
+	// historyCfg stagedsync.HistoryCfg,
 ) error {
 	roTx, err := cfg.db.BeginRo(ctx)
 	if err != nil {

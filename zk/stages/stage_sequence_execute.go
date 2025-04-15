@@ -865,6 +865,14 @@ func sequencingBatchStep(
 			return err
 		}
 
+		// remove the decoded transactions from the cache
+		for _, txHash := range batchState.blockState.builtBlockElements.txSlots {
+			cfg.decodedTxCache.Remove(txHash)
+		}
+		for _, txHash := range batchState.blockState.transactionsToDiscard {
+			cfg.decodedTxCache.Remove(txHash)
+		}
+
 		// now trigger sender state changes in the pool where we encountered nonce issues during execution
 		if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
 			return err
