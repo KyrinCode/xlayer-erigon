@@ -198,7 +198,10 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 	for i := 0; i < len(in.RlpTxs); i++ { // some incoming txs may be rejected, so - need secnod index
 		txSlot := &types.TxSlot{}
 
-		if in.DecodedTx == nil || in.DecodedTx[i] == nil {
+		if in.DecodedTx == nil {
+			in.DecodedTx = make([]interface{}, len(in.RlpTxs))
+		}
+		if in.DecodedTx[i] == nil {
 			//log.Warn("tx decode not cached")
 			in.DecodedTx[i], err = types3.DecodeTransaction(in.RlpTxs[i])
 			if err != nil {
