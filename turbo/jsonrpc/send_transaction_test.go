@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"fmt"
 	"github.com/c2h5oh/datasize"
 	mdbx2 "github.com/erigontech/mdbx-go/mdbx"
 	"github.com/ledgerwatch/erigon-lib/direct"
@@ -118,7 +117,6 @@ func TestSendRawTransaction(t *testing.T) {
 	req := &txpool.AddRequest{RlpTxs: [][]byte{writer.Bytes()}, DecodedTx: []interface{}{txn}, RecoveredSender: [][20]byte{sender}}
 	reply, err := txpoolClient.Add(ctx, req)
 
-	fmt.Println("reply", reply)
 	require.Equal([]string([]string{"insufficient funds"}), reply.Errors)
 
 	// TODO: mock the sender with enough fund and send again should succeed
