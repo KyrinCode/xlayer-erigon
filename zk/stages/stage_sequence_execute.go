@@ -518,10 +518,9 @@ func sequencingBatchStep(
 				}
 			} else if !batchState.isL1Recovery() {
 
-				var allConditionsOK bool
 				var newTransactions []types.Transaction
 				var newIds []common.Hash
-				newTransactions, newIds, allConditionsOK, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
+				newTransactions, newIds, _, err = getNextPoolTransactions(ctx, cfg, executionAt, batchState.forkId, batchState.yieldedTransactions)
 				if err != nil {
 					return err
 				}
@@ -531,19 +530,6 @@ func sequencingBatchStep(
 				batchState.blockState.transactionsForInclusion = append(batchState.blockState.transactionsForInclusion, newTransactions...)
 				for idx, tx := range newTransactions {
 					batchState.blockState.transactionHashesToSlots[tx.Hash()] = newIds[idx]
-				}
-
-				if len(batchState.blockState.transactionsForInclusion) == 0 {
-					pauseTime := time.Now()
-					if allConditionsOK {
-						time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool)
-					} else {
-						time.Sleep(batchContext.cfg.zk.SequencerTimeoutOnEmptyTxPool / 5) // we do not need to sleep too long for txpool not ready
-					}
-					metrics.GetLogStatistics().CumulativeCounting(metrics.GetTxPauseCounter)
-					metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxPauseTiming, time.Since(pauseTime))
-				} else {
-					log.Trace(fmt.Sprintf("[%s] Yielded transactions from the pool", logPrefix), "txCount", len(batchState.blockState.transactionsForInclusion))
 				}
 			}
 
