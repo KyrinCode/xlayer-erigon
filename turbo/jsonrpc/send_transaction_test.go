@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"math/big"
+	"testing"
+	"time"
+
 	"github.com/c2h5oh/datasize"
 	mdbx2 "github.com/erigontech/mdbx-go/mdbx"
 	"github.com/ledgerwatch/erigon-lib/direct"
@@ -12,9 +16,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
 	types2 "github.com/ledgerwatch/erigon-lib/types"
 	txpoolZk "github.com/ledgerwatch/erigon/zk/txpool"
-	"math/big"
-	"testing"
-	"time"
 
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -30,7 +31,9 @@ import (
 	"github.com/ledgerwatch/erigon/common/u256"
 
 	"github.com/ledgerwatch/erigon/core"
+	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/core/types/accounts"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/eth/protocols/eth"
 	"github.com/ledgerwatch/erigon/params"
@@ -119,8 +122,49 @@ func TestSendRawTransaction(t *testing.T) {
 
 	require.Equal([]string([]string{"insufficient funds"}), reply.Errors)
 
-	// TODO: mock the sender with enough fund and send again should succeed
-	// TODO: first send succeed and second send should fail with ImportResult_ALREADY_EXISTS
+	err = mockSentry.DB.Update(ctx, func(tx kv.RwTx) error {
+		stateWriter := mockSentry.NewStateWriter(tx, 0)
+		funds := new(big.Int).Mul(big.NewInt(1000), big.NewInt(params.Ether))
+		fundsU256 := uint256.NewInt(0)
+		fundsU256.SetFromBig(funds)
+
+		stateReader := state.NewPlainStateReader(tx)
+		var acc *accounts.Account
+		var err error
+		if acc, err = stateReader.ReadAccountData(sender); err != nil {
+			return err
+		}
+
+		if acc == nil {
+			acc = &accounts.Account{
+				Balance: *fundsU256,
+			}
+			if err := stateWriter.CreateContract(sender); err != nil {
+				return err
+			}
+		} else {
+			newAcc := *acc
+			newAcc.Balance = *fundsU256
+			acc = &newAcc
+		}
+
+		if err := stateWriter.UpdateAccountData(sender, acc, acc); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	require.NoError(err)
+
+	req = &txpool.AddRequest{RlpTxs: [][]byte{writer.Bytes()}, DecodedTx: []interface{}{txn}, RecoveredSender: [][20]byte{sender}}
+	reply, err = txpoolClient.Add(ctx, req)
+	require.NoError(err)
+	require.Equal([]string{"success"}, reply.Errors, "Transaction should be successful after adding funds")
+
+	reply, err = txpoolClient.Add(ctx, req)
+	require.NoError(err)
+	require.Equal([]string{"existing tx with same hash"}, reply.Errors, "Duplicate transaction should return already exists error")
+
 	////send same tx second time and expect error
 	//_, err = api.SendRawTransaction(ctx, buf.Bytes())
 	//require.NotNil(err)
