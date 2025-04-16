@@ -22,19 +22,44 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"fmt"
+	"sync"
 
 	"github.com/ledgerwatch/erigon/common/math"
 	"github.com/ledgerwatch/secp256k1"
 )
 
-// Ecrecover returns the uncompressed public key that created the given signature.
-func Ecrecover(hash, sig []byte) ([]byte, error) {
-	return secp256k1.RecoverPubkey(hash, sig)
+var pubkeyCache sync.Map
+
+func makeCacheKey(hash, sig []byte) string {
+	key := make([]byte, len(hash)+len(sig))
+	copy(key, hash)
+	copy(key[len(hash):], sig)
+	return string(key)
 }
 
-// Ecrecover returns the uncompressed public key that created the given signature.
+func Ecrecover(hash, sig []byte) ([]byte, error) {
+	return EcrecoverWithContext(secp256k1.DefaultContext, hash, sig)
+}
+
 func EcrecoverWithContext(context *secp256k1.Context, hash, sig []byte) ([]byte, error) {
-	return secp256k1.RecoverPubkeyWithContext(context, hash, sig, nil)
+
+	key := makeCacheKey(hash, sig)
+	if val, ok := pubkeyCache.Load(key); ok {
+		result := val.([]byte)
+		pubkeyCopy := make([]byte, len(result))
+		copy(pubkeyCopy, result)
+		return pubkeyCopy, nil
+	}
+
+	pubkey, err := secp256k1.RecoverPubkeyWithContext(context, hash, sig, nil)
+	if err != nil {
+		return nil, err
+	}
+	pubkeyCopy := make([]byte, len(pubkey))
+	copy(pubkeyCopy, pubkey)
+	pubkeyCache.Store(key, pubkeyCopy)
+
+	return pubkey, nil
 }
 
 // SigToPub returns the public key that created the given signature.
