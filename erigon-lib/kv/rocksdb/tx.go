@@ -380,11 +380,6 @@ func (rtx *RocksDbTx) close(action func() error) error {
 	}
 
 	defer func() {
-		if rtx.ropts != nil {
-			rtx.ropts.Destroy()
-			rtx.ropts = nil
-		}
-
 		rtx.closeCursors()
 		rtx.closeCallback()
 
