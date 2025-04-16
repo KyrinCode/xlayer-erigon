@@ -124,7 +124,7 @@ else ifeq ($(UNAME), Linux )
 endif
 
 rocksdb:
-	cd deps/rocksdb && make -j8 static_lib
+	cd deps/rocksdb && EXTRA_CFLAGS="-Wno-error=maybe-uninitialized -Wno-error=uninitialized" EXTRA_CXXFLAGS="-Wno-error=maybe-uninitialized -Wno-error=uninitialized" make -j8 static_lib
 
 ## erigon:                            build erigon
 cdk-erigon: go-version rocksdb cdk-erigon.cmd
