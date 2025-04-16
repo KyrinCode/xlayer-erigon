@@ -523,46 +523,86 @@ func updateNodeHashesForDelete(
 // no point to parallelize this function because db consumer is slower than this producer
 func calculateAndSaveHashesDfs(
 	sdh *smtDfsHelper,
-	smtBatchNode *smtBatchNode,
+	smtBatchRootNode *smtBatchNode,
 	path []int,
-	level int,
+	initialLevel int,
 ) {
-	if smtBatchNode.isLeaf() {
-		hashObj, hashValue := utils.HashKeyAndValueByPointers(utils.ConcatArrays4ByPointers(smtBatchNode.nodeLeftHashOrRemainingKey.AsUint64Pointer(), smtBatchNode.nodeRightHashOrValueHash.AsUint64Pointer()), &utils.LeafCapacity)
-		smtBatchNode.hash = hashObj
-		if !sdh.s.noSaveOnInsert {
-			sdh.dataChan <- newSmtDfsHelperDataStruct(hashObj, hashValue)
+	type stackFrame struct {
+		node  *smtBatchNode
+		level int
+		state int // 0: initial, 1: left processed, 2: right processed
+	}
 
-			nodeKey := utils.JoinKey(path[:level], *smtBatchNode.nodeLeftHashOrRemainingKey)
-			sdh.dataChan <- newSmtDfsHelperDataStruct(hashObj, nodeKey)
+	stack := make([]stackFrame, 0, 1024)
+	stack = append(stack, stackFrame{node: smtBatchRootNode, level: initialLevel, state: 0})
+	noSave := sdh.s.noSaveOnInsert
+
+	for len(stack) > 0 {
+		current := &stack[len(stack)-1]
+		if current.node.isLeaf() {
+			hashObj, hashValue := utils.HashKeyAndValueByPointers(
+				utils.ConcatArrays4ByPointers(
+					current.node.nodeLeftHashOrRemainingKey.AsUint64Pointer(),
+					current.node.nodeRightHashOrValueHash.AsUint64Pointer(),
+				),
+				&utils.LeafCapacity,
+			)
+			current.node.hash = hashObj
+
+			if !noSave {
+				leafKey := utils.JoinKey(path[:current.level], *current.node.nodeLeftHashOrRemainingKey)
+				buffer := newSmtDfsHelperDataStruct(hashObj, hashValue)
+				sdh.dataChan <- buffer
+				sdh.dataChan <- newSmtDfsHelperDataStruct(hashObj, leafKey)
+			}
+			stack = stack[:len(stack)-1]
+			continue
 		}
-		return
+
+		var totalHash utils.NodeValue8
+
+		switch current.state {
+		case 0:
+			path[current.level] = 0
+			if current.node.leftNode != nil {
+				current.state = 1
+				stack = append(stack, stackFrame{node: current.node.leftNode, level: current.level + 1, state: 0})
+			} else {
+				totalHash.SetHalfValue(*current.node.nodeLeftHashOrRemainingKey, 0)
+				current.state = 1
+			}
+
+		case 1:
+			path[current.level] = 1
+			if current.node.rightNode != nil {
+				current.state = 2
+				stack = append(stack, stackFrame{node: current.node.rightNode, level: current.level + 1, state: 0})
+			} else {
+				totalHash.SetHalfValue(*current.node.nodeRightHashOrValueHash, 1)
+				current.state = 2
+			}
+
+		case 2:
+			if current.node.leftNode != nil {
+				totalHash.SetHalfValue(*current.node.leftNode.hash, 0)
+			} else {
+				totalHash.SetHalfValue(*current.node.nodeLeftHashOrRemainingKey, 0)
+			}
+			if current.node.rightNode != nil {
+				totalHash.SetHalfValue(*current.node.rightNode.hash, 1)
+			} else {
+				totalHash.SetHalfValue(*current.node.nodeRightHashOrValueHash, 1)
+			}
+
+			hashObj, hashValue := utils.HashKeyAndValueByPointers(totalHash.ToUintArrayByPointer(), &utils.BranchCapacity)
+			current.node.hash = hashObj
+
+			if !noSave {
+				sdh.dataChan <- newSmtDfsHelperDataStruct(hashObj, hashValue)
+			}
+			stack = stack[:len(stack)-1]
+		}
 	}
-
-	var totalHash utils.NodeValue8
-
-	if smtBatchNode.leftNode != nil {
-		path[level] = 0
-		calculateAndSaveHashesDfs(sdh, smtBatchNode.leftNode, path, level+1)
-		totalHash.SetHalfValue(*smtBatchNode.leftNode.hash, 0) // no point to check for error because we used hardcoded 0 which ensures that no error will be returned
-	} else {
-		totalHash.SetHalfValue(*smtBatchNode.nodeLeftHashOrRemainingKey, 0) // no point to check for error because we used hardcoded 0 which ensures that no error will be returned
-	}
-
-	if smtBatchNode.rightNode != nil {
-		path[level] = 1
-		calculateAndSaveHashesDfs(sdh, smtBatchNode.rightNode, path, level+1)
-		totalHash.SetHalfValue(*smtBatchNode.rightNode.hash, 1) // no point to check for error because we used hardcoded 1 which ensures that no error will be returned
-	} else {
-		totalHash.SetHalfValue(*smtBatchNode.nodeRightHashOrValueHash, 1) // no point to check for error because we used hardcoded 1 which ensures that no error will be returned
-	}
-
-	hashObj, hashValue := utils.HashKeyAndValueByPointers(totalHash.ToUintArrayByPointer(), &utils.BranchCapacity)
-	if !sdh.s.noSaveOnInsert {
-		sdh.dataChan <- newSmtDfsHelperDataStruct(hashObj, hashValue)
-	}
-
-	smtBatchNode.hash = hashObj
 }
 
 type smtBatchNode struct {

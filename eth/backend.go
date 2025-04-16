@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	debug2 "runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -1364,6 +1365,8 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	ctx := s.sentryCtx
 	chainKv := s.chainDB
 	var err error
+
+	debug2.SetGCPercent(200)
 
 	s.stagedSync = stagedsync.New(s.config.Sync, s.syncStages, s.syncUnwindOrder, s.syncPruneOrder, s.logger)
 	if s.verifier != nil {

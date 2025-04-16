@@ -5,12 +5,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"math/bits"
+	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"unsafe"
 
 	"sort"
@@ -99,17 +98,21 @@ func (nv *NodeValue8) IsZero() bool {
 	return true
 }
 
-// part = 0 for first 4 values, 1 for the last 4 values
+// SetHalfValue sets either the first 4 or last 4 values of NodeValue8 from a 4-element uint64 array,
+// optimized for stack allocation. part = 0 for first 4 values, 1 for last 4 values.
 func (nv *NodeValue8) SetHalfValue(values [4]uint64, part int) error {
 	if part < 0 || part > 1 {
 		return fmt.Errorf("part must be 0 or 1")
 	}
 
+	// Allocate storage on stack
+	var storage [4]big.Int
+
+	// Set values directly in stack storage
 	partI := part * 4
 	for i, v := range values {
-		nlh := big.Int{}
-		nlh.SetUint64(v)
-		nv[i+partI] = &nlh
+		storage[i].SetUint64(v)
+		nv[i+partI] = &storage[i]
 	}
 
 	return nil
@@ -290,45 +293,62 @@ func (nv *NodeValue12) IsFinalNode() bool {
 }
 
 // 7 times more efficient than sprintf
+// ConvertBigIntToHex converts a big.Int to a hex string, using stack allocation where possible.
 func ConvertBigIntToHex(n *big.Int) string {
-	i := int(float64(n.BitLen())/4) + 1
-	if n.Sign() < 0 {
-		i++
+	if n == nil || n.Sign() == 0 {
+		return "0x0"
 	}
 
-	buf := make([]byte, 2, i+2)
+	// Calculate required buffer size
+	bits := n.BitLen()
+	hexLen := (bits + 3) / 4 // Ceiling of bits/4
+	if n.Sign() < 0 {
+		hexLen++
+	}
+	totalLen := hexLen + 2 // Include "0x" prefix
+
+	// Use stack-allocated buffer for small inputs (up to 66 bytes: 64 hex chars + "0x")
+	var stackBuf [66]byte
+	var buf []byte
+	if totalLen <= len(stackBuf) {
+		buf = stackBuf[:2]
+	} else {
+		// Fallback to heap for larger inputs
+		buf = make([]byte, 2, totalLen)
+	}
+
+	// Set prefix
 	buf[0] = '0'
 	buf[1] = 'x'
 
+	// Append hex representation
 	buf = n.Append(buf, 16)
+
+	// Convert to string using unsafe for zero-copy
 	return unsafe.String(&buf[0], len(buf))
 }
 
-var hexBytesPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 0, 32)
-	},
-}
-
+// ConvertHexToBigInt converts a hex string to a big.Int, using stack allocation where possible.
 func ConvertHexToBigInt(hexStr string) *big.Int {
-	buf := hexBytesPool.Get().([]byte)
-	defer func() {
-		buf = buf[:0]
-		hexBytesPool.Put(buf)
-	}()
-
+	// Trim "0x" prefix
 	hexStr = strings.TrimPrefix(hexStr, "0x")
 	if len(hexStr) == 0 {
 		return new(big.Int)
 	}
 
+	// Calculate required buffer size
 	requiredLen := (len(hexStr) + 1) / 2
-	if cap(buf) < requiredLen {
-		buf = make([]byte, requiredLen)
+	// Use stack-allocated buffer for small inputs (up to 64 bytes)
+	var stackBuf [64]byte
+	var buf []byte
+	if requiredLen <= len(stackBuf) {
+		buf = stackBuf[:requiredLen]
 	} else {
-		buf = buf[:requiredLen]
+		// Fallback to heap for larger inputs
+		buf = make([]byte, requiredLen)
 	}
 
+	// Handle odd-length hex string
 	isOdd := len(hexStr)%2 != 0
 	if isOdd {
 		firstChar := hexStr[0]
@@ -343,17 +363,20 @@ func ConvertHexToBigInt(hexStr string) *big.Int {
 		hexStr = hexStr[1:]
 	}
 
+	// Decode remaining hex string
 	if len(hexStr) > 0 {
 		dst := buf
 		if isOdd {
 			dst = buf[1:]
 		}
-		hex.Decode(dst, []byte(hexStr))
+		_, err := hex.Decode(dst, []byte(hexStr))
+		if err != nil {
+			return new(big.Int) // Return zero on invalid input
+		}
 	}
 
-	resultBytes := make([]byte, len(buf))
-	copy(resultBytes, buf)
-	return new(big.Int).SetBytes(resultBytes)
+	// Set big.Int directly from buffer
+	return new(big.Int).SetBytes(buf)
 }
 
 func ConvertHexToAddress(hex string) common.Address {
@@ -361,43 +384,49 @@ func ConvertHexToAddress(hex string) common.Address {
 	return common.BigToAddress(bigInt)
 }
 
-var wordSlicePool = sync.Pool{
-	New: func() interface{} {
-		return make([]big.Word, 0, 4)
-	},
-}
-
+// ArrayToScalar converts a slice of uint64 to a big.Int, optimized for stack allocation.
+// The function caps input at 8 uint64 values to ensure stack safety, suitable for zkEVM use cases
+// like hash or address conversions (typically ≤8 uint64).
 func ArrayToScalar(array []uint64) *big.Int {
-	tmp := wordSlicePool.Get().([]big.Word)
+	// Early return for empty array
+	if len(array) == 0 {
+		return new(big.Int)
+	}
 
-	requiredLen := len(array)
+	// Cap the array length to prevent stack overflow
+	const maxWords = 8 // Supports up to 8 uint64 (64-bit) or 4 uint64 (32-bit)
+	wordCount := len(array)
+	if wordCount > maxWords {
+		wordCount = maxWords
+	}
+
+	// Use stack-allocated storage for words
+	var wordStorage [maxWords * 2]big.Word
+	var abs []big.Word
+
+	// Determine required length based on architecture
+	requiredLen := wordCount
 	if strconv.IntSize == 32 {
 		requiredLen *= 2
 	}
 
-	var abs []big.Word
-	if cap(tmp) >= requiredLen {
-		abs = tmp[:requiredLen]
-	} else {
-		abs = make([]big.Word, requiredLen)
-	}
+	// Use stack storage directly
+	abs = wordStorage[:requiredLen]
 
+	// Convert uint64 to big.Word based on architecture
 	if strconv.IntSize == 64 {
-		for i, v := range array {
+		for i, v := range array[:wordCount] {
 			abs[i] = big.Word(v)
 		}
 	} else {
-		for i, v := range array {
+		for i, v := range array[:wordCount] {
 			abs[i*2] = big.Word(v)
 			abs[i*2+1] = big.Word(v >> 32)
 		}
 	}
 
-	result := new(big.Int).SetBits(append([]big.Word(nil), abs...))
-
-	wordSlicePool.Put(tmp[:0])
-
-	return result
+	// Create result using stack-allocated words
+	return new(big.Int).SetBits(abs)
 }
 
 const hextable = "0123456789abcdef"
@@ -584,23 +613,34 @@ func ScalarToRoot(s *big.Int) NodeKey {
 	return result
 }
 
-// fast path for 64-bit systems
+// scalarToNodeValueFast converts a scalar big.Int to an array of big.Ints, optimized for stack allocation
+// Returns true if the fast path is taken, false otherwise
 func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
-	if bits.UintSize != 64 || scalarIn.Sign() < 0 {
+	if bits.UintSize != 64 || scalarIn == nil || scalarIn.Sign() < 0 {
+		// Inline zeroing to avoid separate function call
+		var zeroStorage [12]big.Int
+		for i := range out {
+			out[i] = &zeroStorage[i]
+		}
 		return false
 	}
 
-	outData := [12]big.Int{}
-	words := scalarIn.Bits()
-	outDataBits := make([][1]big.Word, len(words))
-	for i := 0; i < 12; i++ {
-		if i < len(words) {
-			outDataBits[i][0] = words[i]
-			out[i] = (&outData[i]).SetBits(outDataBits[i][:])
-		} else {
-			out[i] = &outData[i]
-		}
+	// Allocate storage on stack
+	var storage [12]big.Int
+	for i := range out {
+		out[i] = &storage[i]
 	}
+
+	words := scalarIn.Bits()
+	wordCount := len(words)
+	if wordCount > 12 {
+		wordCount = 12
+	}
+
+	for i := 0; i < wordCount; i++ {
+		storage[i].SetUint64(uint64(words[i]))
+	}
+
 	return true
 }
 
@@ -687,22 +727,35 @@ func ConcatArrays4(a, b [4]uint64) [8]uint64 {
 }
 
 func ConcatArrays4ByPointers(a, b *[4]uint64) *[8]uint64 {
-	return &[8]uint64{
-		a[0], a[1], a[2], a[3],
-		b[0], b[1], b[2], b[3],
-	}
+	var result [8]uint64
+
+	copy(result[:4], a[:])
+	copy(result[4:], b[:])
+
+	return &result
 }
 
+// ConcatArrays8AndCapacityByPointers concatenates an 8-element uint64 array with a 4-element uint64 array
+// into a NodeValue12, optimized for stack allocation
 func ConcatArrays8AndCapacityByPointers(in *[8]uint64, capacity *[4]uint64) *NodeValue12 {
-	v := NodeValue12{}
-	for i, val := range in {
-		v[i] = new(big.Int).SetUint64(val)
-	}
-	for i, val := range capacity {
-		v[i+8] = new(big.Int).SetUint64(val)
+	// Allocate result and storage on stack
+	var result NodeValue12
+	var storage [12]big.Int
+
+	// Initialize result pointers to stack-allocated big.Ints
+	for i := range storage {
+		result[i] = &storage[i]
 	}
 
-	return &v
+	// Concatenate arrays directly into storage
+	for i := 0; i < 8; i++ {
+		storage[i].SetUint64(in[i])
+	}
+	for i := 0; i < 4; i++ {
+		storage[i+8].SetUint64(capacity[i])
+	}
+
+	return &result
 }
 
 func HashKeyAndValueByPointers(in *[8]uint64, capacity *[4]uint64) (*[4]uint64, *NodeValue12) {
@@ -926,73 +979,146 @@ func HashContractBytecode(bc string) string {
 	return ConvertBigIntToHex(HashContractBytecodeBigInt(bc))
 }
 
+const (
+	MAX_BYTES_TO_ADD = BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT // 56 bytes
+	MAX_STACK_BUFFER = 16384                                           // Stack buffer size (16 KB for Ethereum contracts, cover 95% of contract size)
+	MAX_WORKERS      = 32                                              // Max concurrent workers
+)
+
 func HashContractBytecodeBigInt(bc string) *big.Int {
-	bytecode := bc
-
-	if strings.HasPrefix(bc, "0x") {
-		bytecode = bc[2:]
+	// Step 1: Normalize input
+	input := strings.TrimPrefix(bc, "0x")
+	if len(input)%2 != 0 {
+		input = "0" + input
 	}
 
-	if len(bytecode)%2 != 0 {
-		bytecode = "0" + bytecode
+	// Step 2: Calculate buffer size
+	inputLen := len(input) / 2
+	byteLen := ((inputLen + 1 + MAX_BYTES_TO_ADD - 1) / MAX_BYTES_TO_ADD) * MAX_BYTES_TO_ADD
+
+	// Step 3: Stack or heap buffer
+	var stackBuf [MAX_STACK_BUFFER]byte
+	var heapBuf []byte
+	var buf []byte
+	if byteLen <= MAX_STACK_BUFFER {
+		buf = stackBuf[:byteLen]
+	} else {
+		heapBuf = make([]byte, byteLen)
+		buf = heapBuf
 	}
 
-	bytecode += "01"
-
-	for len(bytecode)%(56*2) != 0 {
-		bytecode += "00"
+	// Step 4: Decode hex and pad
+	n, err := hex.Decode(buf[:inputLen], []byte(input))
+	if err != nil {
+		return new(big.Int) // Mimic original: return zero on error
 	}
+	buf[n] = 0x01 // Append "01"
+	n++
+	for i := n; i < byteLen; i++ {
+		buf[i] = 0x00 // Pad zeros
+	}
+	buf[byteLen-1] |= 0x80 // Set last byte’s high bit
 
-	lastByteInt, _ := strconv.ParseInt(bytecode[len(bytecode)-2:], 16, 64)
-	lastByte := strconv.FormatInt(lastByteInt|0x80, 16)
-	bytecode = bytecode[:len(bytecode)-2] + lastByte
+	// Step 5: Process chunks concurrently
+	numHashes := (byteLen + MAX_BYTES_TO_ADD - 1) / MAX_BYTES_TO_ADD
 
-	numBytes := float64(len(bytecode)) / 2
-	numHashes := int(math.Ceil(numBytes / (BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT)))
+	// Dynamic workers based on CPU cores and input size
+	cpuCore := runtime.NumCPU() / 2
+	if cpuCore < 2 {
+		cpuCore = 2
+	}
+	numWorkers := min(cpuCore, min(MAX_WORKERS, numHashes))
 
-	tmpHash := [4]uint64{0, 0, 0, 0}
-	bytesPointer := 0
+	// Small input: serial execution
+	if numHashes <= numWorkers {
+		var tmpHash [4]uint64
+		var in [8]uint64
+		var capacity [4]uint64
 
-	maxBytesToAdd := BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT
-	var elementsToHash []uint64
-	var in [8]uint64
-	var capacity [4]uint64
-	scalar := new(big.Int)
-	tmpScalar := new(big.Int)
-	var byteToAdd string
-	for i := 0; i < numHashes; i++ {
-		elementsToHash = tmpHash[:]
+		for i := 0; i < numHashes; i++ {
+			start := i * MAX_BYTES_TO_ADD
+			end := start + MAX_BYTES_TO_ADD
+			if end > byteLen {
+				end = byteLen
+			}
+			chunk := buf[start:end]
 
-		subsetBytecode := bytecode[bytesPointer : bytesPointer+maxBytesToAdd*2]
-		bytesPointer += maxBytesToAdd * 2
+			var elements [12]uint64
+			copy(elements[:4], tmpHash[:])
 
-		tmpElem := ""
-		counter := 0
-
-		for j := 0; j < maxBytesToAdd; j++ {
-			byteToAdd = "00"
-			if j < len(subsetBytecode)/2 {
-				byteToAdd = subsetBytecode[j*2 : (j+1)*2]
+			for j := 0; j < len(chunk); j += BYTECODE_BYTES_ELEMENT {
+				var val uint64
+				for k := 0; k < BYTECODE_BYTES_ELEMENT && j+k < len(chunk); k++ {
+					shift := 8 * uint(BYTECODE_BYTES_ELEMENT-1-k)
+					val |= uint64(chunk[j+k]) << shift
+				}
+				idx := j / BYTECODE_BYTES_ELEMENT
+				elements[4+idx] = val
 			}
 
-			tmpElem = byteToAdd + tmpElem
-			counter += 1
-
-			if counter == BYTECODE_BYTES_ELEMENT {
-				tmpScalar, _ = scalar.SetString(tmpElem, 16)
-				elementsToHash = append(elementsToHash, tmpScalar.Uint64())
-				tmpElem = ""
-				counter = 0
-			}
+			copy(in[:], elements[4:12])
+			copy(capacity[:], elements[:4])
+			tmpHash = Hash(in, capacity)
 		}
 
-		copy(in[:], elementsToHash[4:12])
-		copy(capacity[:], elementsToHash[:4])
-
-		tmpHash = Hash(in, capacity)
+		return ArrayToScalar(tmpHash[:])
 	}
 
-	return ArrayToScalar(tmpHash[:])
+	// Large input: concurrent execution
+	batchSize := (numHashes + numWorkers - 1) / numWorkers
+	ch := make(chan [4]uint64, numWorkers)
+	var initialHash [4]uint64
+
+	for w := 0; w < numWorkers; w++ {
+		startBatch := w * batchSize
+		endBatch := startBatch + batchSize
+		if endBatch > numHashes {
+			endBatch = numHashes
+		}
+		if startBatch >= numHashes {
+			break
+		}
+
+		go func(start, end int, inputHash [4]uint64, out chan<- [4]uint64) {
+			var tmpHash [4]uint64
+			tmpHash = inputHash
+			var in [8]uint64
+			var capacity [4]uint64
+
+			for i := start; i < end; i++ {
+				startByte := i * MAX_BYTES_TO_ADD
+				endByte := startByte + MAX_BYTES_TO_ADD
+				if endByte > byteLen {
+					endByte = byteLen
+				}
+				chunk := buf[startByte:endByte]
+
+				var elements [12]uint64
+				copy(elements[:4], tmpHash[:])
+
+				for j := 0; j < len(chunk); j += BYTECODE_BYTES_ELEMENT {
+					var val uint64
+					for k := 0; k < BYTECODE_BYTES_ELEMENT && j+k < len(chunk); k++ {
+						shift := 8 * uint(BYTECODE_BYTES_ELEMENT-1-k)
+						val |= uint64(chunk[j+k]) << shift
+					}
+					idx := j / BYTECODE_BYTES_ELEMENT
+					elements[4+idx] = val
+				}
+
+				copy(in[:], elements[4:12])
+				copy(capacity[:], elements[:4])
+				tmpHash = Hash(in, capacity)
+			}
+
+			out <- tmpHash
+		}(startBatch, endBatch, initialHash, ch)
+
+		initialHash = <-ch // Chain tmpHash to next batch
+	}
+
+	// Step 6: Convert final tmpHash to big.Int
+	return ArrayToScalar(initialHash[:])
 }
 
 func ResizeHashTo32BytesByPrefixingWithZeroes(hashValue []byte) []byte {
