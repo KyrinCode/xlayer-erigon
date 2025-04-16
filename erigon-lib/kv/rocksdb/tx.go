@@ -19,6 +19,8 @@ type RocksDbTx struct {
 	db    *RocksDB
 	tx    *grocksdb.Transaction
 	ropts *grocksdb.ReadOptions
+	wopts *grocksdb.WriteOptions
+	txopt *grocksdb.TransactionOptions
 
 	id  uint64 // set only if TRACE_TX=true
 	ctx context.Context
@@ -36,15 +38,15 @@ type RocksDbTx struct {
 
 func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
-	defer wopts.Destroy()
 	txopt := grocksdb.NewDefaultTransactionOptions()
-	defer txopt.Destroy()
 	tx := db.rdb.TransactionBegin(wopts, txopt, nil)
 
 	return &RocksDbTx{
 		db:    db,
 		tx:    tx,
 		ropts: grocksdb.NewDefaultReadOptions(),
+		wopts: wopts,
+		txopt: txopt,
 
 		ctx: ctx,
 
@@ -389,6 +391,15 @@ func (rtx *RocksDbTx) close(action func() error) error {
 		rtx.tx.Destroy()
 		rtx.tx = nil
 		rtx.closed = true
+
+		rtx.ropts.Destroy()
+		rtx.ropts = nil
+
+		rtx.wopts.Destroy()
+		rtx.wopts = nil
+
+		rtx.txopt.Destroy()
+		rtx.txopt = nil
 	}()
 
 	return action()
@@ -401,12 +412,19 @@ func (rtx *RocksDbTx) closeCursors() {
 		}
 	}
 	rtx.cursors = nil
+
 	for _, c := range rtx.streams {
 		if c != nil {
 			c.Close()
 		}
 	}
 	rtx.streams = nil
+
+	for _, c := range rtx.statelessCursors {
+		if c != nil {
+			c.Close()
+		}
+	}
 	rtx.statelessCursors = nil
 }
 

@@ -16,6 +16,9 @@ import (
 type RocksDB struct {
 	rdb      *grocksdb.TransactionDB
 	lruCache *grocksdb.Cache
+	bbto     *grocksdb.BlockBasedTableOptions
+	opts     *grocksdb.Options
+	txopts   *grocksdb.TransactionDBOptions
 
 	closeGuard *CloseGuard
 
@@ -39,18 +42,17 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 		writeTxLimiter = semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
 	}
 
-	bbto := grocksdb.NewDefaultBlockBasedTableOptions()
-	defer bbto.Destroy()
 	lruCache := grocksdb.NewLRUCache(3 << 30)
+
+	bbto := grocksdb.NewDefaultBlockBasedTableOptions()
 	bbto.SetBlockCache(lruCache)
 
 	opts := grocksdb.NewDefaultOptions()
-	defer opts.Destroy()
-	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
+	opts.SetBlockBasedTableFactory(bbto)
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
-	defer txopts.Destroy()
+
 	rdb, err := grocksdb.OpenTransactionDb(opts, txopts, dbPath)
 	if err != nil {
 		return nil, err
@@ -59,6 +61,9 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	return &RocksDB{
 		rdb:            rdb,
 		lruCache:       lruCache,
+		bbto:           bbto,
+		opts:           opts,
+		txopts:         txopts,
 		closeGuard:     newCloseGuard(),
 		readOnly:       readOnly,
 		tablesCfg:      tablesCfg,
@@ -78,6 +83,15 @@ func (db *RocksDB) Close() {
 
 		db.lruCache.Destroy()
 		db.lruCache = nil
+
+		db.bbto.Destroy()
+		db.bbto = nil
+
+		db.opts.Destroy()
+		db.opts = nil
+
+		db.txopts.Destroy()
+		db.txopts = nil
 	}
 }
 
