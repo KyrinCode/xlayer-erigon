@@ -161,11 +161,31 @@ db-tools:
 	@echo "Run \"$(GOBIN)/mdbx_stat -h\" to get info about mdbx db file."
 
 ## test-unwind:                       run the unwind tests
-test-unwind:
+test-unwind: test-unwind-default test-unwind-ac-split
+
+test-unwind-default:
+	make clean
+	cp ./zk/tests/unwinds/config/dynamic-integration8.yaml .
+	cp ./zk/tests/unwinds/config/dynamic-integration-allocs.json .
+	cp ./zk/tests/unwinds/config/dynamic-integration-chainspec.json .
+	cp ./zk/tests/unwinds/config/dynamic-integration-conf.json .
+	cd ./zk/tests/unwinds/datastream && tar -xzf ./datastream-net8-upto-11318-101.zip
+	cd ../../../../
 	make cdk-erigon
 	./zk/tests/unwinds/unwind.sh default
-	./zk/tests/unwinds/unwind.sh ac-split
+	rm dynamic-integration8.yaml dynamic-integration-allocs.json dynamic-integration-chainspec.json dynamic-integration-conf.json
 
+test-unwind-ac-split:
+	make clean
+	cp ./zk/tests/unwinds/config/dynamic-integration8.yaml .
+	cp ./zk/tests/unwinds/config/dynamic-integration-allocs.json .
+	cp ./zk/tests/unwinds/config/dynamic-integration-chainspec.json .
+	cp ./zk/tests/unwinds/config/dynamic-integration-conf.json .
+	cd ./zk/tests/unwinds/datastream && tar -xzf ./datastream-net8-upto-11318-101.zip
+	cd ../../../../
+	make cdk-erigon
+	./zk/tests/unwinds/unwind.sh ac-split
+	rm dynamic-integration8.yaml dynamic-integration-allocs.json dynamic-integration-chainspec.json dynamic-integration-conf.json
 
 test-erigon-lib:
 	@cd erigon-lib && $(MAKE) test
