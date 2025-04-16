@@ -68,7 +68,7 @@ var rootCmd = &cobra.Command{
 				defer monitorCancel()
 				isReplay := strings.Contains(strings.ToLower(runningContainer), "replay")
 				csvFile := filepath.Join(path, fmt.Sprintf("%s-container-stats.csv", strings.Split(runningContainer, "-")[3]))
-				go monitorContainer(monitorCtx, runningContainer, csvFile, sampleIntv, isReplay)
+				go monitorContainer(monitorCtx, runningContainer, csvFile, sampleIntv, isReplay, 0)
 				if _, err := utils.RunDockerWait(ctx, monitorCancel, runningContainer, ""); err != nil {
 					fmt.Printf("Error monitoring running container %s: %v\n", runningContainer, err)
 					return
@@ -144,7 +144,7 @@ var rootCmd = &cobra.Command{
 				return
 			} else {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
-				go monitorContainer(monitorCtx, containerID, unwindCSV, sampleIntv, false)
+				go monitorContainer(monitorCtx, containerID, unwindCSV, sampleIntv, false, 0)
 				if _, err := utils.RunDockerWait(ctx, monitorCancel, containerID, ""); err != nil {
 					fmt.Printf("Receive an error during waiting for unwind container to complete execution: %v\n", err)
 					return
@@ -188,7 +188,7 @@ var rootCmd = &cobra.Command{
 		if fuse && config.UseExternalDatastream {
 			for {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
-				go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)
+				go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true, config.BatchTo)
 				go utils.MonitorChaindataSize(monitorCtx, workDir, utils.DEFAULT_CHAINDATA_LIMIT)
 				exitCode, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID, "")
 				if err != nil {
@@ -201,7 +201,7 @@ var rootCmd = &cobra.Command{
 			}
 		} else {
 			monitorCtx, monitorCancel := context.WithCancel(ctx)
-			go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)
+			go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true, config.BatchTo)
 			if _, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID, utils.REPLAY_STOP_SIGN); err != nil {
 				fmt.Printf("Receive an error during waiting for replay container to complete execution: %v\n", err)
 				return

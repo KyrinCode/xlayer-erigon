@@ -52,7 +52,7 @@ import (
 // 	},
 // }
 
-func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIntv time.Duration, showTPS bool) error {
+func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIntv time.Duration, showTPS bool, height uint64) error {
 	// Initialize Docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -417,9 +417,17 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 	}()
 
 	// Log processing
+	var logWaitGroup *sync.WaitGroup
 	logDoneChan := make(chan struct{})
+	if height != 0 {
+		logWaitGroup = &sync.WaitGroup{}
+	}
 	go func() {
 		defer close(logDoneChan)
+
+		if logWaitGroup != nil {
+			logWaitGroup.Add(1)
+		}
 
 		scanner := bufio.NewScanner(logReader)
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
@@ -499,6 +507,10 @@ func monitorContainer(ctx context.Context, containerID, csvPath string, sampleIn
 								ui.Clear()
 								ui.Render(titleBar, lcCPU, lcMem, lcDisk, lcNet, lcTPS, keyHint)
 							}
+
+							if uint64(batchNo) == height && logWaitGroup != nil {
+								logWaitGroup.Done()
+							}
 						}
 					}
 				}
@@ -511,6 +523,9 @@ mainLoop:
 	for {
 		select {
 		case <-ctx.Done():
+			if logWaitGroup != nil {
+				logWaitGroup.Wait()
+			}
 			logCancel()
 			<-logDoneChan
 			<-statsDoneChan
@@ -904,7 +919,7 @@ func showHistoryReport(path string, fromBatch, toBatch int) error {
 	historyResults, err := loadTestHistory(batchRangeFile)
 	if err != nil {
 		log.Printf("Failed to load history: %v", err)
-		historyResults = []TestResult{}
+		return err
 	}
 
 	// Create history table
