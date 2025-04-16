@@ -90,6 +90,10 @@ func (cache *SmtCache) GetSmtCache() *immutable.Map[string, *immutable.Map[strin
 
 func (cache *SmtCache) CascadeGetCurrentBatchSnapshotCache(blockNumber uint64) *immutable.Map[string, *immutable.Map[string, []byte]] {
 	cache.PrimaryCacheLock.RLock()
+	if blockNumber == cache.LastRecordBlockHeight {
+		cache.PrimaryCacheLock.RUnlock()
+		return cache.PrimaryCache
+	}
 	snapshot, exists := cache.PrimaryCacheHistory[blockNumber]
 	cache.PrimaryCacheLock.RUnlock()
 
@@ -185,7 +189,7 @@ func (cache *SmtCache) SetSmtCache(blockNumber uint64, blockCache map[string]map
 		changedKeys[result.table] = result.changeKeys
 	}
 
-	cache.PrimaryCacheHistory[blockNumber] = cache.PrimaryCache
+	cache.PrimaryCacheHistory[blockNumber-1] = cache.PrimaryCache
 	cache.PrimaryCache = newSnapshot
 	cache.LastRecordBlockHeight = blockNumber
 	cache.PrimaryCacheLock.Unlock()
