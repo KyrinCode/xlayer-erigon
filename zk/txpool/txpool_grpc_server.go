@@ -202,7 +202,7 @@ func (s *GrpcServer) Add(ctx context.Context, in *txpool_proto.AddRequest) (*txp
 			in.DecodedTx = make([]interface{}, len(in.RlpTxs))
 		}
 		if in.DecodedTx[i] == nil {
-			//log.Warn("tx decode not cached")
+			log.Warn("tx decode not cached")
 			in.DecodedTx[i], err = types3.DecodeTransaction(in.RlpTxs[i])
 			if err != nil {
 				reply.Errors[i] = TxDecodeFail.String()
