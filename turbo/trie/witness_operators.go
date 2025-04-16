@@ -2,6 +2,7 @@ package trie
 
 import (
 	"math/big"
+	"sync"
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
@@ -298,12 +299,22 @@ type OperatorBranch struct {
 	Mask uint32
 }
 
+var encoderPool = sync.Pool{
+	New: func() interface{} {
+		return codec.NewEncoder(nil, &cbor) // 预创建编码器
+	},
+}
+
 func (o *OperatorBranch) WriteTo(output *OperatorMarshaller) error {
 	if err := output.WriteOpCode(OpBranch); err != nil {
 		return err
 	}
 
-	encoder := codec.NewEncoder(output.WithColumn(ColumnStructure), &cbor)
+	encoder := encoderPool.Get().(*codec.Encoder)
+	defer encoderPool.Put(encoder)
+
+	encoder.Reset(output.WithColumn(ColumnStructure))
+
 	return encoder.Encode(o.Mask)
 }
 
