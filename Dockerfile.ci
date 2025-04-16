@@ -1,0 +1,22 @@
+# Use Ubuntu 22.04 as the base image
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt update && apt install -y build-essential wget git
+
+# Install Go 1.24
+RUN wget https://go.dev/dl/go1.24.2.linux-amd64.tar.gz && tar -xf go1.24.2.linux-amd64.tar.gz && rm go1.24.2.linux-amd64.tar.gz
+RUN mkdir gopath
+ENV GOPATH="/gopath"
+ENV GOROOT="/go"
+ENV PATH="/go/bin:/gopath/bin:${PATH}"
+
+# Build xlayer-erigon from git version specified by GIT_TAG
+RUN mkdir -p /app
+WORKDIR /app
+RUN git clone https://github.com/okx/xlayer-erigon.git
+WORKDIR /app/xlayer-erigon
+# git tag/branch/commit
+ARG GIT_TAG=dev
+RUN git checkout ${GIT_TAG}
+RUN make cdk-erigon
