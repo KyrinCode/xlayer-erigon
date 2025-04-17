@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
-	"runtime"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -979,146 +979,73 @@ func HashContractBytecode(bc string) string {
 	return ConvertBigIntToHex(HashContractBytecodeBigInt(bc))
 }
 
-const (
-	MAX_BYTES_TO_ADD = BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT // 56 bytes
-	MAX_STACK_BUFFER = 16384                                           // Stack buffer size (16 KB for Ethereum contracts, cover 95% of contract size)
-	MAX_WORKERS      = 32                                              // Max concurrent workers
-)
-
 func HashContractBytecodeBigInt(bc string) *big.Int {
-	// Step 1: Normalize input
-	input := strings.TrimPrefix(bc, "0x")
-	if len(input)%2 != 0 {
-		input = "0" + input
+	bytecode := bc
+
+	if strings.HasPrefix(bc, "0x") {
+		bytecode = bc[2:]
 	}
 
-	// Step 2: Calculate buffer size
-	inputLen := len(input) / 2
-	byteLen := ((inputLen + 1 + MAX_BYTES_TO_ADD - 1) / MAX_BYTES_TO_ADD) * MAX_BYTES_TO_ADD
-
-	// Step 3: Stack or heap buffer
-	var stackBuf [MAX_STACK_BUFFER]byte
-	var heapBuf []byte
-	var buf []byte
-	if byteLen <= MAX_STACK_BUFFER {
-		buf = stackBuf[:byteLen]
-	} else {
-		heapBuf = make([]byte, byteLen)
-		buf = heapBuf
+	if len(bytecode)%2 != 0 {
+		bytecode = "0" + bytecode
 	}
 
-	// Step 4: Decode hex and pad
-	n, err := hex.Decode(buf[:inputLen], []byte(input))
-	if err != nil {
-		return new(big.Int) // Mimic original: return zero on error
+	bytecode += "01"
+
+	for len(bytecode)%(56*2) != 0 {
+		bytecode += "00"
 	}
-	buf[n] = 0x01 // Append "01"
-	n++
-	for i := n; i < byteLen; i++ {
-		buf[i] = 0x00 // Pad zeros
-	}
-	buf[byteLen-1] |= 0x80 // Set last byte’s high bit
 
-	// Step 5: Process chunks concurrently
-	numHashes := (byteLen + MAX_BYTES_TO_ADD - 1) / MAX_BYTES_TO_ADD
+	lastByteInt, _ := strconv.ParseInt(bytecode[len(bytecode)-2:], 16, 64)
+	lastByte := strconv.FormatInt(lastByteInt|0x80, 16)
+	bytecode = bytecode[:len(bytecode)-2] + lastByte
 
-	// Dynamic workers based on CPU cores and input size
-	cpuCore := runtime.NumCPU() / 2
-	if cpuCore < 2 {
-		cpuCore = 2
-	}
-	numWorkers := min(cpuCore, min(MAX_WORKERS, numHashes))
+	numBytes := float64(len(bytecode)) / 2
+	numHashes := int(math.Ceil(numBytes / (BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT)))
 
-	// Small input: serial execution
-	if numHashes <= numWorkers {
-		var tmpHash [4]uint64
-		var in [8]uint64
-		var capacity [4]uint64
+	tmpHash := [4]uint64{0, 0, 0, 0}
+	bytesPointer := 0
 
-		for i := 0; i < numHashes; i++ {
-			start := i * MAX_BYTES_TO_ADD
-			end := start + MAX_BYTES_TO_ADD
-			if end > byteLen {
-				end = byteLen
-			}
-			chunk := buf[start:end]
+	maxBytesToAdd := BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT
+	var elementsToHash []uint64
+	var in [8]uint64
+	var capacity [4]uint64
+	scalar := new(big.Int)
+	tmpScalar := new(big.Int)
+	var byteToAdd string
+	for i := 0; i < numHashes; i++ {
+		elementsToHash = tmpHash[:]
 
-			var elements [12]uint64
-			copy(elements[:4], tmpHash[:])
+		subsetBytecode := bytecode[bytesPointer : bytesPointer+maxBytesToAdd*2]
+		bytesPointer += maxBytesToAdd * 2
 
-			for j := 0; j < len(chunk); j += BYTECODE_BYTES_ELEMENT {
-				var val uint64
-				for k := 0; k < BYTECODE_BYTES_ELEMENT && j+k < len(chunk); k++ {
-					shift := 8 * uint(BYTECODE_BYTES_ELEMENT-1-k)
-					val |= uint64(chunk[j+k]) << shift
-				}
-				idx := j / BYTECODE_BYTES_ELEMENT
-				elements[4+idx] = val
+		tmpElem := ""
+		counter := 0
+
+		for j := 0; j < maxBytesToAdd; j++ {
+			byteToAdd = "00"
+			if j < len(subsetBytecode)/2 {
+				byteToAdd = subsetBytecode[j*2 : (j+1)*2]
 			}
 
-			copy(in[:], elements[4:12])
-			copy(capacity[:], elements[:4])
-			tmpHash = Hash(in, capacity)
-		}
+			tmpElem = byteToAdd + tmpElem
+			counter += 1
 
-		return ArrayToScalar(tmpHash[:])
-	}
-
-	// Large input: concurrent execution
-	batchSize := (numHashes + numWorkers - 1) / numWorkers
-	ch := make(chan [4]uint64, numWorkers)
-	var initialHash [4]uint64
-
-	for w := 0; w < numWorkers; w++ {
-		startBatch := w * batchSize
-		endBatch := startBatch + batchSize
-		if endBatch > numHashes {
-			endBatch = numHashes
-		}
-		if startBatch >= numHashes {
-			break
-		}
-
-		go func(start, end int, inputHash [4]uint64, out chan<- [4]uint64) {
-			var tmpHash [4]uint64
-			tmpHash = inputHash
-			var in [8]uint64
-			var capacity [4]uint64
-
-			for i := start; i < end; i++ {
-				startByte := i * MAX_BYTES_TO_ADD
-				endByte := startByte + MAX_BYTES_TO_ADD
-				if endByte > byteLen {
-					endByte = byteLen
-				}
-				chunk := buf[startByte:endByte]
-
-				var elements [12]uint64
-				copy(elements[:4], tmpHash[:])
-
-				for j := 0; j < len(chunk); j += BYTECODE_BYTES_ELEMENT {
-					var val uint64
-					for k := 0; k < BYTECODE_BYTES_ELEMENT && j+k < len(chunk); k++ {
-						shift := 8 * uint(BYTECODE_BYTES_ELEMENT-1-k)
-						val |= uint64(chunk[j+k]) << shift
-					}
-					idx := j / BYTECODE_BYTES_ELEMENT
-					elements[4+idx] = val
-				}
-
-				copy(in[:], elements[4:12])
-				copy(capacity[:], elements[:4])
-				tmpHash = Hash(in, capacity)
+			if counter == BYTECODE_BYTES_ELEMENT {
+				tmpScalar, _ = scalar.SetString(tmpElem, 16)
+				elementsToHash = append(elementsToHash, tmpScalar.Uint64())
+				tmpElem = ""
+				counter = 0
 			}
+		}
 
-			out <- tmpHash
-		}(startBatch, endBatch, initialHash, ch)
+		copy(in[:], elementsToHash[4:12])
+		copy(capacity[:], elementsToHash[:4])
 
-		initialHash = <-ch // Chain tmpHash to next batch
+		tmpHash = Hash(in, capacity)
 	}
 
-	// Step 6: Convert final tmpHash to big.Int
-	return ArrayToScalar(initialHash[:])
+	return ArrayToScalar(tmpHash[:])
 }
 
 func ResizeHashTo32BytesByPrefixingWithZeroes(hashValue []byte) []byte {
