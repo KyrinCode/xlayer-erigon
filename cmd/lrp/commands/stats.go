@@ -795,17 +795,17 @@ func showReport(path, workDir, commitID string) error {
 	// Create history table
 	p := message.NewPrinter(language.English)
 	historyTable := widgets.NewTable()
-	historyTable.Title = fmt.Sprintf("Historical Results (Top 3 TPS for Batch %d-%d)", firstNonZeroBatch, lastNonZeroBatch)
+	historyTable.Title = fmt.Sprintf("Historical Results (Top 5 TPS for Batch %d-%d)", firstNonZeroBatch, lastNonZeroBatch)
 	historyTable.TextStyle = ui.NewStyle(ui.ColorWhite)
 	historyTable.RowSeparator = true
 	historyTable.BorderStyle = ui.NewStyle(ui.ColorCyan)
 	historyTable.Rows = [][]string{
-		{"Batch Range", "Start Time", "End Time", "Tx Count", "Duration (s)", "TPS", "State Root Mismatch", "Mismatch Block Height", "Git Commit ID"},
+		{"Batch Range", "Git Commit ID", "Start Time", "End Time", "Tx Count", "Duration (s)", "TPS", "State Root Mismatch", "Mismatch Block Height"},
 	}
 	sort.Slice(historyResults, func(i, j int) bool {
 		return historyResults[i].AverageTPS > historyResults[j].AverageTPS
 	})
-	maxHistory := 5 // Show up to 3 historical entries (4 rows total with header)
+	maxHistory := 5 // Show up to 5 historical entries (4 rows total with header)
 	historyCount := 0
 	for i, result := range historyResults {
 		if historyCount >= maxHistory {

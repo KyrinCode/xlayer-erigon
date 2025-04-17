@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
@@ -264,11 +263,8 @@ func getRunningContainers() (string, error) {
 
 // checkActiveLRPCommands checks if there are any active lrp commands excluding the current process
 func checkActiveLRPCommands() (bool, error) {
-	// Get current process ID
-	currentPID := os.Getpid()
-
-	// Use `ps` command to list processes
-	cmd := exec.Command("ps", "-eo", "pid,cmd")
+	// Use `ps aux` to list all processes with detailed command information
+	cmd := exec.Command("ps", "aux")
 	output, err := cmd.Output()
 	if err != nil {
 		return false, fmt.Errorf("failed to execute ps command: %v", err)
@@ -278,28 +274,26 @@ func checkActiveLRPCommands() (bool, error) {
 	lines := strings.Split(string(output), "\n")
 	lrpCount := 0
 
-	// Look for processes with "lrp" in the command name
-	for _, line := range lines {
+	// Skip the header line and look for processes with "lrp" in the command
+	for i, line := range lines {
+		if i == 0 {
+			continue // Skip header
+		}
 		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
+		if len(fields) < 11 {
+			continue // Ensure enough fields are present
 		}
 
-		pidStr := fields[0]
-		cmdLine := strings.Join(fields[1:], " ")
+		cmdLine := strings.Join(fields[10:], " ") // Command is from the 11th field onward
 
-		// Check if the command contains "lrp"
-		if strings.Contains(cmdLine, "lrp") {
-			pid, err := strconv.Atoi(pidStr)
+		// Check if the command contains "lrp" (case-insensitive)
+		if strings.Contains(strings.ToLower(cmdLine), "lrp") {
 			if err != nil {
 				continue
 			}
-			// Exclude the current process
-			if pid != currentPID {
-				lrpCount++
-			}
+			lrpCount++
 		}
 	}
 
-	return lrpCount > 0, nil
+	return lrpCount > 1, nil
 }

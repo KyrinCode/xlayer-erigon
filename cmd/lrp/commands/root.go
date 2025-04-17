@@ -62,7 +62,7 @@ var rootCmd = &cobra.Command{
 
 		// Step 0.5: Check for running containers and monitor them
 		if busy, runningContainer, _ := utils.IsLRPBusy(); busy {
-			fmt.Printf("There are currently running lrp tests: %s\n", runningContainer)
+			fmt.Println("There is currently running lrp tests")
 			if runningContainer != "" {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
 				defer monitorCancel()

@@ -196,7 +196,7 @@ func selectBatchRange(path string) (*BatchRangeOption, error) {
 		case e := <-uiEvents:
 			switch e.ID {
 			case "q", "<C-c>":
-				return nil, nil // Quit without selecting
+				return nil, fmt.Errorf("capture a quit signal, program interrupted") // Quit without selecting
 			case "<Up>":
 				list.ScrollUp()
 				ui.Render(list, instructions)
