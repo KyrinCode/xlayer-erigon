@@ -22,8 +22,9 @@ type RocksDbTx struct {
 	wopts *grocksdb.WriteOptions
 	txopt *grocksdb.TransactionOptions
 
-	id  uint64 // set only if TRACE_TX=true
-	ctx context.Context
+	writeMethod WriteMethod
+	id          uint64 // set only if TRACE_TX=true
+	ctx         context.Context
 
 	cursors  map[uint64]kv.Closer
 	cursorID uint64
@@ -36,7 +37,7 @@ type RocksDbTx struct {
 	closeCallback func()
 }
 
-func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
+func newRocksDbTx(db *RocksDB, ctx context.Context, writeMethod WriteMethod, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
 	txopt := grocksdb.NewDefaultTransactionOptions()
 	tx := db.rdb.TransactionBegin(wopts, txopt, nil)
@@ -48,7 +49,8 @@ func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*Rock
 		wopts: wopts,
 		txopt: txopt,
 
-		ctx: ctx,
+		writeMethod: writeMethod,
+		ctx:         ctx,
 
 		closeCallback: closeCallback,
 	}, nil
@@ -502,7 +504,7 @@ func (rtx *RocksDbTx) putSorted(table string, k, v []byte) error {
 
 // putOverwrite will overwrite the key if it has exist
 func (rtx *RocksDbTx) putOverwrite(table string, k []byte, v *DBValue) error {
-	return rtx.tx.Put(mergeKey(table, k), v.Serialize())
+	return rtx.writeMethod.txWrite(rtx.tx, mergeKey(table, k), v.Serialize())
 }
 
 // iterWithStop iterate data until `walker` return error or true

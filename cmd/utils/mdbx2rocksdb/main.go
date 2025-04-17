@@ -148,7 +148,7 @@ func openRocksDB(path string, logger log.Logger) (kv.RwDB, error) {
 	roTxsLimiter := semaphore.NewWeighted(readTxLimit)
 	writeTxLimiter := semaphore.NewWeighted(targetSemCount)
 
-	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, writeTxLimiter, false)
+	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, writeTxLimiter, false, rocksdb.WriteMethodDiscardHistory)
 }
 
 func convertTable(table string, srcDB kv.RwDB, dstDB kv.RwDB) (int64, error) {

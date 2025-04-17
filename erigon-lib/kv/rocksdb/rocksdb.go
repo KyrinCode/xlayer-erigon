@@ -22,9 +22,10 @@ type RocksDB struct {
 
 	closeGuard *CloseGuard
 
-	readOnly  bool // todo: not used
-	tablesCfg kv.TableCfg
-	label     kv.Label // marker to distinct db instances - one process may open many databases. for example to collect metrics of only 1 database
+	writeMethod WriteMethod
+	readOnly    bool // todo: not used
+	tablesCfg   kv.TableCfg
+	label       kv.Label // marker to distinct db instances - one process may open many databases. for example to collect metrics of only 1 database
 
 	readTxLimiter  *semaphore.Weighted
 	writeTxLimiter *semaphore.Weighted
@@ -32,7 +33,7 @@ type RocksDB struct {
 	leakDetector   *dbg.LeakDetector
 }
 
-func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label kv.Label, readTxLimiter, writeTxLimiter *semaphore.Weighted, readOnly bool) (kv.RwDB, error) {
+func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label kv.Label, readTxLimiter, writeTxLimiter *semaphore.Weighted, readOnly bool, writeMethod WriteMethod) (kv.RwDB, error) {
 	if readTxLimiter == nil {
 		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
 		readTxLimiter = semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
@@ -50,6 +51,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockBasedTableFactory(bbto)
+	writeMethod.config(opts)
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
 
@@ -65,6 +67,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 		opts:           opts,
 		txopts:         txopts,
 		closeGuard:     newCloseGuard(),
+		writeMethod:    writeMethod,
 		readOnly:       readOnly,
 		tablesCfg:      tablesCfg,
 		label:          label,
@@ -210,7 +213,7 @@ func (db *RocksDB) beginTx(ctx context.Context, txLimiter *semaphore.Weighted) (
 
 	id := db.leakDetector.Add()
 	// todo: yztodo: not a real read only tx yet
-	return newRocksDbTx(db, ctx, func() {
+	return newRocksDbTx(db, ctx, db.writeMethod, func() {
 		db.closeGuard.deReference()
 		txLimiter.Release(1)
 		db.leakDetector.Del(id)

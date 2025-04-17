@@ -369,7 +369,7 @@ func OpenDatabase(ctx context.Context, config *nodecfg.Config, label kv.Label, n
 		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
 		writeTxLimiter := semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
 		// todo: yztodo: use a options struct to deliver arguments
-		return rocksdb.NewRocksDB(dbPath, logger, kv.ChaindataTablesCfg, label, roTxsLimiter, writeTxLimiter, readonly)
+		return rocksdb.NewRocksDB(dbPath, logger, kv.ChaindataTablesCfg, label, roTxsLimiter, writeTxLimiter, readonly, rocksdb.WriteMethodPut)
 
 		// return opts.Open(ctx)
 	}

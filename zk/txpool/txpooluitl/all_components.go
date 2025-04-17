@@ -109,7 +109,7 @@ func AllComponents(ctx context.Context, cfg txpoolcfg.Config, ethCfg *ethconfig.
 	targetSemCount = int64(runtime.GOMAXPROCS(-1)) - 1
 	writeTxLimiter := semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
 
-	txPoolDB, err := rocksdb.NewRocksDB(cfg.DBDir, log.New(), kv.TxpoolTablesCfg, kv.TxPoolDB, readTxLimiter, writeTxLimiter, false)
+	txPoolDB, err := rocksdb.NewRocksDB(cfg.DBDir, log.New(), kv.TxpoolTablesCfg, kv.TxPoolDB, readTxLimiter, writeTxLimiter, false, rocksdb.WriteMethodPut)
 	//txPoolDB, err := mdbx.NewMDBX(log.New()).Label(kv.TxPoolDB).Path(cfg.DBDir).
 	//	WithTableCfg(func(defaultBuckets kv.TableCfg) kv.TableCfg { return kv.TxpoolTablesCfg }).
 	//	Flags(func(f uint) uint { return f ^ mdbx2.Durable | mdbx2.SafeNoSync }).
