@@ -342,46 +342,6 @@ func (p *TxPool) MarkForDiscardFromPendingBest(txHash common.Hash) {
 	}
 }
 
-func (p *TxPool) RemoveMinedTransactions(ctx context.Context, tx kv.Tx, blockGasLimit uint64, ids []common.Hash) error {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	sendersWithChangedState := make(map[uint64]struct{})
-	for _, id := range ids {
-		if mt, ok := p.byHash[string(id[:])]; ok {
-			sendersWithChangedState[mt.Tx.SenderID] = struct{}{}
-			switch mt.currentSubPool {
-			case PendingSubPool:
-				p.pending.Remove(mt)
-			case BaseFeeSubPool:
-				p.baseFee.Remove(mt)
-			case QueuedSubPool:
-				p.queued.Remove(mt)
-			default:
-				//already removed
-			}
-			p.discardLocked(mt, Mined)
-		}
-	}
-
-	baseFee := p.pendingBaseFee.Load()
-
-	cacheView, err := p._stateCache.View(ctx, tx)
-	if err != nil {
-		return err
-	}
-	for senderID := range sendersWithChangedState {
-		nonce, balance, err := p.senders.info(cacheView, senderID)
-		if err != nil {
-			return err
-		}
-		p.onSenderStateChange(senderID, nonce, balance, p.all,
-			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
-
-	}
-	return nil
-}
-
 func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockGasLimit uint64, senders map[common.Address]struct{}) error {
 	if len(senders) == 0 {
 		return nil
