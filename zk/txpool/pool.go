@@ -24,7 +24,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
 	"math"
 	"math/big"
 	"runtime"
@@ -1607,7 +1606,7 @@ func (p *TxPool) flush(ctx context.Context, db kv.RwDB) (written uint64, err err
 		if err != nil {
 			return err
 		}
-		written, _, err = tx.(*rocksdb.RocksDbTx).SpaceDirty()
+		written, _, err = tx.SpaceDirty()
 		if err != nil {
 			return err
 		}

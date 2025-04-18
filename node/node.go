@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -41,9 +40,9 @@ import (
 	"github.com/ledgerwatch/log/v3"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/kv/dbbuilder"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv/memdb"
-	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
 	"github.com/ledgerwatch/erigon/migrations"
 )
 
@@ -299,11 +298,14 @@ func (n *Node) DataDir() string {
 }
 
 func OpenDatabase(ctx context.Context, config *nodecfg.Config, label kv.Label, name string, readonly bool, logger log.Logger) (kv.RwDB, error) {
+	var tablesCfg kv.TableCfg
 	switch label {
 	case kv.ChainDB:
 		name = "chaindata"
+		tablesCfg = kv.ChaindataTablesCfg
 	case kv.TxPoolDB:
 		name = "txpool"
+		tablesCfg = kv.TxpoolTablesCfg
 	case kv.ConsensusDB:
 		if len(name) == 0 {
 			return nil, fmt.Errorf("expected a consensus name")
@@ -366,12 +368,7 @@ func OpenDatabase(ctx context.Context, config *nodecfg.Config, label kv.Label, n
 		default:
 		}
 
-		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
-		writeTxLimiter := semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
-		// todo: yztodo: use a options struct to deliver arguments
-		return rocksdb.NewRocksDB(dbPath, logger, kv.ChaindataTablesCfg, label, roTxsLimiter, writeTxLimiter, readonly, rocksdb.WriteMethodPut)
-
-		// return opts.Open(ctx)
+		return dbbuilder.NewDB(config.DatabaseType, ctx, opts, tablesCfg)
 	}
 	var err error
 	db, err = openFunc(false)

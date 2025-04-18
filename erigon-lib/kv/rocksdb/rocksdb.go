@@ -33,15 +33,12 @@ type RocksDB struct {
 	leakDetector   *dbg.LeakDetector
 }
 
-func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label kv.Label, readTxLimiter, writeTxLimiter *semaphore.Weighted, readOnly bool, writeMethod WriteMethod) (kv.RwDB, error) {
+func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label kv.Label, readTxLimiter *semaphore.Weighted, readOnly bool, writeMethod WriteMethod) (kv.RwDB, error) {
 	if readTxLimiter == nil {
 		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
 		readTxLimiter = semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
 	}
-	if writeTxLimiter == nil {
-		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
-		writeTxLimiter = semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
-	}
+	writeTxLimiter := semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)) - 1) // 1 less than max to allow unlocking to happen
 
 	lruCache := grocksdb.NewLRUCache(3 << 30)
 

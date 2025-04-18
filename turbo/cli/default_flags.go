@@ -53,6 +53,8 @@ var DefaultFlags = []cli.Flag{
 	&StateStreamDisableFlag,
 	&SyncLoopThrottleFlag,
 	&BadBlockFlag,
+	&utils.TxPoolDBTypeFlag,
+	&utils.ChainDataDBTypeFlag,
 
 	&utils.HTTPEnabledFlag,
 	&utils.HTTPServerEnabledFlag,

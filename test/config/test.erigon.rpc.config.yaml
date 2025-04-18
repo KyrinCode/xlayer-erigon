@@ -83,3 +83,10 @@ pprof: true
 pprof.port: 6060
 pprof.addr: 0.0.0.0
 
+# database type of txpool. the value could be:
+# mdbx, rocksdb
+txpool.dbtype: "mdbx"
+
+# database type of chain data. the value could be:
+# mdbx, rocksdb
+chaindata.dbtype: "mdbx"
