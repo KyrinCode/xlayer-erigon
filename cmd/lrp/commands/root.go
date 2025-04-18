@@ -41,9 +41,8 @@ var rootCmd = &cobra.Command{
 
 		// Step 0: Check flags and the environment
 		var (
-			config   *utils.LRPConfig
-			workDir  string
-			commitID string
+			config  *utils.LRPConfig
+			workDir string
 		)
 
 		err := checkFlags()
@@ -85,8 +84,8 @@ var rootCmd = &cobra.Command{
 
 		// Step 1: checkout to the target branch or commit
 		repoPath := filepath.Join(path, utils.REPO_NAME)
-		// commitID flag has the high priority than config file
-		if commitID == "" && config.GitCommit != "" {
+		// commitID flag has the lower priority than config file
+		if config.GitCommit != "" {
 			commitID = config.GitCommit
 		}
 		commitID, err = utils.CheckoutGitTarget(repoPath, branch, commitID)

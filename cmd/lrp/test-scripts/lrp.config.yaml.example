@@ -4,3 +4,4 @@ processCount: 1
 useExternalDatastream: true
 srcMainnetDataPath: /data/mainnet # Specify mainnet data path
 externalDatastreamPath: # If not set, srcMainnetDataPath will be used
+gitCommit:
