@@ -54,7 +54,6 @@ lrp init
 $ lrp init
 Default config file generated at ./lrp.config.yaml
 Enter your RPC key: <enter your RPC key>
-RPC key saved to $HOME/.lrp/rpc.key
 RPC key entered: <your L1 RPC key>
 ```
 
