@@ -2,5 +2,5 @@ workPath: /data/.lrp
 user: kyrin
 processCount: 1
 useExternalDatastream: true
-srcMainnetDataPath: $HOME/Downloads/mainnet-compact-170700-9510470/seq
-externalDatastreamPath:
+srcMainnetDataPath: /data/mainnet # Specify mainnet data path
+externalDatastreamPath: # If not set, srcMainnetDataPath will be used

@@ -3,6 +3,7 @@ package commands
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -63,6 +64,14 @@ var AddCmd = &cobra.Command{
 			Description:    description,
 			CreatedAt:      time.Now(),
 			LastSelectedAt: time.Time{}, // Zero value until selected
+		}
+
+		config, err := utils.ParseLRPConfigFIle()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("Parsing LRP config file returns an error: %v", err)
+			return
+		} else {
+			path = config.WorkPath
 		}
 
 		// Save to file

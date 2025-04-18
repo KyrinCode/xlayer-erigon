@@ -28,6 +28,7 @@ var dependencies = []string{
 
 type LRPConfig struct {
 	WorkPath               string `yaml:"workPath"`
+	RpcKey                 string `yaml:"rpcKey"`
 	User                   string `yaml:"user"`
 	GitCommit              string `yaml:"gitCommit"`
 	PortDiff               int64  `yaml:"portDiff"`
@@ -42,6 +43,7 @@ type LRPConfig struct {
 func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type rawConfig struct {
 		WorkPath               string `yaml:"workPath"`
+		RpcKey                 string `yaml:"rpcKey"`
 		User                   string `yaml:"user"`
 		GitCommit              string `yaml:"gitCommit"`
 		PortDiff               int64  `yaml:"portDiff"`
@@ -66,6 +68,7 @@ func (c *LRPConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	c.UseExternalDatastream = raw.UseExternalDatastream
 	c.ProcessCount = raw.ProcessCount
 	c.GitCommit = raw.GitCommit
+	c.RpcKey = raw.RpcKey
 
 	if raw.SrcMainnetDataPath != "" {
 		c.SrcMainnetDataPath = raw.SrcMainnetDataPath
@@ -120,13 +123,6 @@ func CheckEnviorment(path string) error {
 		return fmt.Errorf("failed to connect to docker daemon, ensure it is running: %v", err)
 	}
 	cli.Close() // Close the client after checking
-
-	// Check if rpc.key exists
-	rpcKeyPath := filepath.Join(path, "rpc.key")
-	if _, err := os.Stat(rpcKeyPath); err != nil {
-		fmt.Println("rpc.key is not set, please run 'lrp init -h' for help")
-		return err
-	}
 
 	// Fetch repo
 	if err := pullCode(path); err != nil {

@@ -35,6 +35,7 @@ func SpawnWorkDirectoryByDefault(path, commitID string, batchFrom, batchTo int) 
 
 	config := &LRPConfig{
 		User:                   rawConfig.User,
+		RpcKey:                 rawConfig.RpcKey,
 		GitCommit:              commitID,
 		PortDiff:               int64(portDiff),
 		BatchFrom:              uint64(batchFrom),
@@ -61,13 +62,7 @@ func SpawnWorkDirectoryByDefault(path, commitID string, batchFrom, batchTo int) 
 		return "", nil, err
 	}
 
-	rpcKeyFile := filepath.Join(path, "rpc.key")
-	rpcKey, err := os.ReadFile(rpcKeyFile)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if err := createXlayerConfigFile(string(rpcKey), path, workDir); err != nil {
+	if err := createXlayerConfigFile(config.RpcKey, path, workDir); err != nil {
 		return "", nil, err
 	}
 
