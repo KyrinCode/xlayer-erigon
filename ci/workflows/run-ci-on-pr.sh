@@ -6,7 +6,9 @@ declare -A tasks
 tasks["build"]="make cdk-erigon"
 tasks["tests"]="make -B test"
 tasks["lint"]="cd ./docs/endpoints && make check-doc"
-tasks["unwind"]="make unwind"
+tasks["check_chinese_characters"]="./.github/scripts/check_chinese_characters.sh"
+tasks["data_loss"]="cd ./test && make test-data-loss"
+tasks["unwind"]="make test-unwind"
 
 declare -A task_status
 
