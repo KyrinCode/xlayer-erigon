@@ -102,9 +102,9 @@ zkevm.seal-batch-immediately-on-overflow: true
 zkevm.sequencer-timeout-on-empty-tx-pool: 5ms
 
 # database type of txpool. the value could be:
-# mdbx, rocksdb
+# mdbx, rocksdb, combine
 txpool.dbtype: "mdbx"
 
 # database type of chain data. the value could be:
-# mdbx, rocksdb
+# mdbx, rocksdb, combine
 chaindata.dbtype: "mdbx"
