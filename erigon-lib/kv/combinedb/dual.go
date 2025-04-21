@@ -25,25 +25,25 @@ func newCombineDual(prefix string, mdbxDual iter.KV, rocksdbDual iter.KV) iter.K
 }
 
 func (d *CombineDual) Next() ([]byte, []byte, error) {
-	d.logger.Debugf("Next")
-	defer d.logger.Debugf("Next done")
+	d.logger.Info("Next")
+	defer d.logger.Info("Next done")
 
 	k1, v1, err1 := d.mdbxDual.Next()
 	k2, v2, err2 := d.rocksdbDual.Next()
 	assertError(d.logger, err1, err2, "Next")
-	assertEq(d.logger, k1, k2, "Next key mismatch. mdbx=%x. rocksdb=%x.", k1, k2)
-	assertEq(d.logger, v1, v2, "Next value mismatch. mdbx=%x. rocksdb=%s", v1, v2)
+	assertEqualF(d.logger, k1, k2, "Next key mismatch. mdbx=%x. rocksdb=%x.", k1, k2)
+	assertEqualF(d.logger, v1, v2, "Next value mismatch. mdbx=%x. rocksdb=%s", v1, v2)
 
 	return k1, v1, nil
 }
 
 func (d *CombineDual) HasNext() bool {
-	d.logger.Debugf("HasNext")
-	defer d.logger.Debugf("HasNext done")
+	d.logger.Info("HasNext")
+	defer d.logger.Info("HasNext done")
 
 	b1 := d.mdbxDual.HasNext()
 	b2 := d.rocksdbDual.HasNext()
-	assertEq(d.logger, b1, b2, "HasNext mismatch. mdbx=%v. rocksdb=%v", b1, b2)
+	assertEqualF(d.logger, b1, b2, "HasNext mismatch. mdbx=%v. rocksdb=%v", b1, b2)
 
 	return b1
 }

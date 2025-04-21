@@ -16,7 +16,7 @@ func (wm WriteMethod) config(opts *grocksdb.Options) {
 	switch wm {
 	case WriteMethodPut: // do nothing
 	case WriteMethodDiscardHistory:
-		opts.SetMergeOperator(discardHistory{})
+		opts.SetMergeOperator(&discardHistory{})
 	default:
 		panic(fmt.Sprintf("invalid WriteMethod: %v", wm))
 	}
@@ -35,7 +35,7 @@ func (wm WriteMethod) txWrite(tx *grocksdb.Transaction, k, v []byte) error {
 
 type discardHistory struct{}
 
-func (m discardHistory) FullMerge(key, existingValue []byte, operands [][]byte) ([]byte, bool) {
+func (m *discardHistory) FullMerge(key, existingValue []byte, operands [][]byte) ([]byte, bool) {
 	if len(operands) == 0 {
 		return existingValue, true
 	}
@@ -43,6 +43,6 @@ func (m discardHistory) FullMerge(key, existingValue []byte, operands [][]byte) 
 }
 
 // The name of the MergeOperator.
-func (m discardHistory) Name() string {
+func (m *discardHistory) Name() string {
 	return "XlayerMerge_DiscardHistory"
 }

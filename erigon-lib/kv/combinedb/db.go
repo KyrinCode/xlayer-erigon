@@ -23,7 +23,8 @@ var dbCounter atomic.Uint64
 func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) (db kv.RwDB, err error) {
 	dbDir := opts.GetPath()
 
-	opts.Path(path.Join(dbDir, "mdbx"))
+	opts = opts.Path(path.Join(dbDir, "mdbx"))
+	opts.GetLogger().Info("Set mdbx path", "new path", opts.GetPath())
 	mdbx, err := opts.Open(ctx)
 	if err != nil {
 		return nil, err
@@ -34,7 +35,9 @@ func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) 
 		}
 	}()
 
-	rocksdb, err := rocksdb.NewRocksDB(path.Join(dbDir, "rocksdb"), opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.WriteMethodPut)
+	rocksdbDir := path.Join(dbDir, "rocksdb")
+	opts.GetLogger().Info("Set rocksdb path", "new path", rocksdbDir)
+	rocksdb, err := rocksdb.NewRocksDB(rocksdbDir, opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.WriteMethodPut)
 	if err != nil {
 		return nil, err
 	}
@@ -48,13 +51,13 @@ func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) 
 		mdbx:    mdbx,
 		rocksdb: rocksdb,
 
-		logger: newCombinLogger(fmt.Sprintf("dbid=%d", dbCounter.Add(1))),
+		logger: newCombinLogger(fmt.Sprintf("combinedb dbid=%d", dbCounter.Add(1))),
 	}, nil
 }
 
 func (db *CombineDB) Close() {
-	db.logger.Debugf("Close")
-	defer db.logger.Debugf("Close done")
+	db.logger.Info("Close")
+	defer db.logger.Info("Close done")
 	db.mdbx.Close()
 	db.mdbx = nil
 
@@ -63,19 +66,19 @@ func (db *CombineDB) Close() {
 }
 
 func (db *CombineDB) ReadOnly() bool {
-	db.logger.Debugf("ReadOnly")
-	defer db.logger.Debugf("ReadOnly done")
+	db.logger.Info("ReadOnly")
+	defer db.logger.Info("ReadOnly done")
 
 	b1 := db.mdbx.ReadOnly()
 	b2 := db.rocksdb.ReadOnly()
 
-	assertEq(db.logger, b1, b2, "ReadOnly mismatch: mdbx: %v. rocksdb: %v", b1, b2)
+	assertEqualF(db.logger, b1, b2, "ReadOnly mismatch: mdbx: %v. rocksdb: %v", b1, b2)
 	return b1
 }
 
 func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
-	db.logger.Debugf("View")
-	defer db.logger.Debugf("View done")
+	db.logger.Info("View")
+	defer db.logger.Info("View done")
 
 	return db.mdbx.View(ctx, func(mdbxTx kv.Tx) error {
 		return db.rocksdb.View(ctx, func(rocksdbTx kv.Tx) error {
@@ -86,8 +89,8 @@ func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
 }
 
 func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
-	db.logger.Debugf("BeginRo")
-	defer db.logger.Debugf("BeginRo done")
+	db.logger.Info("BeginRo")
+	defer db.logger.Info("BeginRo done")
 
 	mdbxTx, err1 := db.mdbx.BeginRo(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRo(ctx)
@@ -97,41 +100,41 @@ func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
 }
 
 func (db *CombineDB) AllTables() kv.TableCfg {
-	db.logger.Debugf("AllTables")
-	defer db.logger.Debugf("AllTables done")
+	db.logger.Info("AllTables")
+	defer db.logger.Info("AllTables done")
 
 	mdbxTables := db.mdbx.AllTables()
 	rocksdbTables := db.rocksdb.AllTables()
 
-	assertEq(db.logger, mdbxTables, rocksdbTables, "AllTables mismatch: mdbx table: %v\nrocksdb table: %v", mdbxTables, rocksdbTables)
+	assertEqualF(db.logger, mdbxTables, rocksdbTables, "AllTables mismatch: mdbx table: %v\nrocksdb table: %v", mdbxTables, rocksdbTables)
 	return mdbxTables
 }
 
 func (db *CombineDB) PageSize() uint64 {
-	db.logger.Debugf("PageSize")
-	defer db.logger.Debugf("PageSize done")
+	db.logger.Info("PageSize")
+	defer db.logger.Info("PageSize done")
 
 	mdbxPageSize := db.mdbx.PageSize()
 	rocksdbPageSize := db.rocksdb.PageSize()
 
-	assertEq(db.logger, mdbxPageSize, mdbxPageSize, "PageSize mismatch: mdbx.PageSize=%v\nrocksdb.PageSize=%v", mdbxPageSize, rocksdbPageSize)
+	assertEqualF(db.logger, mdbxPageSize, mdbxPageSize, "PageSize mismatch: mdbx.PageSize=%v\nrocksdb.PageSize=%v", mdbxPageSize, rocksdbPageSize)
 	return mdbxPageSize
 }
 
 // Pointer to the underlying C environment handle, if applicable (e.g. *C.MDBX_env)
 func (db *CombineDB) CHandle() unsafe.Pointer {
-	db.logger.Debugf("CHandle")
-	defer db.logger.Debugf("CHandle done")
+	db.logger.Info("CHandle")
+	defer db.logger.Info("CHandle done")
 
 	mdbxH := db.mdbx.CHandle()
 	rocksdbH := db.rocksdb.CHandle()
-	assertEq(db.logger, mdbxH, rocksdbH, "CHandle mismatch: mdbx: %v\nrocksdb: %v", mdbxH, rocksdbH)
+	assertEqualF(db.logger, mdbxH, rocksdbH, "CHandle mismatch: mdbx: %v\nrocksdb: %v", mdbxH, rocksdbH)
 	return mdbxH
 }
 
 func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error {
-	db.logger.Debugf("Update")
-	defer db.logger.Debugf("Update done")
+	db.logger.Info("Update")
+	defer db.logger.Info("Update done")
 
 	return db.mdbx.Update(ctx, func(mdbxTx kv.RwTx) error {
 		return db.rocksdb.Update(ctx, func(rocksdbTx kv.RwTx) error {
@@ -142,8 +145,8 @@ func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error
 }
 
 func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error) error {
-	db.logger.Debugf("UpdateNosync")
-	defer db.logger.Debugf("UpdateNosync done")
+	db.logger.Info("UpdateNosync")
+	defer db.logger.Info("UpdateNosync done")
 
 	return db.mdbx.UpdateNosync(ctx, func(mdbxTx kv.RwTx) error {
 		return db.rocksdb.Update(ctx, func(rocksdbTx kv.RwTx) error {
@@ -154,8 +157,8 @@ func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error)
 }
 
 func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
-	db.logger.Debugf("BeginRw")
-	defer db.logger.Debugf("BeginRw done")
+	db.logger.Info("BeginRw")
+	defer db.logger.Info("BeginRw done")
 
 	mdbxTx, err1 := db.mdbx.BeginRw(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRw(ctx)
@@ -165,8 +168,8 @@ func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
 }
 
 func (db *CombineDB) BeginRwNosync(ctx context.Context) (kv.RwTx, error) {
-	db.logger.Debugf("BeginRwNosync")
-	defer db.logger.Debugf("BeginRwNosync done")
+	db.logger.Info("BeginRwNosync")
+	defer db.logger.Info("BeginRwNosync done")
 
 	mdbxTx, err1 := db.mdbx.BeginRwNosync(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRwNosync(ctx)

@@ -2,7 +2,6 @@ package combinedb
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 )
 
@@ -17,14 +16,10 @@ func assertError(logger *combineLogger, mdbxErr, rocksdbErr error, funcName stri
 	}
 }
 
-func assertEq(logger *combineLogger, expected, actual interface{}, format string, msgAndArgs ...interface{}) {
+func assertEqualF(logger *combineLogger, expected, actual interface{}, format string, msgAndArgs ...interface{}) {
 	if !isObjectEqual(expected, actual) {
-		logger.Fatalf("Not equal: \n"+
-			"expected: %v\n"+
-			"actual  : %v\n"+
-			"%s", expected, actual, fmt.Sprintf(format, msgAndArgs...))
+		logger.Fatalf(format, msgAndArgs...)
 	}
-
 }
 
 func isObjectEqual(expected, actual interface{}) bool {
