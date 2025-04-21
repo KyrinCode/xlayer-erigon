@@ -858,45 +858,45 @@ func TestScalarToNodeValue(t *testing.T) {
 		}
 	}
 
-	//for i := 0; i < 255; i++ {
-	//	seed := big.NewInt(rand.Int63())
-	//	seed.Mul(seed, seed)
-	//	seed.Mul(seed, seed)
-	//
-	//	inputs := []*big.Int{seed, big.NewInt(1).Neg(seed), big.NewInt(1).Mul(seed, seed), big.NewInt(1).MulRange(1, int64(i))}
-	//
-	//	for _, input := range inputs {
-	//		expect := ScalarToNodeValue(input)
-	//		var result [12]*big.Int
-	//		ok := scalarToNodeValueFast(input, &result)
-	//		if ok {
-	//			for i := range expect {
-	//				if result[i].Cmp(expect[i]) != 0 {
-	//					t.Errorf("Element %d: expected %s, got %s", i, expect[i], result[i])
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
+	for i := 0; i < 255; i++ {
+		seed := big.NewInt(rand.Int63())
+		seed.Mul(seed, seed)
+		seed.Mul(seed, seed)
+
+		inputs := []*big.Int{seed, big.NewInt(1).Neg(seed), big.NewInt(1).Mul(seed, seed), big.NewInt(1).MulRange(1, int64(i))}
+
+		for _, input := range inputs {
+			expect := ScalarToNodeValue(input)
+			var result [12]uint64
+			ok := scalarToNodeValueFast(input, &result)
+			if ok {
+				for i := range expect {
+					if result[i] != expect[i] {
+						t.Errorf("Element %d: expected %d, got %d", i, expect[i], result[i])
+					}
+				}
+			}
+		}
+	}
 }
 
 func BenchmarkScalarToNodeValue(b *testing.B) {
 	seed := big.NewInt(rand.Int63())
 	seed.Mul(seed, seed)
 	seed.Mul(seed, seed)
-	var values [12]*big.Int
+	var values [12]uint64
 	b.Run("Fast", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			var result [12]*big.Int
+			var result [12]uint64
 			scalarToNodeValueFast(seed, &result)
 			values = result
 		}
 	})
-	//b.Run("Slow", func(b *testing.B) {
-	//	for i := 0; i < b.N; i++ {
-	//		values = ScalarToNodeValue(seed)
-	//	}
-	//})
+	b.Run("Slow", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			values = ScalarToNodeValueSlow(seed)
+		}
+	})
 
 	_ = values
 }

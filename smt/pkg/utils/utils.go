@@ -193,18 +193,18 @@ func (nv *NodeValue12) Get0to8() [8]uint64 {
 	return [8]uint64{nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], nv[7]}
 }
 
-func (nv *NodeValue12) IsNil() bool {
-	if nv != nil {
-		isNil := true
-		for i := 0; i < 12; i++ {
-			isNil = isNil && nv[i] == 0
-		}
-
-		return isNil
-	} else {
-		return true
-	}
-}
+//func (nv *NodeValue12) IsNil() bool {
+//	if nv != nil {
+//		isNil := true
+//		for i := 0; i < 12; i++ {
+//			isNil = isNil && nv[i] == 0
+//		}
+//
+//		return isNil
+//	} else {
+//		return true
+//	}
+//}
 
 func (nv *NodeValue12) IsUniqueSibling() (int, error) {
 	count := 0
@@ -639,7 +639,7 @@ func ScalarToRoot(s *big.Int) NodeKey {
 }
 
 // fast path for 64-bit systems
-func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
+func scalarToNodeValueFast(scalarIn *big.Int, out *[12]uint64) bool {
 	if bits.UintSize != 64 || scalarIn.Sign() < 0 {
 		return false
 	}
@@ -650,9 +650,9 @@ func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
 	for i := 0; i < 12; i++ {
 		if i < len(words) {
 			outDataBits[i][0] = words[i]
-			out[i] = (&outData[i]).SetBits(outDataBits[i][:])
+			out[i] = uint64(outDataBits[i][0])
 		} else {
-			out[i] = &outData[i]
+			out[i] = outData[i].Uint64()
 		}
 	}
 	return true
@@ -662,7 +662,7 @@ func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
 //	out := [12]*big.Int{}
 //}
 
-func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
+func ScalarToNodeValueSlow(scalarIn *big.Int) NodeValue12 {
 	out := [12]uint64{}
 	mask := new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
 	scalar := new(big.Int).Set(scalarIn)
@@ -675,15 +675,15 @@ func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
 	return out
 }
 
-//func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
-//	out := [12]*big.Int{}
-//
-//	if ok := scalarToNodeValueFast(scalarIn, &out); ok {
-//		return out
-//	}
-//
-//	return scalarToNodeValueSlow(scalarIn)
-//}
+func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
+	out := [12]uint64{}
+
+	if ok := scalarToNodeValueFast(scalarIn, &out); ok {
+		return out
+	}
+
+	return ScalarToNodeValueSlow(scalarIn)
+}
 
 func ScalarToNodeValue8(scalarIn *big.Int) NodeValue8 {
 	out := [8]uint64{}
