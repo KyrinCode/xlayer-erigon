@@ -22,7 +22,6 @@ import (
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
 	"github.com/ledgerwatch/erigon/zk/metrics"
 	zktx "github.com/ledgerwatch/erigon/zk/tx"
-	"github.com/ledgerwatch/erigon/zk/txpool"
 	"github.com/ledgerwatch/erigon/zk/utils"
 )
 
@@ -548,7 +547,7 @@ func sequencingBatchStep(
 			}
 
 			// For X Layer
-			txpool.ArquireTxPoolLock(false)
+			// txpool.ArquireTxPoolLock(false)
 
 			if len(batchState.blockState.transactionsForInclusion) == 0 {
 				if !batchState.isAnyRecovery() {
@@ -861,7 +860,7 @@ func sequencingBatchStep(
 		}
 
 		// For X Layer
-		txpool.ArquireTxPoolLock(true)
+		// txpool.ArquireTxPoolLock(true)
 
 		if !batchState.isL1Recovery() {
 			commitTime := time.Now()

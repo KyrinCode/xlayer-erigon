@@ -3,7 +3,6 @@ package txpool
 import (
 	"math/big"
 	"strings"
-	"sync/atomic"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/types"
@@ -46,24 +45,20 @@ type XLayerConfig struct {
 	FreeGasLimit uint64
 	// EnableFreeGasList enable the specific free gas project
 	EnableFreeGasList  bool
-	FreeGasFromNameMap map[common.Address]string         // map[from]projectName
+	FreeGasFromNameMap map[string]string                 // map[from]projectName
 	FreeGasList        map[string]*ethconfig.FreeGasInfo // map[projectName]FreeGasInfo
-	// EnableTimsort is the switch to use timsort on the best slice of txpool
-	EnableTimsort bool
-	EnableNotify  bool
 }
 
 type GPCache interface {
 	GetLatest() (common.Hash, *big.Int)
-	GetLatestPriceReadOnly() *big.Int
 	SetLatest(hash common.Hash, price *big.Int)
 	GetLatestRawGP() *big.Int
 	SetLatestRawGP(rgp *big.Int)
 }
 
-func contains(addresses []common.Address, addr common.Address) bool {
+func contains(addresses []string, addr common.Address) bool {
 	for _, item := range addresses {
-		if item == addr {
+		if common.HexToAddress(item) == addr {
 			return true
 		}
 	}
@@ -110,50 +105,31 @@ func (p *TxPool) checkFreeGasExAddrXLayer(senderID uint64) bool {
 }
 
 func (p *TxPool) checkFreeGasAddrXLayer(senderID uint64, tx *types.TxSlot) (freeType int, gpMul uint64) {
-	addr := common.Address{}
-	freeType, gpMul = p.checkFreeGasSenderXLayer(senderID, &addr)
-	if addr == [20]byte{} {
-		return
-	}
-	if freeType != notFree {
-		return
-	}
-
-	return p.checkFreeGasTxXLayer(addr, tx)
-}
-
-func (p *TxPool) checkFreeGasSenderXLayer(senderID uint64, address *common.Address) (freeType int, gpMul uint64) {
 	addr, ok := p.senders.senderID2Addr[senderID]
 	if !ok {
 		return
 	}
-	*address = addr
 	// is claim tx
-	if p.apolloCfg != nil && p.apolloCfg.CheckFreeClaimAddr(p.xlayerCfg.FreeClaimGasAddrs, addr) {
+	if p.apolloCfg.CheckFreeClaimAddr(p.xlayerCfg.FreeClaimGasAddrs, addr) {
 		return claim, p.xlayerCfg.GasPriceMultiple
 	}
 
-	// 	new bridge address
-	free := p.freeGasAddrs[addr.String()]
-	if free {
-		return freeByNonce, 1
-	}
-
-	return notFree, 0
-}
-
-func (p *TxPool) checkFreeGasTxXLayer(addr common.Address, tx *types.TxSlot) (freeType int, gpMul uint64) {
 	// specific project
-
-	if p.apolloCfg != nil && p.apolloCfg.GetEnableFreeGasList(p.xlayerCfg.EnableFreeGasList) {
+	if p.apolloCfg.GetEnableFreeGasList(p.xlayerCfg.EnableFreeGasList) {
 		fromToName, freeGpList := p.xlayerCfg.FreeGasFromNameMap, p.xlayerCfg.FreeGasList
-		info := freeGpList[fromToName[addr]]
+		info := freeGpList[fromToName[strings.ToLower(addr.String())]]
 		if info != nil &&
 			contains(info.ToList, tx.To) &&
 			containsMethod(ecommon.Bytes2Hex(tx.Rlp), info.MethodSigs) {
 
 			return specificProject, info.GasPriceMultiple
 		}
+	}
+
+	// 	new bridge address
+	free := p.freeGasAddrs[addr.String()]
+	if free {
+		return freeByNonce, 1
 	}
 
 	return notFree, 0
@@ -187,23 +163,13 @@ func (p *TxPool) isFreeGasXLayer(senderID uint64, tx *types.TxSlot) bool {
 }
 
 func (p *TxPool) setFreeGasList(freeGasList []ethconfig.FreeGasInfo) {
-	p.xlayerCfg.FreeGasFromNameMap = make(map[common.Address]string)
+	p.xlayerCfg.FreeGasFromNameMap = make(map[string]string)
 	p.xlayerCfg.FreeGasList = make(map[string]*ethconfig.FreeGasInfo, len(freeGasList))
 	for _, info := range freeGasList {
 		for _, from := range info.FromList {
-			p.xlayerCfg.FreeGasFromNameMap[from] = info.Name
+			p.xlayerCfg.FreeGasFromNameMap[strings.ToLower(from)] = info.Name
 		}
 		infoCopy := info
 		p.xlayerCfg.FreeGasList[info.Name] = &infoCopy
 	}
-}
-
-var requireTxPoolLock atomic.Bool
-
-func ArquireTxPoolLock(acquire bool) {
-	requireTxPoolLock.Swap(acquire)
-}
-
-func IsAcquireTxPoolLock() bool {
-	return requireTxPoolLock.Load()
 }

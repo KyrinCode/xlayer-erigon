@@ -11,8 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	txpool2 "github.com/ledgerwatch/erigon/zk/txpool"
-
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
@@ -137,9 +135,9 @@ func (api *APIImpl) worker() {
 	for {
 		select {
 		case <-ticker.C:
-			if api.EnableNotify && txpool2.IsAcquireTxPoolLock() {
-				continue
-			}
+			// if api.EnableNotify && txpool2.IsAcquireTxPoolLock() {
+			continue
+			// }
 			getTxAndBulkProcess()
 		case <-bulkProcessCh:
 			getTxAndBulkProcess()
