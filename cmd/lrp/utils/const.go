@@ -35,9 +35,6 @@ const (
 	LRP_CLEAN                  = "lrp-clean"
 	LRP_MAINNET_REPLAY_PAUSE   = "lrp-mainnet-replay-pause"
 
-	// stop sign
-	REPLAY_STOP_SIGN = "Resequencing completed"
-
 	// comment out code
 	COMMENT_OUT_FILE    = "xlayer-erigon/cmd/integration/commands/root.go"
 	COMMENT_TARGET_LINE = `opts = opts.Accede()`

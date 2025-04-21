@@ -183,8 +183,8 @@ func RunMainnetReplayVmtouch(workDir string, config *LRPConfig) (string, error) 
 	return runLRPMainnetReplayVmtouch(workDir, config)
 }
 
-func RunDockerWait(ctx context.Context, cancel context.CancelFunc, containerID string, stopSign string) (int64, error) {
-	return dockerWait(ctx, cancel, containerID, stopSign)
+func RunDockerWait(ctx context.Context, cancel context.CancelFunc, containerID string) (int64, error) {
+	return dockerWait(ctx, cancel, containerID)
 }
 
 func RunLRPStop(workDir string) error {

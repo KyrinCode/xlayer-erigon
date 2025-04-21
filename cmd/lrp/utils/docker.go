@@ -1,19 +1,17 @@
 package utils
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
 // dockerWaitAPI waits for the container to exit or stops when stopSign is found in logs
-func dockerWaitAPI(ctx context.Context, cancel context.CancelFunc, containerID string, stopSign string) (int64, error) {
+func dockerWaitAPI(ctx context.Context, cancel context.CancelFunc, containerID string) (int64, error) {
 	defer cancel()
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -38,27 +36,6 @@ func dockerWaitAPI(ctx context.Context, cancel context.CancelFunc, containerID s
 	}
 	defer logReader.Close()
 
-	if stopSign != "" {
-		// run a goroutine to check logs
-		go func() {
-			scanner := bufio.NewScanner(logReader)
-			for scanner.Scan() {
-				line := scanner.Text()
-				if len(line) > 8 {
-					line = line[8:]
-				}
-				if strings.Contains(line, stopSign) {
-					fmt.Printf("Stop sign '%s' found in logs, canceling wait\n", stopSign)
-					logCancel()
-					return
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				fmt.Printf("Error reading logs: %v\n", err)
-			}
-		}()
-	}
-
 	select {
 	case <-ctx.Done():
 		return -1000, fmt.Errorf("receive an interrupt during waiting for container %s", containerID)
@@ -72,8 +49,8 @@ func dockerWaitAPI(ctx context.Context, cancel context.CancelFunc, containerID s
 }
 
 // dockerWait wraps dockerWaitAPI and handles the result
-func dockerWait(ctx context.Context, cancel context.CancelFunc, containerID string, stopSign string) (int64, error) {
-	exitCode, err := dockerWaitAPI(ctx, cancel, containerID, stopSign)
+func dockerWait(ctx context.Context, cancel context.CancelFunc, containerID string) (int64, error) {
+	exitCode, err := dockerWaitAPI(ctx, cancel, containerID)
 	if err != nil {
 		return exitCode, err
 	}

@@ -67,8 +67,8 @@ var rootCmd = &cobra.Command{
 				defer monitorCancel()
 				isReplay := strings.Contains(strings.ToLower(runningContainer), "replay")
 				csvFile := filepath.Join(path, fmt.Sprintf("%s-container-stats.csv", strings.Split(runningContainer, "-")[3]))
-				go monitorContainer(monitorCtx, runningContainer, csvFile, sampleIntv, isReplay, 0)
-				if _, err := utils.RunDockerWait(ctx, monitorCancel, runningContainer, ""); err != nil {
+				go monitorContainer(monitorCtx, runningContainer, csvFile, sampleIntv, isReplay)
+				if _, err := utils.RunDockerWait(ctx, monitorCancel, runningContainer); err != nil {
 					fmt.Printf("Error monitoring running container %s: %v\n", runningContainer, err)
 					return
 				}
@@ -124,7 +124,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			copyProgress := utils.CopyProgress{Title: "Mainnet Data Copy Progress", Mu: sync.Mutex{}}
 			if err := copyProgress.Progress(config.SrcMainnetDataPath, workDir); err != nil {
-				fmt.Printf("Received an error while copy mainnet data from %s to %s: %v\n", config.SrcMainnetDataPath, filepath.Join(workDir, utils.DEFAULT_SOURCE_MAINNET_DATA_PATH), err)
+				fmt.Printf("Received an error while copy mainnet data from %s to %s: %v\n", config.SrcMainnetDataPath, workDir, err)
 				return
 			}
 		}
@@ -143,8 +143,8 @@ var rootCmd = &cobra.Command{
 				return
 			} else {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
-				go monitorContainer(monitorCtx, containerID, unwindCSV, sampleIntv, false, 0)
-				if _, err := utils.RunDockerWait(ctx, monitorCancel, containerID, ""); err != nil {
+				go monitorContainer(monitorCtx, containerID, unwindCSV, sampleIntv, false)
+				if _, err := utils.RunDockerWait(ctx, monitorCancel, containerID); err != nil {
 					fmt.Printf("Receive an error during waiting for unwind container to complete execution: %v\n", err)
 					return
 				}
@@ -187,9 +187,9 @@ var rootCmd = &cobra.Command{
 		if fuse && config.UseExternalDatastream {
 			for {
 				monitorCtx, monitorCancel := context.WithCancel(ctx)
-				go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true, config.BatchTo)
+				go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)
 				go utils.MonitorChaindataSize(monitorCtx, workDir, utils.DEFAULT_CHAINDATA_LIMIT)
-				exitCode, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID, "")
+				exitCode, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID)
 				if err != nil {
 					fmt.Printf("Receive an error during waiting for replay container to complete execution: %v\n", err)
 					return
@@ -200,8 +200,8 @@ var rootCmd = &cobra.Command{
 			}
 		} else {
 			monitorCtx, monitorCancel := context.WithCancel(ctx)
-			go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true, config.BatchTo)
-			if _, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID, utils.REPLAY_STOP_SIGN); err != nil {
+			go monitorContainer(monitorCtx, replayContainerID, replayCSV, sampleIntv, true)
+			if _, err := utils.RunDockerWait(ctx, monitorCancel, replayContainerID); err != nil {
 				fmt.Printf("Receive an error during waiting for replay container to complete execution: %v\n", err)
 				return
 			}

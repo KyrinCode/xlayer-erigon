@@ -25,8 +25,7 @@ func (p *CopyProgress) Progress(srcPath, dstPath string) error {
 		return fmt.Errorf("source path %s does not exist", srcPath)
 	}
 
-	// Adjust dstPath to include the source folder name
-	dstPath = filepath.Join(dstPath, filepath.Base(srcPath))
+	dstPath = filepath.Join(dstPath, DEFAULT_SOURCE_MAINNET_DATA_PATH)
 	if fileInfo, _ := os.Stat(dstPath); fileInfo != nil {
 		fmt.Println("The source data is already copied done")
 		return nil
