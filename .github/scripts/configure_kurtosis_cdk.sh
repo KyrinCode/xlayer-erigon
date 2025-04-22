@@ -3,6 +3,7 @@
 # This script is used to set up the Kurtosis environment for testing
 # It takes one argument (optional): database mode ("default" - not split, no async commit, "ac-split" - split with async commit)
 
+cd /app/kurtosis-cdk
 sed -i '/zkevm.sequencer-batch-seal-time:/d' templates/cdk-erigon/config.yml
 sed -i '/zkevm.sequencer-non-empty-batch-seal-time:/d' templates/cdk-erigon/config.yml
 sed -i '/zkevm\.sequencer-initial-fork-id/d' ./templates/cdk-erigon/config.yml
