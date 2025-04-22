@@ -17,7 +17,7 @@ wait $monitor_pid || {
 
 # Monitor verified batches
 cd /app/kurtosis-cdk
-timeout 900s ./.github/scripts/monitor-verified-batches.sh --enclave zdk-v1 --rpc-url $(kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc) --target 20 --timeout 900
+timeout 900s ./.github/scripts/monitor-verified-batches.sh --enclave cdk-v1 --rpc-url $(kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc) --target 20 --timeout 900
 
 #  Set up envs
 cd /app
