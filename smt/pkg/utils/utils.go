@@ -1012,27 +1012,26 @@ func HashContractBytecodeBigInt(bc string) *big.Int {
 	var in [8]uint64
 	var capacity [4]uint64
 	tmpScalar := new(big.Int)
-	var tmpBuilder strings.Builder
-	tmpBuilder.Grow(BYTECODE_BYTES_ELEMENT * 2)
+	tmpBuf := make([]byte, 0, BYTECODE_BYTES_ELEMENT)
 	for i := 0; i < numHashes; i++ {
-		elementsToHash := make([]uint64, 4, 4+maxBytesToAdd/BYTECODE_BYTES_ELEMENT)
+		elementsToHash := make([]uint64, 4, 12)
 		copy(elementsToHash, tmpHash[:])
 		subsetBytecode := bytecode[bytesPointer : bytesPointer+maxBytesToAdd*2]
 		bytesPointer += maxBytesToAdd * 2
 
 		counter := 0
-		tmpBuilder.Reset()
+		tmpBuf = tmpBuf[:0]
 		for j := 0; j < maxBytesToAdd; j++ {
-			byteToAdd := "00"
+			var b [1]byte
 			if j < len(subsetBytecode)/2 {
-				byteToAdd = subsetBytecode[j*2 : (j+1)*2]
+				hex.Decode(b[:], []byte(subsetBytecode[j*2:(j+1)*2]))
 			}
-			tmpBuilder.WriteString(byteToAdd)
-			counter += 1
+			tmpBuf = append(tmpBuf, b[0])
+			counter++
 			if counter == BYTECODE_BYTES_ELEMENT {
-				tmpScalar.SetString(tmpBuilder.String(), 16)
+				tmpScalar.SetBytes(tmpBuf)
 				elementsToHash = append(elementsToHash, tmpScalar.Uint64())
-				tmpBuilder.Reset()
+				tmpBuf = tmpBuf[:0]
 				counter = 0
 			}
 		}
