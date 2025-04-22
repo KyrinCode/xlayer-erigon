@@ -9,6 +9,7 @@ import (
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/erigon/params"
+	"github.com/ledgerwatch/log/v3"
 )
 
 func opCallDataLoad_zkevmIncompatible(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
@@ -60,13 +61,17 @@ func opExtCodeHash_zkevm(pc *uint64, interpreter *EVMInterpreter, scope *ScopeCo
 	return nil, nil
 }
 
+// Disable BLOCKHASH opcode to intentionally diverge Sequencer and Executor for Limbo testing
+// Consume the argument from the stack, emit a warning, and force a revert
 func opBlockhash_zkevm(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	num := scope.Stack.Peek()
+	// Pop the block number argument to keep stack alignment
+	scope.Stack.Pop()
 
-	ibs := interpreter.evm.IntraBlockState()
-	num.Set(ibs.GetBlockStateRoot(num))
+	// Emit a warning so we can confirm in logs that the patched opcode was executed
+	log.Warn("[Limbo Test] BLOCKHASH opcode disabled - forcing ErrExecutionReverted for divergence")
 
-	return nil, nil
+	// Return execution reverted error to trigger divergence between Sequencer and Executor
+	return nil, ErrExecutionReverted
 }
 
 func opNumber_zkevm(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {

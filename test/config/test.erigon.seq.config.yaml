@@ -24,10 +24,14 @@ zkevm.datastream-version: 2
 
 log.console.verbosity: info
 
-#zkevm.executor-urls: xlayer-executor:50071
+# Executor must communicate with the external zkevm-node; enable the URL and disable mock mode
+zkevm.executor-urls: xlayer-executor:50071
 zkevm.executor-strict: false
 zkevm.witness-full: false
-zkevm.executor-mock: true
+# Disable mock executor; real executor needed to observe divergence
+zkevm.executor-mock: false
+# Enable Limbo mechanism so Sequencer enters Limbo on invalid batches
+zkevm.limbo: true
 
 zkevm.sequencer-block-seal-time: "3s"
 zkevm.sequencer-batch-seal-time: "10s"

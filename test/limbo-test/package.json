@@ -1,0 +1,10 @@
+{
+  "name": "limbo-test",
+  "version": "1.0.0",
+  "description": "Test for triggering limbo state in zkEVM",
+  "main": "deploy_with_prefunded.js",
+  "dependencies": {
+    "ethers": "5.7.2",
+    "solc": "0.8.17"
+  }
+} 
