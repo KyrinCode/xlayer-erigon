@@ -3,6 +3,7 @@ package tx
 import (
 	"errors"
 	"fmt"
+	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"math/big"
 	"strconv"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/rlp"
-	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
 	"github.com/ledgerwatch/erigon/zkevm/hex"
 	"github.com/ledgerwatch/log/v3"
@@ -430,84 +430,84 @@ func ComputeL2TxHash(
 	to, from *common.Address,
 	data []byte,
 ) (common.Hash, error) {
+	var hash strings.Builder
+	hash.Grow(266 + len(data)*2) // txType(2) + nonce(16) + gasPrice(64) + gasLimit(16) + to(42/2) + value(64) + dataLength(6) + data*2 + chainId(16) + from(40)
 
 	txType := "01"
 	if chainId == nil || chainId.Cmp(big.NewInt(0)) == 0 {
 		txType = "00"
 	}
+	hash.WriteString(txType)
 
-	// add txType, nonce, gasPrice and gasLimit
 	noncePart, err := formatL2TxHashParam(nonce, 8)
 	if err != nil {
 		return common.Hash{}, err
-
 	}
+	hash.WriteString(noncePart)
+
 	gasPricePart, err := formatL2TxHashParam(gasPrice, 32)
 	if err != nil {
 		return common.Hash{}, err
 	}
+	hash.WriteString(gasPricePart)
+
 	gasLimitPart, err := formatL2TxHashParam(txGasLimit, 8)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	hash := fmt.Sprintf("%s%s%s%s", txType, noncePart, gasPricePart, gasLimitPart)
+	hash.WriteString(gasLimitPart)
 
-	// check is deploy
 	if to == nil {
-		hash += "01"
+		hash.WriteString("01")
 	} else {
 		toPart, err := formatL2TxHashParam(to.Hex(), 20)
 		if err != nil {
 			return common.Hash{}, err
 		}
-		hash += fmt.Sprintf("00%s", toPart)
+		hash.WriteString("00")
+		hash.WriteString(toPart)
 	}
-	// add value
+
 	valuePart, err := formatL2TxHashParam(value, 32)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	hash += valuePart
+	hash.WriteString(valuePart)
 
-	// compute data length
 	dataStr := hex.EncodeToHex(data)
 	if len(dataStr) > 1 && dataStr[:2] == "0x" {
 		dataStr = dataStr[2:]
 	}
-
-	//round to ceil
 	dataLength := (len(dataStr) + 1) / 2
 	dataLengthPart, err := formatL2TxHashParam(dataLength, 3)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	hash += dataLengthPart
+	hash.WriteString(dataLengthPart)
 
 	if dataLength > 0 {
 		dataPart, err := formatL2TxHashParam(dataStr, dataLength)
 		if err != nil {
 			return common.Hash{}, err
 		}
-		hash += dataPart
+		hash.WriteString(dataPart)
 	}
 
-	// add chainID
 	if chainId != nil && chainId.Cmp(big.NewInt(0)) != 0 {
 		chainIDPart, err := formatL2TxHashParam(chainId, 8)
 		if err != nil {
 			return common.Hash{}, err
 		}
-		hash += chainIDPart
+		hash.WriteString(chainIDPart)
 	}
 
-	// add from
 	fromPart, err := formatL2TxHashParam(from.Hex(), 20)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	hash += fromPart
+	hash.WriteString(fromPart)
 
-	hashed := utils.HashContractBytecodeBigInt(hash)
+	hashed := utils.HashContractBytecodeBigInt(hash.String())
 	return common.BigToHash(hashed), nil
 }
 
