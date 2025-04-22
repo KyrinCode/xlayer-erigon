@@ -21,7 +21,7 @@ func TestEriDb(t *testing.T) {
 	key := utils.NodeKey{1, 2, 3, 4}
 
 	value := utils.NodeValue12{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
-
+	noValue := utils.NodeValue12{}
 	// Testing Insert method
 	err = db.Insert(key, value)
 	assert.NoError(t, err)
@@ -36,7 +36,7 @@ func TestEriDb(t *testing.T) {
 	assert.NoError(t, err)
 	retrievedValue, err = db.Get(key)
 	assert.NoError(t, err)
-	assert.Equal(t, value, retrievedValue)
+	assert.Equal(t, noValue, retrievedValue)
 }
 
 func TestEriDbBatch(t *testing.T) {

@@ -96,11 +96,13 @@ func (nk *NodeKey) AsUint64Pointer() *[4]uint64 {
 
 func (nk *NodeKey) ToHex() string {
 	buf := make([]byte, 32) // 4 uint64s * 8 bytes each = 32 bytes
-	binary.BigEndian.PutUint64(buf[0:8], nk[0])
-	binary.BigEndian.PutUint64(buf[8:16], nk[1])
-	binary.BigEndian.PutUint64(buf[16:24], nk[2])
-	binary.BigEndian.PutUint64(buf[24:32], nk[3])
-	return hex.EncodeToString(buf)
+	binary.BigEndian.PutUint64(buf[0:8], nk[3])
+	binary.BigEndian.PutUint64(buf[8:16], nk[2])
+	binary.BigEndian.PutUint64(buf[16:24], nk[1])
+	binary.BigEndian.PutUint64(buf[24:32], nk[0])
+	hexStr := hex.EncodeToString(buf)
+	trimmed := strings.TrimLeft(hexStr, "0")
+	return trimmed
 }
 
 func (nv *NodeValue8) IsZero() bool {
@@ -163,7 +165,9 @@ func (nv *NodeValue8) ToHex() string {
 		// Write in reverse order: start from the end and work backwards
 		binary.BigEndian.PutUint64(bytes[(7-i)*8:], nv[i])
 	}
-	return hex.EncodeToString(bytes)
+	hexStr := hex.EncodeToString(bytes)
+	trimmed := strings.TrimLeft(hexStr, "0")
+	return trimmed
 }
 
 //func (nv *NodeValue12) ToBigInt() *big.Int {
@@ -234,7 +238,9 @@ func (nv *NodeValue12) ToHex() string {
 		// Write in reverse order: start from the end and work backwards
 		binary.BigEndian.PutUint64(bytes[(11-i)*8:], nv[i])
 	}
-	return hex.EncodeToString(bytes)
+	hexStr := hex.EncodeToString(bytes)
+	trimmed := strings.TrimLeft(hexStr, "0")
+	return trimmed
 }
 
 func NodeKeyFromBigIntArray(arr []*big.Int) NodeKey {
