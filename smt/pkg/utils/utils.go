@@ -980,25 +980,27 @@ func HashContractBytecode(bc string) string {
 }
 
 func HashContractBytecodeBigInt(bc string) *big.Int {
-	bytecode := bc
-
+	var builder strings.Builder
 	if strings.HasPrefix(bc, "0x") {
-		bytecode = bc[2:]
+		builder.WriteString(bc[2:])
+	} else {
+		builder.WriteString(bc)
 	}
-
-	if len(bytecode)%2 != 0 {
-		bytecode = "0" + bytecode
+	if builder.Len()%2 != 0 {
+		builder.WriteByte('0')
+		builder.WriteString(builder.String())
 	}
-
-	bytecode += "01"
-
-	for len(bytecode)%(56*2) != 0 {
-		bytecode += "00"
+	builder.WriteString("01")
+	padding := (56*2 - builder.Len()%(56*2)) % (56 * 2)
+	for i := 0; i < padding/2; i++ {
+		builder.WriteString("00")
 	}
-
+	bytecode := builder.String()
 	lastByteInt, _ := strconv.ParseInt(bytecode[len(bytecode)-2:], 16, 64)
-	lastByte := strconv.FormatInt(lastByteInt|0x80, 16)
-	bytecode = bytecode[:len(bytecode)-2] + lastByte
+	builder.Reset()
+	builder.WriteString(bytecode[:len(bytecode)-2])
+	fmt.Fprintf(&builder, "%02x", lastByteInt|0x80)
+	bytecode = builder.String()
 
 	numBytes := float64(len(bytecode)) / 2
 	numHashes := int(math.Ceil(numBytes / (BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT)))
@@ -1007,41 +1009,36 @@ func HashContractBytecodeBigInt(bc string) *big.Int {
 	bytesPointer := 0
 
 	maxBytesToAdd := BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT
-	var elementsToHash []uint64
 	var in [8]uint64
 	var capacity [4]uint64
-	scalar := new(big.Int)
 	tmpScalar := new(big.Int)
-	var byteToAdd string
+	var tmpBuilder strings.Builder
+	tmpBuilder.Grow(BYTECODE_BYTES_ELEMENT * 2)
 	for i := 0; i < numHashes; i++ {
-		elementsToHash = tmpHash[:]
-
+		elementsToHash := make([]uint64, 4, 4+maxBytesToAdd/BYTECODE_BYTES_ELEMENT)
+		copy(elementsToHash, tmpHash[:])
 		subsetBytecode := bytecode[bytesPointer : bytesPointer+maxBytesToAdd*2]
 		bytesPointer += maxBytesToAdd * 2
 
-		tmpElem := ""
 		counter := 0
-
+		tmpBuilder.Reset()
 		for j := 0; j < maxBytesToAdd; j++ {
-			byteToAdd = "00"
+			byteToAdd := "00"
 			if j < len(subsetBytecode)/2 {
 				byteToAdd = subsetBytecode[j*2 : (j+1)*2]
 			}
-
-			tmpElem = byteToAdd + tmpElem
+			tmpBuilder.WriteString(byteToAdd)
 			counter += 1
-
 			if counter == BYTECODE_BYTES_ELEMENT {
-				tmpScalar, _ = scalar.SetString(tmpElem, 16)
+				tmpScalar.SetString(tmpBuilder.String(), 16)
 				elementsToHash = append(elementsToHash, tmpScalar.Uint64())
-				tmpElem = ""
+				tmpBuilder.Reset()
 				counter = 0
 			}
 		}
 
 		copy(in[:], elementsToHash[4:12])
 		copy(capacity[:], elementsToHash[:4])
-
 		tmpHash = Hash(in, capacity)
 	}
 

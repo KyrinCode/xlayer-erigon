@@ -3,6 +3,7 @@ package membatchwithdb
 import (
 	"bytes"
 	"github.com/benbjohnson/immutable"
+	"sync"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 
@@ -31,9 +32,13 @@ func NewMemoryBatchWithSizeNoSequenceWithCache(tx kv.Tx, tmpDir string, mapSize 
 	}
 }
 
+var keyPool = sync.Pool{New: func() interface{} { return "" }}
+
 // GetOne with cache support, prioritizes modifyCache, then cache, then MemoryMutation
 func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, error) {
-	keyStr := string(key)
+	keyStr := keyPool.Get().(string)
+	keyStr = string(key)
+	defer keyPool.Put(keyStr)
 
 	// 1. Check modifyCache first
 	if modKeys, ok := m.modifyCache[table]; ok {
@@ -55,13 +60,6 @@ func (m *MemoryMutationWithCache) GetOne(table string, key []byte) ([]byte, erro
 		return nil, err
 	}
 	_, v, err := c.SeekExact(key)
-	if err == nil && v != nil {
-		// Store in modifyCache (not cache, as cache is read-only)
-		if _, ok := m.modifyCache[table]; !ok {
-			m.modifyCache[table] = make(map[string][]byte)
-		}
-		m.modifyCache[table][keyStr] = common.Copy(v)
-	}
 	return v, err
 }
 

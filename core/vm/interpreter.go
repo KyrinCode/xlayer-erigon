@@ -132,14 +132,15 @@ type VM struct {
 }
 
 func copyJumpTable(jt *JumpTable) *JumpTable {
-	var copy JumpTable
+	copy := new(JumpTable)
+	ops := make([]operation, len(jt))
 	for i, op := range jt {
 		if op != nil {
-			opCopy := *op
-			copy[i] = &opCopy
+			ops[i] = *op
+			copy[i] = &ops[i]
 		}
 	}
-	return &copy
+	return copy
 }
 
 // NewEVMInterpreter returns a new instance of the Interpreter.
