@@ -196,6 +196,7 @@ type Ethereum struct {
 
 	smtFlushCtx    context.Context
 	smtFlushCancel context.CancelFunc
+	smtFlushDoneCh chan struct{}
 
 	stagedSync         *stagedsync.Sync
 	verifier           *legacy_executor_verifier.LegacyExecutorVerifier
@@ -346,6 +347,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		sentryCancel:         ctxCancel,
 		smtFlushCtx:          smtFlushCtx,
 		smtFlushCancel:       smtFlushCancel,
+		smtFlushDoneCh:       make(chan struct{}),
 		config:               config,
 		chainDB:              chainKv,
 		smtDB:                smtdb,
@@ -1993,7 +1995,7 @@ func (s *Ethereum) Start() error {
 		if s.smtDB == nil {
 			smtdb = s.chainDB
 		}
-		go stages2.AsyncFlushSmtData(s.smtFlushCtx, smtdb, s.stagedSync, s.config.Zk.XLayer, s.logger)
+		go stages2.AsyncFlushSmtData(s.smtFlushCtx, smtdb, s.stagedSync, s.config.Zk.XLayer, s.logger, s.smtFlushDoneCh)
 		go stages2.StageLoop(s.sentryCtx, s.chainDB, s.stagedSync, s.sentriesClient.Hd, s.waitForStageLoopStop, s.config.Sync.LoopThrottle, s.logger, s.blockReader, hook, s.config.ForcePartialCommit)
 	}
 
@@ -2071,9 +2073,11 @@ func (s *Ethereum) Stop() error {
 		s.agg.Close()
 	}
 
-	s.logger.Info("Stopping SMT flush service...")
-	s.smtFlushCancel()
-	time.Sleep(3 * time.Second)
+	if sequencer.IsSequencer() && s.config.Zk.XLayer.EnableAsyncCommit {
+		s.logger.Info("Stopping SMT flush service...")
+		s.smtFlushCancel()
+		<-s.smtFlushDoneCh
+	}
 
 	s.chainDB.Close()
 
