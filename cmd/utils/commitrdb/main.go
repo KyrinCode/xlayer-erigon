@@ -22,7 +22,7 @@ type dataPair struct {
 
 func main() {
 	go func() {
-		http.ListenAndServe(":6060", nil)
+		http.ListenAndServe(":6061", nil)
 	}()
 	rocksdbPath := flag.String("rocksdb", "", "Path to the target RocksDB database")
 	dataPath := flag.String("data", "", "Path to the target RocksDB database")
@@ -76,7 +76,7 @@ func openRocksDB(path string, logger log.Logger) (kv.RwDB, error) {
 	readTxLimit := int64(32)
 	roTxsLimiter := semaphore.NewWeighted(readTxLimit)
 
-	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, false, rocksdb.WriteMethodPut)
+	return rocksdb.NewRocksDB(path, logger, kv.ChaindataTablesCfg, kv.ChainDB, roTxsLimiter, false, rocksdb.RealRDB)
 }
 
 func loadDataFromFile(filename string) ([]dataPair, error) {

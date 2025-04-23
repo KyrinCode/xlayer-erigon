@@ -35,7 +35,7 @@ func NewDB(dbType DatabseType, ctx context.Context, opts mdbx.MdbxOpts, tableCfg
 	case DatabseTypeMdbx:
 		return opts.Open(ctx)
 	case DatabaseTypeRocksDB:
-		return rocksdb.NewRocksDB(opts.GetPath(), opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.WriteMethodPut)
+		return rocksdb.NewRocksDB(opts.GetPath(), opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.RealRDB)
 	case DatabaseTypeCombine:
 		return combinedb.NewCombinDB(ctx, opts, tableCfg)
 	default:

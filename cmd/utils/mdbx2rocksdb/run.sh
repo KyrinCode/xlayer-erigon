@@ -20,4 +20,4 @@ docker build -t mdbx2rocksdb -f cmd/utils/mdbx2rocksdb/Dockerfile .
 
 cd "$SCRIPT_DIR"
 
-docker run --rm -v "$MDBX_ABSOLUTE:/mdbx_data" -v "$ROCKSDB_ABSOLUTE:/rocksdb_data" mdbx2rocksdb --mdbx /mdbx_data --rocksdb /rocksdb_data --verbose
+docker run --rm -p "7070:6060" -p "7071:6061" -v "$MDBX_ABSOLUTE:/mdbx_data" -v "$ROCKSDB_ABSOLUTE:/rocksdb_data" mdbx2rocksdb --mdbx /mdbx_data --rocksdb /rocksdb_data --verbose

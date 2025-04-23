@@ -27,16 +27,16 @@ func DeserializeDBValue(buf []byte) *DBValue {
 	count := binary.LittleEndian.Uint32(buf)
 	buf = buf[4:]
 
-	lenSlice := make([]uint32, count)
-	for i := uint32(0); i < count; i++ {
-		lenSlice[i] = binary.LittleEndian.Uint32(buf)
-		buf = buf[4:]
-	}
+	lenSliceSize := count * 4
+	lenSlice := buf[:lenSliceSize]
+	buf = buf[lenSliceSize:]
 
 	values := make([][]byte, count)
-	for i, l := range lenSlice {
-		values[i] = buf[:l]
-		buf = buf[l:]
+	valueOffset := 0
+	for i := 0; i < int(count); i++ {
+		l := binary.LittleEndian.Uint32(lenSlice[i*4:])
+		values[i] = buf[valueOffset : valueOffset+int(l)]
+		valueOffset += int(l)
 	}
 
 	return &DBValue{values: values}
@@ -48,18 +48,26 @@ func (dbv *DBValue) Serialize() []byte {
 		return nil
 	}
 
-	var buf []byte
+	bufLen := 4 + 4*len(dbv.values)
+	for _, buf := range dbv.values {
+		bufLen += len(buf)
+	}
+
+	buf := make([]byte, bufLen)
+	pos := 0
 
 	count := uint32(len(dbv.values))
-	buf = binary.LittleEndian.AppendUint32(buf, count)
+	binary.LittleEndian.PutUint32(buf[pos:], count)
+	pos += 4
 
 	for _, v := range dbv.values {
-		l := uint32(len(v))
-		buf = binary.LittleEndian.AppendUint32(buf, l)
+		binary.LittleEndian.PutUint32(buf[pos:], uint32(len(v)))
+		pos += 4
 	}
 
 	for _, v := range dbv.values {
-		buf = append(buf, v...)
+		copy(buf[pos:], v)
+		pos += len(v)
 	}
 
 	return buf

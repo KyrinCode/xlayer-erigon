@@ -323,11 +323,13 @@ func (c *RocksDbCursor) putDupSort(key []byte, value []byte) error {
 	}
 
 	if bytes.Equal(v[:from-to], value[:from-to]) {
-		// in MdbxCursor.putDupSort, there's a comment like this:
-		// > in DupSort case mdbx.Current works only with values of same length
-		// that means with mdbx it must handle different situation with different length of value,
-		// but with rocksdb there's no such limit, and we can just call putCurrent.
-		return c.putCurrent(key, value)
+		if len(v) == len(value) { // in DupSort case mdbx.Current works only with values of same length
+			return c.putCurrent(key, value)
+		}
+		err = c.delCurrent()
+		if err != nil {
+			return err
+		}
 	}
 
 	return c.put(key, value)

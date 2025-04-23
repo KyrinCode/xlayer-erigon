@@ -84,7 +84,7 @@ func rocksdbBaseCaseDB(t *testing.T) kv.RwDB {
 		},
 	}
 
-	db, err := NewRocksDB(rdbPath, log.New("test"), buckets, kv.ChainDB, semaphore.NewWeighted(10), false, WriteMethodPut)
+	db, err := NewRocksDB(rdbPath, log.New("test"), buckets, kv.ChainDB, semaphore.NewWeighted(10), false, RealRDB)
 	assert.NilError(t, err)
 	t.Cleanup(db.Close)
 

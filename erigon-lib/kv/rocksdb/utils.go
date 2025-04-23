@@ -7,7 +7,6 @@ import (
 )
 
 var ErrKeyExist = errors.New("key exists")
-var ErrKeyNotExist = errors.New("key not exists")
 var ErrNotFound = errors.New("No matching key/data pair found")
 var ErrKeyMismatch = errors.New("given key value is mismatched to the current cursor position")
 var ErrValueLeLatest = errors.New("the given value is little or equal to the latest value")

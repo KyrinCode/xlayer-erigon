@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/linxGnu/grocksdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
 )
 
 type pairCache struct {
@@ -45,7 +45,7 @@ func (ic iterCache) isValid() bool {
 // the order of rocksdb's iterator is inverse with order of mdbx's cursor,
 // so we have to wrap a iterator to make the order consist with mdbx.
 type iteratorWrapper struct {
-	*grocksdb.Iterator
+	rdb.RDBIterator
 
 	table string
 }
@@ -67,8 +67,7 @@ type iteratorWrapper struct {
 //}
 
 type RocksDbIterator struct {
-	tx    *grocksdb.Transaction
-	ropts *grocksdb.ReadOptions
+	tx rdb.RDBTransaction
 
 	// iterator of rocksdb.
 	// when iterate values, must iterate dbvIter first if dbvIter is not null
@@ -83,14 +82,11 @@ type RocksDbIterator struct {
 	current iterCache
 }
 
-func NewRocksDbIterator(tx *grocksdb.Transaction, table string) *RocksDbIterator {
+func NewRocksDbIterator(tx rdb.RDBTransaction, table string) *RocksDbIterator {
 	beginPrefix := mergeKey(table, []byte{})
 	endPrefix, _ := kv.NextSubtree(beginPrefix)
 
-	ropts := grocksdb.NewDefaultReadOptions()
-	ropts.SetIterateLowerBound(beginPrefix)
-	ropts.SetIterateUpperBound(endPrefix)
-	it := &iteratorWrapper{Iterator: tx.NewIterator(ropts), table: table}
+	it := &iteratorWrapper{RDBIterator: tx.NewIterator(beginPrefix, endPrefix), table: table}
 	it.SeekToFirst()
 
 	current := invalidIterCache()
@@ -99,8 +95,7 @@ func NewRocksDbIterator(tx *grocksdb.Transaction, table string) *RocksDbIterator
 	}
 
 	return &RocksDbIterator{
-		tx:    tx,
-		ropts: ropts,
+		tx: tx,
 
 		table:       table,
 		beginPrefix: beginPrefix,
@@ -114,10 +109,6 @@ func (iter *RocksDbIterator) Close() {
 	if iter.it != nil {
 		iter.it.Close()
 		iter.it = nil
-	}
-	if iter.ropts != nil {
-		iter.ropts.Destroy()
-		iter.ropts = nil
 	}
 }
 
@@ -165,7 +156,7 @@ func (iter *RocksDbIterator) NextKey() error {
 }
 
 func (iter *RocksDbIterator) Count() (uint64, error) {
-	it := &iteratorWrapper{Iterator: iter.tx.NewIterator(iter.ropts), table: iter.table}
+	it := &iteratorWrapper{RDBIterator: iter.tx.NewIterator(iter.beginPrefix, iter.endPrefix), table: iter.table}
 	defer it.Close()
 
 	count := uint64(0)
@@ -333,8 +324,7 @@ func (iter *RocksDbIterator) seekExactKeyWithValueSeekFunc(key []byte, valueSeek
 	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
 
 	sk := iter.it.Key()
-	defer sk.Free()
-	if !bytes.Equal(sk.Data(), mergeKey(iter.table, key)) {
+	if !bytes.Equal(sk, mergeKey(iter.table, key)) {
 		return nil, nil, ErrNotFound
 	}
 
@@ -371,7 +361,7 @@ func (iter *RocksDbIterator) reCreateIterator() {
 		iter.it.Close()
 	}
 
-	iter.it = &iteratorWrapper{Iterator: iter.tx.NewIterator(iter.ropts)}
+	iter.it = &iteratorWrapper{RDBIterator: iter.tx.NewIterator(iter.beginPrefix, iter.endPrefix)}
 }
 
 func createCacheWithFirstValueIsCurrent(it *iteratorWrapper) iterCache {
@@ -388,8 +378,8 @@ func createCacheWithFirstValueIsCurrent(it *iteratorWrapper) iterCache {
 }
 
 func createCacheWithPriorFirst(it *iteratorWrapper) iterCache {
-	_, key := splitKey(moveSliceToBytes(it.Key()))
-	valueIter := newDBValueIterator(DeserializeDBValue(moveSliceToBytes(it.Value())))
+	_, key := splitKey(it.Key())
+	valueIter := newDBValueIterator(DeserializeDBValue(it.Value()))
 	return iterCache{
 		key:   key,
 		value: valueIter,

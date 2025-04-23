@@ -3,18 +3,20 @@ package rocksdb
 import (
 	"context"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/common/dbg"
 	"runtime"
 	"unsafe"
 
+	"github.com/ledgerwatch/erigon-lib/common/dbg"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/memrdb"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/linxGnu/grocksdb"
 	"golang.org/x/sync/semaphore"
 )
 
 type RocksDB struct {
-	rdb      *grocksdb.TransactionDB
+	db       rdb.RDB
 	lruCache *grocksdb.Cache
 	bbto     *grocksdb.BlockBasedTableOptions
 	opts     *grocksdb.Options
@@ -22,10 +24,9 @@ type RocksDB struct {
 
 	closeGuard *CloseGuard
 
-	writeMethod WriteMethod
-	readOnly    bool // todo: not used
-	tablesCfg   kv.TableCfg
-	label       kv.Label // marker to distinct db instances - one process may open many databases. for example to collect metrics of only 1 database
+	readOnly  bool // todo: not used
+	tablesCfg kv.TableCfg
+	label     kv.Label // marker to distinct db instances - one process may open many databases. for example to collect metrics of only 1 database
 
 	readTxLimiter  *semaphore.Weighted
 	writeTxLimiter *semaphore.Weighted
@@ -33,7 +34,7 @@ type RocksDB struct {
 	leakDetector   *dbg.LeakDetector
 }
 
-func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label kv.Label, readTxLimiter *semaphore.Weighted, readOnly bool, writeMethod WriteMethod) (kv.RwDB, error) {
+func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label kv.Label, readTxLimiter *semaphore.Weighted, readOnly bool, rdbType RDBType) (kv.RwDB, error) {
 	if readTxLimiter == nil {
 		targetSemCount := int64(runtime.GOMAXPROCS(-1)) - 1
 		readTxLimiter = semaphore.NewWeighted(targetSemCount) // 1 less than max to allow unlocking to happen
@@ -48,23 +49,21 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetBlockBasedTableFactory(bbto)
-	writeMethod.config(opts)
 
 	txopts := grocksdb.NewDefaultTransactionDBOptions()
 
-	rdb, err := grocksdb.OpenTransactionDb(opts, txopts, dbPath)
+	db, err := rdbType.NewRDB(opts, txopts, dbPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RocksDB{
-		rdb:            rdb,
+		db:             db,
 		lruCache:       lruCache,
 		bbto:           bbto,
 		opts:           opts,
 		txopts:         txopts,
 		closeGuard:     newCloseGuard(),
-		writeMethod:    writeMethod,
 		readOnly:       readOnly,
 		tablesCfg:      tablesCfg,
 		label:          label,
@@ -74,12 +73,16 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	}, nil
 }
 
+func (db *RocksDB) GetMemStorage() map[string][]byte {
+	return db.db.(*memrdb.MemoryRDB).GetMemStorage()
+}
+
 // impl Closer interface
 func (db *RocksDB) Close() {
 	firstClose := db.closeGuard.close()
 	if firstClose {
-		db.rdb.Close()
-		db.rdb = nil
+		db.db.Close()
+		db.db = nil
 
 		db.lruCache.Destroy()
 		db.lruCache = nil
@@ -210,7 +213,7 @@ func (db *RocksDB) beginTx(ctx context.Context, txLimiter *semaphore.Weighted) (
 
 	id := db.leakDetector.Add()
 	// todo: yztodo: not a real read only tx yet
-	return newRocksDbTx(db, ctx, db.writeMethod, func() {
+	return newRocksDbTx(db, ctx, func() {
 		db.closeGuard.deReference()
 		txLimiter.Release(1)
 		db.leakDetector.Del(id)

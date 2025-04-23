@@ -12,19 +12,19 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/iter"
 	"github.com/ledgerwatch/erigon-lib/kv/order"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
 	"github.com/linxGnu/grocksdb"
 )
 
 type RocksDbTx struct {
 	db    *RocksDB
-	tx    *grocksdb.Transaction
+	tx    rdb.RDBTransaction
 	ropts *grocksdb.ReadOptions
 	wopts *grocksdb.WriteOptions
 	txopt *grocksdb.TransactionOptions
 
-	writeMethod WriteMethod
-	id          uint64 // set only if TRACE_TX=true
-	ctx         context.Context
+	id  uint64 // set only if TRACE_TX=true
+	ctx context.Context
 
 	cursors  map[uint64]kv.Closer
 	cursorID uint64
@@ -37,10 +37,10 @@ type RocksDbTx struct {
 	closeCallback func()
 }
 
-func newRocksDbTx(db *RocksDB, ctx context.Context, writeMethod WriteMethod, closeCallback func()) (*RocksDbTx, error) {
+func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*RocksDbTx, error) {
 	wopts := grocksdb.NewDefaultWriteOptions()
 	txopt := grocksdb.NewDefaultTransactionOptions()
-	tx := db.rdb.TransactionBegin(wopts, txopt, nil)
+	tx := db.db.TransactionBegin(wopts, txopt, nil)
 
 	return &RocksDbTx{
 		db:    db,
@@ -49,8 +49,7 @@ func newRocksDbTx(db *RocksDB, ctx context.Context, writeMethod WriteMethod, clo
 		wopts: wopts,
 		txopt: txopt,
 
-		writeMethod: writeMethod,
-		ctx:         ctx,
+		ctx: ctx,
 
 		closeCallback: closeCallback,
 	}, nil
@@ -58,13 +57,12 @@ func newRocksDbTx(db *RocksDB, ctx context.Context, writeMethod WriteMethod, clo
 
 // impl kv.Has interface
 func (rtx *RocksDbTx) Has(table string, key []byte) (bool, error) {
-	data, err := rtx.tx.Get(rtx.ropts, mergeKey(table, key))
+	_, err := rtx.tx.Get(rtx.ropts, mergeKey(table, key))
 	if err != nil {
 		return false, err
 	}
-	defer data.Free()
 
-	return (data != nil && data.Exists()), nil
+	return true, nil
 }
 
 // impl kv.Getter interface
@@ -159,7 +157,7 @@ func (rtx *RocksDbTx) Rollback() { // Rollback - abandon all the operations of t
 // Starts from 0.
 func (rtx *RocksDbTx) ReadSequence(table string) (uint64, error) {
 	dbv, err := rtx.get(kv.Sequence, []byte(table))
-	notExist := errors.Is(err, ErrKeyNotExist)
+	notExist := errors.Is(err, rdb.ErrKeyNotExist)
 	if err != nil && !notExist {
 		return 0, err
 	}
@@ -338,19 +336,32 @@ func (rtx *RocksDbTx) ClearBucket(table string) error {
 	beginPrefix := mergeKey(table, []byte{})
 	endPrefix, _ := kv.NextSubtree(beginPrefix)
 
-	ropts := grocksdb.NewDefaultReadOptions()
-	defer ropts.Destroy()
-	ropts.SetIterateLowerBound(beginPrefix)
-	ropts.SetIterateUpperBound(endPrefix)
-
-	it := rtx.tx.NewIterator(ropts)
-	defer it.Close()
-	for it.SeekToFirst(); it.Valid(); it.Next() {
-		k := it.Key()
-		if err := rtx.tx.Delete(k.Data()); err != nil {
-			panic(fmt.Errorf("failed to delete key %s when ClearBucket: %v", string(k.Data()), err))
+	iterateBatch := func() ([][]byte, bool) {
+		it := rtx.tx.NewIterator(beginPrefix, endPrefix)
+		defer it.Close()
+		keyBatch := make([][]byte, 0)
+		for it.SeekToFirst(); it.Valid(); it.Next() {
+			keyBatch = append(keyBatch, it.Key())
+			if len(keyBatch) >= 1000000 {
+				return keyBatch, false
+			}
 		}
-		k.Free()
+		return keyBatch, true
+	}
+	deleteBatch := func(keyBatch [][]byte) {
+		for _, key := range keyBatch {
+			if err := rtx.tx.Delete(key); err != nil {
+				panic(fmt.Errorf("failed to delete key %x when ClearBucket: %v", key, err))
+			}
+		}
+	}
+
+	for {
+		keyBatch, isExhaust := iterateBatch()
+		deleteBatch(keyBatch)
+		if isExhaust {
+			break
+		}
 	}
 
 	return nil
@@ -473,15 +484,12 @@ func (rtx *RocksDbTx) CollectMetrics() {
 }
 
 func (rtx *RocksDbTx) get(table string, k []byte) (*DBValue, error) {
-	s, err := rtx.tx.Get(rtx.ropts, mergeKey(table, k))
+	v, err := rtx.tx.Get(rtx.ropts, mergeKey(table, k))
 	if err != nil {
 		return nil, err
 	}
-	if !s.Exists() {
-		return nil, ErrKeyNotExist
-	}
 
-	dbv := DeserializeDBValue(moveSliceToBytes(s))
+	dbv := DeserializeDBValue(v)
 	//yztodo: cache this not dirty dbv?
 
 	return dbv, nil
@@ -489,7 +497,7 @@ func (rtx *RocksDbTx) get(table string, k []byte) (*DBValue, error) {
 
 func (rtx *RocksDbTx) putSorted(table string, k, v []byte) error {
 	dbv, err := rtx.get(table, k)
-	notExist := errors.Is(err, ErrKeyNotExist)
+	notExist := errors.Is(err, rdb.ErrKeyNotExist)
 	if err != nil && !notExist {
 		return err
 	}
@@ -504,7 +512,7 @@ func (rtx *RocksDbTx) putSorted(table string, k, v []byte) error {
 
 // putOverwrite will overwrite the key if it has exist
 func (rtx *RocksDbTx) putOverwrite(table string, k []byte, v *DBValue) error {
-	return rtx.writeMethod.txWrite(rtx.tx, mergeKey(table, k), v.Serialize())
+	return rtx.tx.Put(mergeKey(table, k), v.Serialize())
 }
 
 // iterWithStop iterate data until `walker` return error or true
@@ -747,18 +755,4 @@ func (s *cursorDup2iter) Next() (k, v []byte, err error) {
 		return nil, nil, err
 	}
 	return s.key, v, nil
-}
-
-func moveSliceToBytes(s *grocksdb.Slice) []byte {
-	defer s.Free()
-	if !s.Exists() {
-		return nil
-	}
-	if len(s.Data()) == 0 {
-		return nil
-	}
-
-	v := make([]byte, len(s.Data()))
-	copy(v, s.Data())
-	return v
 }
