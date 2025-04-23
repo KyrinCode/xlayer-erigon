@@ -166,7 +166,7 @@ func (s *SMT) getValueInBytes(nodeKey utils.NodeKey) ([]byte, error) {
 
 		if v.IsFinalNode() {
 			valHash := v.Get4to8()
-			v, err := s.Db.Get(*valHash)
+			err := s.Db.Get(*valHash, &v)
 			if err != nil {
 				return false, err
 			}

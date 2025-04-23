@@ -43,7 +43,8 @@ func assertSmtTreeDbStructure(t *testing.T, s *smt.SMT, nodeHash utils.NodeKey, 
 		return
 	}
 
-	dbNodeValue, err := s.Db.Get(nodeHash)
+	dbNodeValue := utils.NodeValue12{}
+	err := s.Db.Get(nodeHash, &dbNodeValue)
 	assert.NilError(t, err)
 
 	nodeHashHex := utils.ConvertBigIntToHex(utils.ArrayToScalar(nodeHash[:]))
@@ -51,7 +52,8 @@ func assertSmtTreeDbStructure(t *testing.T, s *smt.SMT, nodeHash utils.NodeKey, 
 
 	if dbNodeValue.IsFinalNode() {
 		nodeValueHash := utils.NodeKeyFromBigIntArray(dbNodeValue[4:8])
-		dbNodeValue, err = s.Db.Get(nodeValueHash)
+		dbNodeValue = utils.NodeValue12{}
+		err = s.Db.Get(nodeValueHash, &dbNodeValue)
 		assert.NilError(t, err)
 
 		nodeHashHex := utils.ConvertBigIntToHex(utils.ArrayToScalar(nodeValueHash[:]))
@@ -68,7 +70,8 @@ func assertHashToKeyDbStrcture(t *testing.T, smtBatch *smt.SMT, nodeHash utils.N
 		return 0
 	}
 
-	dbNodeValue, err := smtBatch.Db.Get(nodeHash)
+	dbNodeValue := utils.NodeValue12{}
+	err := smtBatch.Db.Get(nodeHash, &dbNodeValue)
 	assert.NilError(t, err)
 
 	if dbNodeValue.IsFinalNode() {
@@ -101,7 +104,8 @@ func assertTraverse(t *testing.T, s *smt.SMT) {
 	action := func(prefix []byte, k utils.NodeKey, v utils.NodeValue12) (bool, error) {
 		if v.IsFinalNode() {
 			valHash := v.Get4to8()
-			v, err := s.Db.Get(*valHash)
+			v := utils.NodeValue12{}
+			err := s.Db.Get(*valHash, &v)
 			if err != nil {
 				return false, err
 			}

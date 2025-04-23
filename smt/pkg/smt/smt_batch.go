@@ -637,7 +637,8 @@ func (s *SMT) fetchNodeDataFromDb(nodeHash *utils.NodeKey, parentNode *smtBatchN
 	}
 	metrics.GetLogStatistics().CumulativeValue(metrics.ZKHashSMTGetKey, 1)
 	start := time.Now()
-	dbNodeValue, err := s.Db.Get(*nodeHash)
+	var dbNodeValue utils.NodeValue12
+	err := s.Db.Get(*nodeHash, &dbNodeValue)
 	metrics.GetLogStatistics().CumulativeMicroTiming(metrics.ZKHashSMTGetKeyTiming, time.Since(start))
 	if err != nil {
 		return nil, err

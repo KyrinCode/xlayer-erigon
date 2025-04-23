@@ -207,23 +207,23 @@ func (m *EriDb) SetDepth(depth uint8) error {
 	return m.tx.Put(TableStats, []byte(MetaDepth), []byte{depth})
 }
 
-func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
+func (m *EriRoDb) Get(key utils.NodeKey, values *utils.NodeValue12) error {
 	keyConc := utils.ArrayToScalar(key[:])
 	k := utils.ConvertBigIntToHex(keyConc)
 
 	data, err := m.kvTxRoSMT.GetOne(TableSmt, []byte(k))
 	if err != nil {
-		return utils.NodeValue12{}, err
+		return err
 	}
 
 	if data == nil || len(data) == 0 {
-		return utils.NodeValue12{}, nil
+		return nil
 	}
 
 	vConc := utils.ConvertHexToBigInt(string(data))
-	val := utils.ScalarToNodeValue(vConc)
+	utils.ScalarToNodeValue(vConc, (*[12]*big.Int)(values))
 
-	return val, nil
+	return nil
 }
 
 func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
@@ -385,7 +385,8 @@ func (m *EriRoDb) GetDb() map[string][]string {
 		hk := string(k)
 
 		vConc := utils.ConvertHexToBigInt(string(v))
-		val := utils.ScalarToNodeValue(vConc)
+		val := utils.NewNodeValue12()
+		utils.ScalarToNodeValue(vConc, (*[12]*big.Int)(&val))
 
 		truncationLength := 12
 

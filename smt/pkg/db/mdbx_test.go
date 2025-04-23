@@ -28,14 +28,16 @@ func TestEriDb(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Testing Get method
-	retrievedValue, err := db.Get(key)
+	retrievedValue := utils.NodeValue12{}
+	err = db.Get(key, &retrievedValue)
 	assert.NoError(t, err)
 	assert.Equal(t, value, retrievedValue)
 
 	// Test Delete method
 	err = db.DeleteByNodeKey(key)
 	assert.NoError(t, err)
-	retrievedValue, err = db.Get(key)
+	retrievedValue = utils.NodeValue12{}
+	err = db.Get(key, &retrievedValue)
 	assert.NoError(t, err)
 	assert.Equal(t, noValue, retrievedValue)
 }
@@ -66,7 +68,8 @@ func TestEriDbBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Testing Get method after committing the batch
-	retrievedValue, err := db.Get(key)
+	retrievedValue := utils.NodeValue12{}
+	err = db.Get(key, &retrievedValue)
 	assert.NoError(t, err)
 	assert.Equal(t, value, retrievedValue)
 
@@ -82,7 +85,8 @@ func TestEriDbBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Testing Get method before rollback or commit, expecting no value for the altKey
-	altValRes, err := db.Get(altKey)
+	altValRes := utils.NodeValue12{}
+	err = db.Get(altKey, &altValRes)
 	assert.NoError(t, err)
 	assert.Equal(t, altValue, altValRes)
 
@@ -90,7 +94,8 @@ func TestEriDbBatch(t *testing.T) {
 	db.RollbackBatch()
 
 	// Testing Get method after rollback, expecting no value for the altKey
-	val, err := db.Get(altKey)
+	val := utils.NodeValue12{}
+	err = db.Get(altKey, &val)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.NodeValue12{}, val)
 }
@@ -153,7 +158,8 @@ func TestEriRoDb_Get(t *testing.T) {
 	expectedValue := utils.NodeValue12{big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6), big.NewInt(7), big.NewInt(8), big.NewInt(9), big.NewInt(10), big.NewInt(11), big.NewInt(12)}
 
 	// Test when data is not present
-	value, err := dbro.Get(key)
+	value := utils.NodeValue12{}
+	err := dbro.Get(key, &value)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.NodeValue12{}, value)
 
@@ -166,7 +172,8 @@ func TestEriRoDb_Get(t *testing.T) {
 	err = db.tx.Put(TableSmt, []byte(k), []byte(v))
 	assert.NoError(t, err)
 
-	value, err = dbro.Get(key)
+	value = utils.NodeValue12{}
+	err = dbro.Get(key, &value)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedValue, value)
 }

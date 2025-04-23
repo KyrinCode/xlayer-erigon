@@ -20,7 +20,8 @@ func dumpTree(smt *SMT, nodeKey utils.NodeKey, level int, path []int, printDepth
 		return
 	}
 
-	nodeValue, _ := smt.Db.Get(nodeKey)
+	nodeValue := utils.NodeValue12{}
+	_ = smt.Db.Get(nodeKey, &nodeValue)
 	if !nodeValue.IsFinalNode() {
 		nodeKeyRight := utils.NodeKeyFromBigIntArray(nodeValue[4:8])
 		dumpTree(smt, nodeKeyRight, level+1, append(path, 1), printDepth)

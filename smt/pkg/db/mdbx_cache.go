@@ -132,22 +132,22 @@ func (m *EriCacheDb) SetDepth(depth uint8) error {
 	return m.cacheTx.Put(TableStats, []byte(MetaDepth), []byte{depth})
 }
 
-func (m *EriCacheDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
+func (m *EriCacheDb) Get(key utils.NodeKey, values *utils.NodeValue12) error {
 	k := utils.ArrayToHex(key[:])
 
 	data, err := m.kvTxRoSMT.GetOne(TableSmt, utils.UnsafeStringToBytes(k))
 	if err != nil {
-		return utils.NodeValue12{}, err
+		return err
 	}
 
 	if data == nil || len(data) == 0 {
-		return utils.NodeValue12{}, nil
+		return nil
 	}
 
 	vConc := utils.ConvertHexToBigInt(utils.UnsafeBytesToString(data))
-	val := utils.ScalarToNodeValue(vConc)
+	utils.ScalarToNodeValue(vConc, (*[12]*big.Int)(values))
 
-	return val, nil
+	return nil
 }
 
 func (m *EriCacheDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
@@ -304,7 +304,8 @@ func (m *EriCacheDb) GetDb() map[string][]string {
 		hk := string(k)
 
 		vConc := utils.ConvertHexToBigInt(string(v))
-		val := utils.ScalarToNodeValue(vConc)
+		val := utils.NewNodeValue12()
+		utils.ScalarToNodeValue(vConc, (*[12]*big.Int)(&val))
 
 		truncationLength := 12
 

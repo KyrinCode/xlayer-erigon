@@ -831,7 +831,8 @@ func TestScalarToNodeValue(t *testing.T) {
 	}
 
 	// Call the function to test
-	result := ScalarToNodeValue(scalar)
+	var result [12]*big.Int
+	ScalarToNodeValue(scalar, &result)
 
 	// Check that each element of the result matches the corresponding original value
 	for i := range originalValues {
@@ -848,7 +849,9 @@ func TestScalarToNodeValue(t *testing.T) {
 		inputs := []*big.Int{seed, big.NewInt(1).Neg(seed), big.NewInt(1).Mul(seed, seed), big.NewInt(1).MulRange(1, int64(i))}
 
 		for _, input := range inputs {
-			expect := scalarToNodeValueSlow(input)
+			var expect [12]*big.Int
+			scalarToNodeValueSlow(input, &expect)
+
 			var result [12]*big.Int
 			ok := scalarToNodeValueFast(input, &result)
 			if ok {
@@ -876,7 +879,8 @@ func BenchmarkScalarToNodeValue(b *testing.B) {
 	})
 	b.Run("Slow", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			values = scalarToNodeValueSlow(seed)
+			var result [12]*big.Int
+			scalarToNodeValueSlow(seed, &result)
 		}
 	})
 

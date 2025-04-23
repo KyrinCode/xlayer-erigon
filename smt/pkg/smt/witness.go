@@ -77,7 +77,7 @@ func (s *RoSMT) BuildWitness(rd trie.RetainDecider, ctx context.Context) (*trie.
 			}
 
 			valHash := v.Get4to8()
-			v, err := s.DbRo.Get(*valHash)
+			err = s.DbRo.Get(*valHash, &v)
 			if err != nil {
 				return false, err
 			}

@@ -46,7 +46,7 @@ type RoDB interface {
 	GetCode(codeHash []byte) ([]byte, error)
 	GetHashKey(key utils.NodeKey) (utils.NodeKey, error)
 	GetKeySource(key utils.NodeKey) ([]byte, error)
-	Get(key utils.NodeKey) (utils.NodeValue12, error)
+	Get(key utils.NodeKey, values *utils.NodeValue12) error
 	GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error)
 }
 
@@ -261,14 +261,16 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 	var err error
 	// JS WHILE
 	for !oldRoot.IsZero() && foundKey == nil {
-		sl, err := s.Db.Get(oldRoot)
+		var value utils.NodeValue12
+		err := s.Db.Get(oldRoot, &value)
 		if err != nil {
 			return nil, err
 		}
-		siblings[level] = &sl
+		siblings[level] = &value
 		if siblings[level].IsFinalNode() {
 			foundOldValHash = utils.NodeKeyFromBigIntArray(siblings[level][4:8])
-			fva, err := s.Db.Get(foundOldValHash)
+			var fva utils.NodeValue12
+			err := s.Db.Get(foundOldValHash, &fva)
 			if err != nil {
 				return nil, err
 			}
@@ -464,7 +466,8 @@ func (s *SMT) insert(k utils.NodeKey, v utils.NodeValue8, newValH [4]uint64, old
 				// DELETE FOUND
 				smtResponse.Mode = "deleteFound"
 				dk := utils.NodeKeyFromBigIntArray(siblings[level][uKey*4 : uKey*4+4])
-				sl, err := s.Db.Get(dk)
+				var sl utils.NodeValue12
+				err := s.Db.Get(dk, &sl)
 				if err != nil {
 					return nil, err
 				}
@@ -715,6 +718,7 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 	stack := make([]stackEntry, 0, 1024)
 	stack = append(stack, stackEntry{node: node, prefix: prefix})
 
+	nodeValue := utils.NewNodeValue12()
 	// Main loop: process nodes until the stack is empty
 	for len(stack) > 0 {
 		// Pop the top element from the stack
@@ -729,9 +733,12 @@ func (s *RoSMT) traverse(ctx context.Context, node *big.Int, action TraverseActi
 		default:
 		}
 
+		// Clear nodeValue before reuse
+		nodeValue.Clear()
+
 		// Convert node to key and retrieve node value from database
 		ky := utils.ScalarToRoot(current.node)
-		nodeValue, err := s.DbRo.Get(ky)
+		err := s.DbRo.Get(ky, &nodeValue)
 		if err != nil {
 			return err
 		}
@@ -823,7 +830,8 @@ func (s *SMT) insertHashNode(path []int, hash [4]uint64, root utils.NodeKey) (ut
 	rootVal := utils.NodeValue12{}
 
 	if !root.IsZero() {
-		v, err := s.Db.Get(root)
+		var v utils.NodeValue12
+		err := s.Db.Get(root, &v)
 		if err != nil {
 			return utils.NodeKey{}, err
 		}

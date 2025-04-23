@@ -2,7 +2,6 @@ package smt
 
 import (
 	"fmt"
-
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
@@ -24,7 +23,7 @@ func (s *SMT) GetNodeAtPath(path []int) (nodeV *utils.NodeValue12, err error) {
 	}
 
 	for level, pathByte := range path {
-		sl, err = s.Db.Get(oldRoot)
+		err = s.Db.Get(oldRoot, &sl)
 		if err != nil {
 			return nil, err
 		}

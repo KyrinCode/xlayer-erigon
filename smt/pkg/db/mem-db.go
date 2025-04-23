@@ -101,7 +101,7 @@ func (m *MemDb) SetDepth(depth uint8) error {
 	return nil
 }
 
-func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
+func (m *MemDb) Get(key utils.NodeKey, values *utils.NodeValue12) error {
 	m.lock.RLock()         // Lock for reading
 	defer m.lock.RUnlock() // Make sure to unlock when done
 
@@ -109,12 +109,11 @@ func (m *MemDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 
 	k := utils.ConvertBigIntToHex(keyConc)
 
-	values := utils.NodeValue12{}
 	for i, v := range m.Db[k] {
 		values[i] = utils.ConvertHexToBigInt(v)
 	}
 
-	return values, nil
+	return nil
 }
 
 func (m *MemDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {

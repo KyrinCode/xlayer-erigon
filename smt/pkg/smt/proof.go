@@ -76,7 +76,7 @@ func BuildProofs(s *RoSMT, rd trie.RetainDecider, ctx context.Context) ([]*SMTPr
 
 		if v.IsFinalNode() {
 			valHash := v.Get4to8()
-			v, err := s.DbRo.Get(*valHash)
+			err := s.DbRo.Get(*valHash, &v)
 			if err != nil {
 				return false, err
 			}

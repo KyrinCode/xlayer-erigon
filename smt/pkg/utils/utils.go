@@ -612,58 +612,60 @@ func ScalarToRoot(s *big.Int) NodeKey {
 	return result
 }
 
-// scalarToNodeValueFast converts a scalar big.Int to an array of big.Ints, optimized for stack allocation
-// Returns true if the fast path is taken, false otherwise
+// fast path for 64-bit systems
 func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
-	if bits.UintSize != 64 || scalarIn == nil || scalarIn.Sign() < 0 {
-		// Inline zeroing to avoid separate function call
-		var zeroStorage [12]big.Int
-		for i := range out {
-			out[i] = &zeroStorage[i]
-		}
+	if bits.UintSize != 64 || scalarIn.Sign() < 0 {
 		return false
 	}
 
-	// Allocate storage on stack
-	var storage [12]big.Int
+	// Initialize all elements if nil
 	for i := range out {
-		out[i] = &storage[i]
+		if out[i] == nil {
+			out[i] = new(big.Int)
+		}
 	}
 
+	// Get the words from scalarIn
 	words := scalarIn.Bits()
 	wordCount := len(words)
 	if wordCount > 12 {
 		wordCount = 12
 	}
 
+	// Set values directly using SetUint64
 	for i := 0; i < wordCount; i++ {
-		storage[i].SetUint64(uint64(words[i]))
+		out[i].SetUint64(uint64(words[i]))
+	}
+
+	// Zero out remaining elements
+	for i := wordCount; i < 12; i++ {
+		out[i].SetUint64(0)
 	}
 
 	return true
 }
 
-func scalarToNodeValueSlow(scalarIn *big.Int) NodeValue12 {
-	out := [12]*big.Int{}
+func scalarToNodeValueSlow(scalarIn *big.Int, out *[12]*big.Int) {
 	mask := new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
 	scalar := new(big.Int).Set(scalarIn)
 
 	for i := 0; i < 12; i++ {
-		value := new(big.Int).And(scalar, mask)
-		out[i] = value
+		if out[i] == nil {
+			out[i] = new(big.Int)
+		}
+		out[i].And(scalar, mask)
 		scalar.Rsh(scalar, 64)
 	}
-	return out
 }
 
-func ScalarToNodeValue(scalarIn *big.Int) NodeValue12 {
-	out := [12]*big.Int{}
-
-	if ok := scalarToNodeValueFast(scalarIn, &out); ok {
-		return out
+func ScalarToNodeValue(scalarIn *big.Int, scalarOut *[12]*big.Int) {
+	if ok := scalarToNodeValueFast(scalarIn, scalarOut); ok {
+		return
 	}
 
-	return scalarToNodeValueSlow(scalarIn)
+	scalarToNodeValueSlow(scalarIn, scalarOut)
+
+	return
 }
 
 func ScalarToNodeValue8(scalarIn *big.Int) NodeValue8 {
@@ -1175,4 +1177,23 @@ func UnsafeBytesToString(b []byte) string {
 
 func UnsafeStringToBytes(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
+}
+
+// NewNodeValue12 creates a new NodeValue12 with each *big.Int initialized
+func NewNodeValue12() NodeValue12 {
+	var nv NodeValue12
+	for i := range nv {
+		nv[i] = new(big.Int)
+	}
+	return nv
+}
+
+// Clear resets all *big.Int elements in NodeValue12 to 0, initializing nil pointers
+func (nv *NodeValue12) Clear() {
+	for i := range nv {
+		if nv[i] == nil {
+			nv[i] = new(big.Int)
+		}
+		nv[i].SetUint64(0)
+	}
 }

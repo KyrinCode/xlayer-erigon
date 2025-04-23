@@ -22,7 +22,8 @@ func TestMemDb(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Testing Get method
-	retrievedValue, err := db.Get(key)
+	var retrievedValue utils.NodeValue12
+	err = db.Get(key, &retrievedValue)
 	assert.NoError(t, err)
 	assert.Equal(t, value, retrievedValue)
 }
