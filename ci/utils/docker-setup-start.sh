@@ -24,5 +24,6 @@ fi
 
 # Start Docker daemon
 echo "{ \"insecure-registries\":[\"$DOCKER_REGISTRY_IP_PORT\"] }" > /etc/docker/daemon.json
-dockerd > /dockerd.log 2>&1 &
-sleep 5
+dockerd > /dockerd.log 2>&1
+# dockerd > /dockerd.log 2>&1 &
+# sleep 5
