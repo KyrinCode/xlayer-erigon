@@ -208,7 +208,7 @@ func (m *EriRoDb) Get(key utils.NodeKey) (utils.NodeValue12, error) {
 func (m *EriDb) Insert(key utils.NodeKey, value utils.NodeValue12) error {
 	k := key.ToHex()
 	v := value.ToHex()
-
+	//fmt.Printf("Insert NodeValue12 key bytes: %v, val bytes: %v, \n", []byte(k), []byte(v))
 	return m.tx.Put(TableSmt, []byte(k), []byte(v))
 }
 
@@ -243,15 +243,17 @@ func (m *EriRoDb) GetAccountValue(key utils.NodeKey) (utils.NodeValue8, error) {
 }
 
 func (m *EriDb) InsertAccountValue(key utils.NodeKey, value utils.NodeValue8) error {
+	//keyConc := utils.ArrayToScalar(key[:])
+	//k := utils.ConvertBigIntToHex(keyConc)
 	k := key.ToHex()
 	v := value.ToHex()
-
+	//fmt.Printf("InsertAccountValue key bytes: %v, val bytes: %v, \n", []byte(k), []byte(v))
 	return m.tx.Put(TableAccountValues, []byte(k), []byte(v))
 }
 
 func (m *EriDb) InsertKeySource(key utils.NodeKey, value []byte) error {
 	keyConc := utils.ArrayToScalar(key[:])
-
+	//fmt.Printf("InsertKeySource key bytes: %v, val bytes: %v, \n", keyConc.Bytes(), value)
 	return m.tx.Put(TableMetadata, keyConc.Bytes(), value)
 }
 
@@ -280,7 +282,7 @@ func (m *EriDb) InsertHashKey(key utils.NodeKey, value utils.NodeKey) error {
 	keyConc := utils.ArrayToScalar(key[:])
 
 	valConc := utils.ArrayToScalar(value[:])
-
+	//fmt.Printf("InsertHashKey key bytes: %v, val bytes: %v, \n", keyConc.Bytes(), valConc.Bytes())
 	return m.tx.Put(TableHashKey, keyConc.Bytes(), valConc.Bytes())
 }
 

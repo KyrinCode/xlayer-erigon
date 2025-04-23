@@ -68,6 +68,7 @@ func TestBatchSimpleInsert(t *testing.T) {
 	smtIncrementalRootHash, _ := smtIncremental.Db.GetLastRoot()
 	smtBatchRootHash, _ := smtBatch.Db.GetLastRoot()
 	smtBatchNoSaveRootHash, _ := smtBatchNoSave.Db.GetLastRoot()
+	assert.Equal(t, "0xcc770c13fc42b042ba5b1232c15f1c0f97a8f09fac80ed228e3ac3fb9a790b9e", utils.ConvertBigIntToHex(smtBatchRootHash))
 	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtIncrementalRootHash))
 	assert.Equal(t, utils.ConvertBigIntToHex(smtBatchRootHash), utils.ConvertBigIntToHex(smtBatchNoSaveRootHash))
 

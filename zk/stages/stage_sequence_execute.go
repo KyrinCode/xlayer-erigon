@@ -159,6 +159,10 @@ func sequencingBatchStep(
 	}
 
 	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt, cfg.zk.XLayer.EnableAsyncCommit)
+	//lastHeight, _ := sdb.eridb.GetLastHeight()
+	//lastRoot, _ := sdb.eridb.GetLastRoot()
+	//utils2.ConvertBigIntToHex(lastRoot)
+	//log.Info(fmt.Sprintf("[%s] SMT last root %s, last height: %d", logPrefix, lastRoot, lastHeight))
 	if err != nil {
 		return err
 	}

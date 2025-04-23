@@ -102,7 +102,8 @@ func (nk *NodeKey) ToHex() string {
 	binary.BigEndian.PutUint64(buf[24:32], nk[0])
 	hexStr := hex.EncodeToString(buf)
 	trimmed := strings.TrimLeft(hexStr, "0")
-	return trimmed
+	// TODO [cliff] this "0x" is required for historical state compatibility
+	return "0x" + trimmed
 }
 
 func (nv *NodeValue8) IsZero() bool {
@@ -167,7 +168,8 @@ func (nv *NodeValue8) ToHex() string {
 	}
 	hexStr := hex.EncodeToString(bytes)
 	trimmed := strings.TrimLeft(hexStr, "0")
-	return trimmed
+	// TODO [cliff] this "0x" is required for historical state compatibility
+	return "0x" + trimmed
 }
 
 //func (nv *NodeValue12) ToBigInt() *big.Int {
@@ -240,7 +242,8 @@ func (nv *NodeValue12) ToHex() string {
 	}
 	hexStr := hex.EncodeToString(bytes)
 	trimmed := strings.TrimLeft(hexStr, "0")
-	return trimmed
+	// TODO [cliff] this "0x" is required for historical state compatibility
+	return "0x" + trimmed
 }
 
 func NodeKeyFromBigIntArray(arr []*big.Int) NodeKey {

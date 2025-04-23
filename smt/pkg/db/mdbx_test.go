@@ -221,6 +221,11 @@ func TestEriRoDb_GetHashKey(t *testing.T) {
 	value, err = dbro.GetHashKey(key)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedValue, value)
+
+	err = db.DeleteHashKey(key)
+	assert.NoError(t, err)
+	value, err = dbro.GetHashKey(key)
+	assert.NotNil(t, err)
 }
 
 /*
