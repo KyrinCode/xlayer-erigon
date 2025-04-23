@@ -442,3 +442,13 @@ services:
       - ./config/xlayerconfig-mainnet-rpc.yaml:/usr/src/app/config.yaml
     command: >
       cdk-erigon --http.vhosts=* --http.corsdomain=* --ws --config=/usr/src/app/config.yaml
+
+  xlayer-proxyd:
+    container_name: xlayer-proxyd
+    image: proxyd
+    ports:
+      - 18545:8545
+    volumes:
+      - ./config/proxyd.toml:/app/config.toml
+    command: >
+      proxyd /app/config.toml

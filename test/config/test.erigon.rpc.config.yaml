@@ -19,10 +19,10 @@ zkevm.l1-first-block: 353
 zkevm.l1-block-range: 10
 zkevm.l1-query-delay: 6000
 zkevm.l1-highest-block-type: latest
-zkevm.rpc-ratelimit: 300
+zkevm.rpc-ratelimit: 300000
 zkevm.datastream-version: 2
 
-log.console.verbosity: info
+log.console.verbosity: debug
 
 #zkevm.executor-urls: xlayer-executor:50071
 zkevm.executor-urls: ""
@@ -49,7 +49,7 @@ http.corsdomain: any
 http.timeouts.read: "10s"
 http.timeouts.write: "10s"
 http.timeouts.idle: "10s"
-http.methodratelimit: "{\"methods\":[\"eth_syncing\"],\"count\":10,\"bucket\":1}"
+  # http.methodratelimit: "{\"methods\":[\"eth_syncing\"],\"count\":10,\"bucket\":1}"
 # http.apikeys: |
 #   {"project":"Biconomy","key":"45543e0adc5dd3e316044909d32501a5","timeout":"2030-12-31","methods":["eth_syncing"],"count":10000,"bucket":1}
 
@@ -75,7 +75,7 @@ networkid: 195
 
 zkevm.pool-manager-url: http://xlayer-pool-manager:8545
 
-http.methodratelimit: "{\"methods\":[\"eth_syncing\"],\"count\":10,\"bucket\":1}"
+# http.methodratelimit: "{\"methods\":[\"eth_syncing\"],\"count\":10,\"bucket\":1}"
 #http.apikeys: |
 #  {"project":"project1","key":"944cd2a6939eb23053289d9b91d6c498","timeout":"2033-12-12","methods":["eth_syncing"],"count":5,"bucket":1}
 
