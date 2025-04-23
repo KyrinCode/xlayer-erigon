@@ -93,8 +93,6 @@ docker tag $CDK_IMAGE_TAG localhost:5000/$CDK_IMAGE_TAG
 docker push localhost:5000/$CDK_IMAGE_TAG
 docker rmi localhost:5000/$CDK_IMAGE_TAG
 
-exit 0
-
 # *** Run non-dind tasks
 # Base Docker command
 BASE_CMD="docker run xlayer-erigon-ci:latest"
