@@ -109,10 +109,10 @@ done
 BASE_NAME="base-xlayer-erigon-ci"
 docker run -d --name $BASE_NAME --privileged xlayer-erigon-ci:latest sh -c "./ci/utils/docker-setup-start.sh $DOCKER_REGISTRY_IP_PORT"
 sleep 5
-docker exec $BASE_NAME sh -c "cd ./ci/utils && ./docker-cache-pull.sh $DOCKER_REGISTRY_IP_PORT"
+docker exec $BASE_NAME sh -c "cd ./ci/utils && ./docker-cache-pull.sh $DOCKER_REGISTRY_IP_PORT" > $LOGSDIR/docker-cache-pull.log 2>&1
 for task in "${!tasks_compose[@]}"; do
     echo "Running task: $task"
-    CMD="${BASE_CMD} && ${tasks_compose[$task]}\""
+    CMD="docker exec $BASE_NAME sh -c \"${tasks_compose[$task]}\""
     echo "Command: $CMD"
     eval $CMD > $LOGSDIR/logs-$task.log 2>&1
     if [ $? -ne 0 ]; then
