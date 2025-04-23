@@ -100,7 +100,6 @@ type SequenceBlockCfg struct {
 
 func StageSequenceBlocksCfg(
 	db kv.RwDB,
-	dbsmt kv.RwDB,
 	pm prune.Mode,
 	batchSize datasize.ByteSize,
 	changeSetHook stagedsync.ChangeSetHook,
@@ -127,11 +126,13 @@ func StageSequenceBlocksCfg(
 	yieldSize uint16,
 	infoTreeUpdater *l1infotree.Updater,
 	doneHook DoneHook,
+
+	// For X Layer, split db and ac
+	dbsmt kv.RwDB,
 ) SequenceBlockCfg {
 
 	return SequenceBlockCfg{
 		db:               db,
-		dbsmt:            dbsmt,
 		prune:            pm,
 		batchSize:        batchSize,
 		changeSetHook:    changeSetHook,
@@ -156,6 +157,9 @@ func StageSequenceBlocksCfg(
 		yieldSize:        yieldSize,
 		infoTreeUpdater:  infoTreeUpdater,
 		doneHook:         doneHook,
+
+		// For X Layer, split db and ac
+		dbsmt: dbsmt,
 	}
 }
 
@@ -185,10 +189,10 @@ func (sCfg *SequenceBlockCfg) toErigonExecuteBlockCfg() stagedsync.ExecuteBlockC
 
 func validateIfDatastreamIsAheadOfExecution(
 	s *stagedsync.StageState,
-// u stagedsync.Unwinder,
+	// u stagedsync.Unwinder,
 	ctx context.Context,
 	cfg SequenceBlockCfg,
-// historyCfg stagedsync.HistoryCfg,
+	// historyCfg stagedsync.HistoryCfg,
 ) error {
 	roTx, err := cfg.db.BeginRo(ctx)
 	if err != nil {
@@ -456,6 +460,7 @@ func tryHaltSequencer(batchContext *BatchContext, batchState *BatchState, stream
 			if pending, count := batchContext.cfg.legacyVerifier.HasPendingVerifications(); pending {
 				log.Info(fmt.Sprintf("[%s] Waiting for pending verifications to complete before halting sequencer...", batchContext.s.LogPrefix()), "count", count)
 				time.Sleep(2 * time.Second)
+				// For X Layer, split db and ac
 				needsUnwind, err := updateStreamAndCheckRollback(batchContext, batchState, streamWriter, u, s)
 				if needsUnwind || err != nil {
 					return needsUnwind, false, err

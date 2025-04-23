@@ -2,8 +2,6 @@ package legacy_executor_verifier
 
 import (
 	"context"
-	"github.com/ledgerwatch/erigon/eth/stagedsync/stages"
-	"github.com/ledgerwatch/erigon/zk/smt"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -18,9 +16,11 @@ import (
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
+	"github.com/ledgerwatch/erigon/eth/stagedsync/stages"
 	"github.com/ledgerwatch/erigon/zk/datastream/server"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
 	"github.com/ledgerwatch/erigon/zk/legacy_executor_verifier/proto/github.com/0xPolygonHermez/zkevm-node/state/runtime/executor"
+	"github.com/ledgerwatch/erigon/zk/smt"
 	"github.com/ledgerwatch/erigon/zk/utils"
 	"github.com/ledgerwatch/log/v3"
 )
@@ -118,7 +118,6 @@ type WitnessGenerator interface {
 
 type LegacyExecutorVerifier struct {
 	db                     kv.RwDB
-	dbsmt                  kv.RwDB
 	cfg                    ethconfig.Zk
 	executors              []*Executor
 	executorNumber         int
@@ -130,6 +129,8 @@ type LegacyExecutorVerifier struct {
 	promises    []*Promise[*VerifierBundle]
 	mtxPromises *sync.Mutex
 
+	// For X Layer, split db and ac
+	dbsmt kv.RwDB
 	cache *smt.SmtCache
 }
 
@@ -143,7 +144,6 @@ func NewLegacyExecutorVerifier(
 ) *LegacyExecutorVerifier {
 	return &LegacyExecutorVerifier{
 		db:                     db,
-		dbsmt:                  dbsmt,
 		cfg:                    cfg,
 		executors:              executors,
 		executorNumber:         0,
@@ -152,11 +152,9 @@ func NewLegacyExecutorVerifier(
 		WitnessGenerator:       witnessGenerator,
 		promises:               make([]*Promise[*VerifierBundle], 0),
 		mtxPromises:            &sync.Mutex{},
+		// For X Layer, split db and ac
+		dbsmt: dbsmt,
 	}
-}
-
-func (v *LegacyExecutorVerifier) SetSmtCache(cache *smt.SmtCache) {
-	v.cache = cache
 }
 
 func (v *LegacyExecutorVerifier) StartAsyncVerification(
@@ -258,6 +256,7 @@ func (v *LegacyExecutorVerifier) VerifyAsync(request *VerifierRequest) *Promise[
 			return verifierBundle, err
 		}
 
+		// For X Layer, split db and ac
 		var txsmt kv.Tx = nil
 		if v.dbsmt != nil {
 			txsmt, err = v.dbsmt.BeginRo(innerCtx)
@@ -374,6 +373,7 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 		}
 		defer tx.Rollback()
 
+		// For X Layer, split db and ac
 		var txsmt kv.Tx = nil
 		if v.dbsmt != nil {
 			txsmt, err = v.dbsmt.BeginRo(innerCtx)
@@ -391,6 +391,7 @@ func (v *LegacyExecutorVerifier) VerifyWithMockExecutor(request *VerifierRequest
 			return verifierBundle, err
 		}
 
+		// For X Layer, split db and ac
 		latestBlock, err := stages.GetStageProgress(tx, stages.Execution)
 		if err != nil {
 			return nil, err
@@ -632,11 +633,4 @@ func filterTransactionByIndexes(
 	}
 
 	return filteredTransactions
-}
-
-func minUint64(a, b uint64) uint64 {
-	if a <= b {
-		return a
-	}
-	return b
 }

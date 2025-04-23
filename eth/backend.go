@@ -1209,6 +1209,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 				}
 			}
 
+			// For X Layer, split db
 			backend.verifier = legacy_executor_verifier.NewLegacyExecutorVerifier(
 				*cfg.Zk,
 				legacyExecutors,
@@ -1317,6 +1318,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 }
 
 func createBuckets(tx kv.RwTx) error {
+	// For X Layer, split db
 	return hermez_db.CreateHermezBuckets(tx)
 }
 
@@ -1370,6 +1372,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	var err error
 
 	s.stagedSync = stagedsync.New(s.config.Sync, s.syncStages, s.syncUnwindOrder, s.syncPruneOrder, s.logger)
+	// For X Layer, ac
 	if s.verifier != nil {
 		s.verifier.SetSmtCache(s.stagedSync.GetCache())
 	}
@@ -1417,6 +1420,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	}
 
 	var gpCache *jsonrpc.GasPriceCache
+	// For X Layer, split db
 	s.apiList, gpCache = jsonrpc.APIList(chainKv, s.smtDB, ethRpcClient, txPoolRpcClient, s.txPool2, miningRpcClient, ff, stateCache, blockReader, s.agg, &httpRpcCfg, s.engine, config, s.l1Syncer, s.logger, dataStreamServer, s.gasTracker, s.stagedSync.GetCache())
 
 	// For X Layer
@@ -1456,6 +1460,7 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	}
 
 	if chainConfig.Bor == nil {
+		// For X Layer, split db
 		go s.engineBackendRPC.Start(ctx, &httpRpcCfg, s.chainDB, s.smtDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient, s.gasTracker)
 	}
 
@@ -1990,11 +1995,13 @@ func (s *Ethereum) Start() error {
 		if s.config.DebugNoSync {
 			return nil
 		}
+		// For X Layer, split db
 		smtdb := s.smtDB
 		if s.smtDB == nil {
 			smtdb = s.chainDB
 		}
 		go stages2.AsyncFlushSmtData(s.smtFlushCtx, smtdb, s.stagedSync, s.config.Zk.XLayer, s.logger, s.smtFlushDoneCh)
+
 		go stages2.StageLoop(s.sentryCtx, s.chainDB, s.stagedSync, s.sentriesClient.Hd, s.waitForStageLoopStop, s.config.Sync.LoopThrottle, s.logger, s.blockReader, hook, s.config.ForcePartialCommit)
 	}
 
@@ -2072,6 +2079,7 @@ func (s *Ethereum) Stop() error {
 		s.agg.Close()
 	}
 
+	// For X Layer, ac
 	if sequencer.IsSequencer() && s.config.Zk.XLayer.EnableAsyncCommit {
 		s.logger.Info("Stopping SMT flush service...")
 		s.smtFlushCancel()

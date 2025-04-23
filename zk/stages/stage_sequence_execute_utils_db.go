@@ -5,7 +5,6 @@ import (
 
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon/core/state"
-	"github.com/ledgerwatch/erigon/eth/stagedsync"
 	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 	smtNs "github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
@@ -13,17 +12,18 @@ import (
 )
 
 type stageDb struct {
-	ctx   context.Context
-	db    kv.RwDB
-	dbsmt kv.RwDB
+	ctx context.Context
+	db  kv.RwDB
 
 	tx          kv.RwTx
-	txsmt       kv.Tx
 	hermezDb    *hermez_db.HermezDb
 	eridb       smtNs.DB
 	stateReader *state.PlainStateReader
 	smt         *smtNs.SMT
 
+	// For X Layer, split db and ac
+	dbsmt     kv.RwDB
+	txsmt     kv.Tx
 	supportAC bool
 }
 
@@ -34,6 +34,7 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 		return nil, err
 	}
 
+	// For X Layer, split db and ac
 	sdb = &stageDb{
 		supportAC: supportAC,
 		ctx:       ctx,
@@ -83,6 +84,7 @@ func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.Tx, eridb smtNs.DB) {
 	sdb.hermezDb = hermez_db.NewHermezDb(tx)
 	sdb.stateReader = state.NewPlainStateReader(tx)
 
+	// For X Layer, split db and ac
 	sdb.txsmt = txsmt
 	sdb.eridb = eridb
 	sdb.smt = smtNs.NewSMT(sdb.eridb, false)
@@ -90,6 +92,7 @@ func (sdb *stageDb) SetTx(tx kv.RwTx, txsmt kv.Tx, eridb smtNs.DB) {
 
 func (sdb *stageDb) CommitAndStart() (err error) {
 	if err = sdb.tx.Commit(); err != nil {
+		// For X Layer, split db and ac
 		if !sdb.supportAC && sdb.dbsmt != nil {
 			sdb.txsmt.Rollback()
 		}
@@ -101,6 +104,7 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 		return err
 	}
 
+	// For X Layer, split db and ac
 	if !sdb.supportAC {
 		// Support Sync IO，so need to create read-write transaction
 		if sdb.dbsmt != nil {
@@ -134,33 +138,4 @@ func (sdb *stageDb) CommitAndStart() (err error) {
 	}
 
 	return nil
-}
-
-func (sdb *stageDb) Commit(s *stagedsync.StageState, blockNumber uint64, flushSmt bool) error {
-	if sdb.supportAC && flushSmt {
-		blockCache := sdb.eridb.RetriveAndCleanCache()
-		s.SetSmtCache(blockNumber, blockCache)
-	}
-
-	err := sdb.tx.Commit()
-	if err != nil {
-		if sdb.dbsmt != nil {
-			sdb.txsmt.Rollback()
-			// TODO: should we clear the cache?
-		}
-		return err
-	}
-
-	if !sdb.supportAC && sdb.dbsmt != nil {
-		return sdb.txsmt.Commit()
-	} else {
-		return nil
-	}
-}
-
-func (sdb *stageDb) Rollback() {
-	sdb.tx.Rollback()
-	if sdb.txsmt != nil {
-		sdb.txsmt.Rollback()
-	}
 }
