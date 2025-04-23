@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"math/bits"
 	"strconv"
@@ -980,19 +979,15 @@ func HashContractBytecode(bc string) string {
 }
 
 func HashContractBytecodeBigInt(bc string) *big.Int {
-	// Use a strings.Builder for efficient string concatenation
+	// Initialize string builder with estimated capacity
 	var builder strings.Builder
-
-	// Initialize with appropriate capacity to minimize reallocations
-	builder.Grow(len(bc) + 64) // Extra space for padding
+	builder.Grow(len(bc) + 64)
 
 	// Handle 0x prefix
-	bytecode := bc
 	if strings.HasPrefix(bc, "0x") {
-		bytecode = bc[2:]
-		builder.WriteString(bytecode)
+		builder.WriteString(bc[2:])
 	} else {
-		builder.WriteString(bytecode)
+		builder.WriteString(bc)
 	}
 
 	// Pad with leading zero if odd length
@@ -1000,10 +995,10 @@ func HashContractBytecodeBigInt(bc string) *big.Int {
 		builder.WriteByte('0')
 	}
 
-	// Append "01"
+	// Append fixed suffix
 	builder.WriteString("01")
 
-	// Pad with "00" until length is multiple of 112 (56*2)
+	// Pad until length is multiple of 112 bytes (56*2)
 	for builder.Len()%(56*2) != 0 {
 		builder.WriteString("00")
 	}
@@ -1014,54 +1009,69 @@ func HashContractBytecodeBigInt(bc string) *big.Int {
 	builder.Reset()
 	builder.WriteString(byteStr[:len(byteStr)-2])
 	fmt.Fprintf(&builder, "%02x", lastByteInt|0x80)
-	bytecode = builder.String()
+	bytecode := builder.String()
 
-	numBytes := float64(len(bytecode)) / 2
-	numHashes := int(math.Ceil(numBytes / (BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT)))
+	// Calculate number of hash operations needed
+	numBytes := len(bytecode) / 2
+	numHashes := (numBytes + BYTECODE_ELEMENTS_HASH*BYTECODE_BYTES_ELEMENT - 1) /
+		(BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT)
 
+	// Initialize hash state and buffers
 	tmpHash := [4]uint64{0, 0, 0, 0}
 	bytesPointer := 0
 	maxBytesToAdd := BYTECODE_ELEMENTS_HASH * BYTECODE_BYTES_ELEMENT
 
-	// Pre-allocate slices to avoid repeated allocations
-	elementsToHash := make([]uint64, 0, 12)                   // 4 (capacity) + 8 (in)
-	tmpElemBytes := make([]byte, 0, BYTECODE_BYTES_ELEMENT*2) // Buffer for building elements
+	// Pre-allocate all buffers
+	elementsToHash := make([]uint64, 4, 12) // 4 (capacity) + 8 (in)
+	tmpElemBuf := make([]byte, 0, BYTECODE_BYTES_ELEMENT*2)
 	var in [8]uint64
 	var capacity [4]uint64
 	scalar := new(big.Int)
-	tmpScalar := new(big.Int)
 
 	for i := 0; i < numHashes; i++ {
-		// Reset slices while preserving capacity
+		// Reset buffers while preserving capacity
 		elementsToHash = elementsToHash[:4]
 		copy(elementsToHash, tmpHash[:])
-		tmpElemBytes = tmpElemBytes[:0]
+		tmpElemBuf = tmpElemBuf[:0]
 
-		subsetBytecode := bytecode[bytesPointer : bytesPointer+maxBytesToAdd*2]
-		bytesPointer += maxBytesToAdd * 2
+		// Get current bytecode segment
+		end := bytesPointer + maxBytesToAdd*2
+		if end > len(bytecode) {
+			end = len(bytecode)
+		}
+		subsetBytecode := bytecode[bytesPointer:end]
+		bytesPointer = end
 
+		// Process bytes in reverse order
 		counter := 0
+		elemPos := BYTECODE_BYTES_ELEMENT*2 - 2 // Start from end
+
 		for j := 0; j < maxBytesToAdd; j++ {
-			// Get current byte (or "00" if beyond input)
-			var byteToAdd string
-			if j < len(subsetBytecode)/2 {
-				byteToAdd = subsetBytecode[j*2 : (j+1)*2]
-			} else {
-				byteToAdd = "00"
+			// Get current byte pair
+			var b1, b2 byte = '0', '0'
+			if j*2+1 < len(subsetBytecode) {
+				b1, b2 = subsetBytecode[j*2], subsetBytecode[j*2+1]
 			}
 
-			// Prepend bytes (store in reverse order)
-			tmpElemBytes = append([]byte(byteToAdd), tmpElemBytes...)
+			// Manually prepend bytes
+			if cap(tmpElemBuf) >= elemPos+2 {
+				tmpElemBuf = tmpElemBuf[:len(tmpElemBuf)+2]
+				copy(tmpElemBuf[2:], tmpElemBuf)
+				tmpElemBuf[0], tmpElemBuf[1] = b1, b2
+			}
+
+			elemPos -= 2
 			counter++
 
+			// When collected a full element
 			if counter == BYTECODE_BYTES_ELEMENT {
-				// Convert to scalar
-				tmpScalar, _ = scalar.SetString(string(tmpElemBytes), 16)
-				elementsToHash = append(elementsToHash, tmpScalar.Uint64())
+				scalar.SetString(string(tmpElemBuf), 16)
+				elementsToHash = append(elementsToHash, scalar.Uint64())
 
 				// Reset for next element
-				tmpElemBytes = tmpElemBytes[:0]
+				elemPos = BYTECODE_BYTES_ELEMENT*2 - 2
 				counter = 0
+				tmpElemBuf = tmpElemBuf[:0]
 			}
 		}
 
