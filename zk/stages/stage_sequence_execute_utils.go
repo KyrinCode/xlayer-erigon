@@ -100,6 +100,7 @@ type SequenceBlockCfg struct {
 
 func StageSequenceBlocksCfg(
 	db kv.RwDB,
+	dbsmt kv.RwDB,
 	pm prune.Mode,
 	batchSize datasize.ByteSize,
 	changeSetHook stagedsync.ChangeSetHook,
@@ -126,9 +127,6 @@ func StageSequenceBlocksCfg(
 	yieldSize uint16,
 	infoTreeUpdater *l1infotree.Updater,
 	doneHook DoneHook,
-
-	// For X Layer, split db and ac
-	dbsmt kv.RwDB,
 ) SequenceBlockCfg {
 
 	return SequenceBlockCfg{
@@ -459,8 +457,6 @@ func tryHaltSequencer(batchContext *BatchContext, batchState *BatchState, stream
 		for {
 			if pending, count := batchContext.cfg.legacyVerifier.HasPendingVerifications(); pending {
 				log.Info(fmt.Sprintf("[%s] Waiting for pending verifications to complete before halting sequencer...", batchContext.s.LogPrefix()), "count", count)
-				time.Sleep(2 * time.Second)
-				// For X Layer, split db and ac
 				needsUnwind, err := updateStreamAndCheckRollback(batchContext, batchState, streamWriter, u, s)
 				if needsUnwind || err != nil {
 					return needsUnwind, false, err
