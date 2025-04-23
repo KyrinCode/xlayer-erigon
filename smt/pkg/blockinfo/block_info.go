@@ -38,6 +38,7 @@ func BuildBlockInfoTree(
 ) (*common.Hash, error) {
 	// For X Layer, optimize the block info tree generation
 	if !initBlockInfoTreeConcurrent {
+		// For X Layer, this is the old implementation
 		return BuildBlockInfoTreeSerial(coinbase, blockNumber, blockTime, blockGasLimit, blockGasUsed, ger, l1BlockHash, previousStateRoot, transactionInfos)
 	}
 

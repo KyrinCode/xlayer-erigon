@@ -63,6 +63,7 @@ func CreateEriDbBuckets(tx kv.RwTx) error {
 }
 
 func NewEriDb(txsmt kv.RwTx, txcdb kv.RwTx) *EriDb {
+	// For X Layer, split db and ac
 	var tx kv.RwTx = txsmt
 	if tx == nil {
 		tx = txcdb
@@ -76,6 +77,7 @@ func NewEriDb(txsmt kv.RwTx, txcdb kv.RwTx) *EriDb {
 }
 
 func NewRoEriDb(txsmt, txcdb kv.Getter) *EriRoDb {
+	// For X Layer, split db and ac
 	var tx kv.Getter = txsmt
 	if tx == nil {
 		tx = txcdb

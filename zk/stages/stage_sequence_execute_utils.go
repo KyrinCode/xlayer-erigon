@@ -329,6 +329,7 @@ func prepareL1AndInfoTreeRelatedStuff(sdb *stageDb, batchState *BatchState, prop
 			if batchState.resequenceBatchJob.AtNewBlockBoundary() {
 				l1TreeUpdateIndex = uint64(batchState.resequenceBatchJob.CurrentBlock().L1InfoTreeIndex)
 			}
+			// For X Layer, fix mismatch issue
 			if infoTreeIndexProgress >= l1TreeUpdateIndex {
 				shouldWriteGerToContract = false
 			}

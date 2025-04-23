@@ -43,6 +43,7 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 	}
 
 	if supportAC {
+		// For X Layer, split db and ac
 		// Support Async IO, only need to create read-only transaction
 		var txsmt kv.Tx = nil
 		if dbsmt != nil {
@@ -59,6 +60,7 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 			sdb.SetTx(tx, tx, eridb)
 		}
 	} else {
+		// For X Layer, split db and ac
 		// Support Sync IO，so need to create read-write transaction
 		var txsmt kv.RwTx = nil
 		if dbsmt != nil {

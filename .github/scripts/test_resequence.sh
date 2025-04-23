@@ -8,14 +8,14 @@ get_latest_l2_batch() {
 
     local latest_batch
     latest_batch=$(cast rpc zkevm_batchNumberByBlockNumber "$latest_block" --rpc-url "$(kurtosis port print cdk-v1 cdk-erigon-sequencer-001 rpc)" | sed 's/^"//;s/"$//')
-
+    
     if [[ -z "$latest_batch" ]]; then
         echo "Error: Failed to get latest batch number" >&2
         return 1
     fi
-
+    
     latest_batch_dec=$((latest_batch))
-
+    
     echo "$latest_batch_dec"
 }
 

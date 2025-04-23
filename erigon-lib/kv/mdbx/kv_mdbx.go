@@ -435,10 +435,8 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 		MaxBatchDelay: DefaultMaxBatchDelay,
 	}
 
-	// For X Layer, split db
+	// For X Layer, SMT db has all chaindata tables deprecated
 	var customBuckets kv.TableCfg
-
-	// SMT db has all chaindata tables deprecated
 	if opts.label == kv.SmtDB {
 		customBuckets = kv.TableCfg{}
 		for name, cfg := range kv.ChaindataTablesCfg {

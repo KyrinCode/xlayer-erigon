@@ -110,6 +110,7 @@ func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg 
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
+	// For X Layer, optimize extractTransactionsFromSlot
 	// Start workers
 	for i := 0; i < numWorkers; i++ {
 		go func() {
@@ -165,6 +166,7 @@ func extractTransactionsFromSlot(slot *types2.TxsRlp, currentHeight uint64, cfg 
 		}
 	}
 
+	// For X Layer, optimize extractTransactionsFromSlot
 	// Build ordered results
 	transactions := make([]types.Transaction, 0, validCount)
 	ids := make([]common.Hash, 0, validCount)

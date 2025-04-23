@@ -139,6 +139,7 @@ func unwindZk(ctx context.Context, db, dbsmt kv.RwDB) error {
 		return err
 	}
 
+	// For X Layer, split db
 	err = stateStages.RunUnwind(db, wrap.TxContainer{Tx: tx, TxSmt: txsmt})
 	if err != nil {
 		return err

@@ -20,6 +20,8 @@ import (
 	"fmt"
 )
 
+var ChaindataTables []string
+
 func InitStandaloneSMT(standalone bool) {
 	fmt.Printf("[erigon-lib/kv/tables.go] InitStandaloneSMT(%v) called\n", standalone)
 	if standalone {

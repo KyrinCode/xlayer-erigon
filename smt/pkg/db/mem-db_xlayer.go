@@ -14,3 +14,9 @@ func (m *MemDb) SetLastHeight(value uint64) error {
 	m.LastHeight = value
 	return nil
 }
+
+func (m *MemDb) SetCache(map[string]map[string][]byte) {}
+
+func (m *MemDb) RetriveAndCleanCache() map[string]map[string][]byte {
+	return nil
+}

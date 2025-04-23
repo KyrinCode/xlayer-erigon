@@ -46,6 +46,8 @@ FROM docker.io/library/alpine:3.17
 # install required runtime libs, along with some helpers for debugging
 RUN apk add --no-cache ca-certificates libstdc++ tzdata
 RUN apk add --no-cache curl jq bind-tools
+
+# For X Layer, add vmtouch
 RUN apk add --no-cache perl perl-utils
 RUN apk add --no-cache build-base git && \
     git clone https://github.com/hoytech/vmtouch.git && \

@@ -583,10 +583,11 @@ var (
 	StatesProcessingKey = []byte("StatesProcessing")
 )
 
+// For X Layer, split db
 // ChaindataTables - list of all buckets. App will panic if some bucket is not in this list.
 // This list will be sorted in `init` method.
 // ChaindataTablesCfg - can be used to find index in sorted version of ChaindataTables list by name
-var ChaindataTablesInitial = []string{ // For X Layer, split db
+var ChaindataTablesInitial = []string{
 	E2AccountsHistory,
 	E2StorageHistory,
 	Code,
@@ -787,8 +788,6 @@ var ChaindataTablesInitial = []string{ // For X Layer, split db
 	BAD_TX_HASHES,
 }
 
-var ChaindataTables []string
-
 const (
 	RecentLocalTransaction = "RecentLocalTransaction" // sequence_u64 -> tx_hash
 	PoolTransaction        = "PoolTransaction"        // txHash -> sender+tx_rlp
@@ -829,12 +828,14 @@ var TablesSmt = []string{
 	tableHashKey,
 }
 
+// For X Layer, split db
 // ChaindataDeprecatedTables - list of buckets which can be programmatically deleted - for example after migration
 var ChaindataDeprecatedTablesInitial = []string{
 	Clique,
 	TransitionBlockKey,
 }
 
+// For X Layer, split db
 var ChaindataDeprecatedTables []string
 
 var DiagnosticsTables = []string{

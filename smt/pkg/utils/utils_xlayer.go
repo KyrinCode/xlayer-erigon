@@ -98,6 +98,53 @@ func arrayToScalarBigSlow(array []*big.Int) *big.Int {
 	return scalar
 }
 
+func scalarToRootSlow(s *big.Int) NodeKey {
+	var result [4]uint64
+	divisor := new(big.Int).Exp(big.NewInt(2), big.NewInt(64), nil)
+
+	sCopy := new(big.Int).Set(s)
+
+	for i := 0; i < 4; i++ {
+		mod := new(big.Int).Mod(sCopy, divisor)
+		result[i] = mod.Uint64()
+		sCopy.Div(sCopy, divisor)
+	}
+	return result
+}
+
+// fast path for 64-bit systems
+func scalarToNodeValueFast(scalarIn *big.Int, out *[12]*big.Int) bool {
+	if bits.UintSize != 64 || scalarIn.Sign() < 0 {
+		return false
+	}
+
+	outData := [12]big.Int{}
+	words := scalarIn.Bits()
+	outDataBits := make([][1]big.Word, len(words))
+	for i := 0; i < 12; i++ {
+		if i < len(words) {
+			outDataBits[i][0] = words[i]
+			out[i] = (&outData[i]).SetBits(outDataBits[i][:])
+		} else {
+			out[i] = &outData[i]
+		}
+	}
+	return true
+}
+
+func scalarToNodeValueSlow(scalarIn *big.Int) NodeValue12 {
+	out := [12]*big.Int{}
+	mask := new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
+	scalar := new(big.Int).Set(scalarIn)
+
+	for i := 0; i < 12; i++ {
+		value := new(big.Int).And(scalar, mask)
+		out[i] = value
+		scalar.Rsh(scalar, 64)
+	}
+	return out
+}
+
 func ConvertUint64ToBytes(n uint64) []byte {
 	bytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(bytes, n)

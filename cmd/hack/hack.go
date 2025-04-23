@@ -68,13 +68,13 @@ var (
 	blockTotal = flag.Int("blocktotal", 1, "specifies a total amount of blocks to process (will offset from head block if <= 0)")
 	account    = flag.String("account", "0x", "specifies account to investigate")
 	name       = flag.String("name", "", "name to add to the file names")
-	pathSmtDb  = flag.String("smt-db-path", "smt", "path to the standalone SMT database file")
+	chaindata  = flag.String("chaindata", "chaindata", "path to the chaindata database file")
 	bucket     = flag.String("bucket", "", "bucket in the database")
 	hash       = flag.String("hash", "0x00", "image for preimage or state root for testBlockHashes action")
 	output     = flag.String("output", "", "output path")
 
 	// For X Layer, split db
-	chaindata       = flag.String("chaindata", "chaindata", "path to the chaindata database file")
+	pathSmtDb       = flag.String("smt-db-path", "smt", "path to the standalone SMT database file")
 	standaloneSmtDb = flag.Bool("standalone-smt-db", false, "specifies if the SMT DB is separate from the ChainDB")
 )
 

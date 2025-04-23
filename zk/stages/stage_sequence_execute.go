@@ -101,6 +101,7 @@ func SpawnSequencingStage(
 	metrics.GetLogStatistics().CumulativeTiming(metrics.FlushSmtCacheWait, time.Since(startWaitTime))
 
 	if err = sequencingBatchStep(s, u, ctx, cfg, historyCfg, nil); err == nil {
+		// For X Layer, split db and ac
 		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
@@ -112,6 +113,7 @@ func SpawnSequencingStage(
 			_ = s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase, false)
 		}()
 	} else {
+		// For X Layer, split db and ac
 		if !cfg.zk.XLayer.EnableAsyncCommit {
 			return err
 		}
@@ -156,6 +158,7 @@ func sequencingBatchStep(
 	defer sdb.Rollback()
 
 	if sdb.supportAC {
+		// For X Layer, split db and ac
 		sdb.eridb.SetCache(s.GetSmtCache())
 	}
 
