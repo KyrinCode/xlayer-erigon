@@ -161,7 +161,7 @@ type Ethereum struct {
 
 	// DB interfaces
 	chainDB    kv.RwDB
-	smtDB      kv.RwDB
+	smtDB      kv.RwDB // For X Layer, split db
 	privateAPI *grpc.Server
 
 	engine consensus.Engine
@@ -193,12 +193,7 @@ type Ethereum struct {
 	sentriesClient *sentry_multi_client.MultiClient
 	sentryServers  []*sentry.GrpcServer
 
-	smtFlushCtx    context.Context
-	smtFlushCancel context.CancelFunc
-	smtFlushDoneCh chan struct{}
-
 	stagedSync         *stagedsync.Sync
-	verifier           *legacy_executor_verifier.LegacyExecutorVerifier
 	pipelineStagedSync *stagedsync.Sync
 	syncStages         []*stagedsync.Stage
 	syncUnwindOrder    stagedsync.UnwindOrder
@@ -246,6 +241,12 @@ type Ethereum struct {
 	polygonSyncService polygonsync.Service
 	stopNode           func() error
 	gasTracker         *jsonrpc.RecurringL1GasPriceTracker
+
+	// For X Layer, split db
+	smtFlushCtx    context.Context
+	smtFlushCancel context.CancelFunc
+	smtFlushDoneCh chan struct{}
+	verifier       *legacy_executor_verifier.LegacyExecutorVerifier
 }
 
 func splitAddrIntoHostAndPort(addr string) (host string, port int, err error) {
@@ -277,7 +278,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 
 	// Assemble the Ethereum object
 
-	// call InitStandaloneSMT before openning the DB
+	// For X Layer, call InitStandaloneSMT before openning the DB
 	kv.InitStandaloneSMT(config.XLayer.StandaloneSMTDatabase)
 	chainKv, err := node.OpenDatabase(ctx, stack.Config(), kv.ChainDB, "", false, config.XLayer.StandaloneSMTDatabase, logger)
 	if err != nil {
@@ -305,7 +306,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		return nil, errors.New("seems you using erigon2 git branch on erigon3 DB")
 	}
 
-	// SMT DB
+	// For X Layer, split db
 	var smtdb kv.RwDB = chainKv
 	if config.XLayer.StandaloneSMTDatabase {
 		log.Info("Opening standalone SMT database (smt folder).")
@@ -338,18 +339,15 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
+	// For X Layer, split db
 	smtFlushCtx, smtFlushCancel := context.WithCancel(context.Background())
 
 	// kv_remote architecture does blocks on stream.Send - means current architecture require unlimited amount of txs to provide good throughput
 	backend := &Ethereum{
 		sentryCtx:            ctx,
 		sentryCancel:         ctxCancel,
-		smtFlushCtx:          smtFlushCtx,
-		smtFlushCancel:       smtFlushCancel,
-		smtFlushDoneCh:       make(chan struct{}),
 		config:               config,
 		chainDB:              chainKv,
-		smtDB:                smtdb,
 		networkID:            config.NetworkID,
 		etherbase:            config.Miner.Etherbase,
 		waitForStageLoopStop: make(chan struct{}),
@@ -363,6 +361,10 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		stopNode: func() error {
 			return stack.Close()
 		},
+		smtDB:          smtdb,
+		smtFlushCtx:    smtFlushCtx,
+		smtFlushCancel: smtFlushCancel,
+		smtFlushDoneCh: make(chan struct{}),
 	}
 
 	var chainConfig *chain.Config

@@ -141,6 +141,8 @@ COMMANDS += verkle
 COMMANDS += evm
 COMMANDS += sentinel
 COMMANDS += acl
+
+# For X Layer, split db
 COMMANDS += smt-db-split
 
 # build each command using %.cmd rule
@@ -163,6 +165,7 @@ db-tools:
 ## test-unwind:                       run the unwind tests
 test-unwind:
 	make cdk-erigon
+	# For X Layer, split db
 	./zk/tests/unwinds/unwind.sh default
 	./zk/tests/unwinds/unwind.sh ac-split
 
