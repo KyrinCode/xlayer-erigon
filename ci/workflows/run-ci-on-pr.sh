@@ -7,7 +7,8 @@ tasks["build"]="make cdk-erigon"
 tasks["tests"]="make -B test"
 tasks["lint"]="cd ./docs/endpoints && make check-doc"
 tasks["check_chinese_characters"]="./.github/scripts/check_chinese_characters.sh"
-tasks["unwind"]="make test-unwind"
+tasks["unwind-default"]="make test-unwind-default"
+tasks["unwind-ac-split"]="make test-unwind-ac-split"
 
 # Tasks that require Docker-in-Docker
 declare -A tasks_dind
@@ -16,7 +17,10 @@ tasks_dind["kurtosis-cdk-post-london"]="./.github/scripts/run_kurtosis_cdk_post_
 #tasks_dind["data_loss"]="cd ./test && make test-data-loss"
 #tasks_dind["test-e2e"]="cd test && make test-e2e"
 #tasks_dind["test-executor"]="./.github/scripts/update_config.sh && cd test && make test-executor"
+#tasks_dind["resequence-default"]="./.github/scripts/test_resequence.sh default"
+#tasks_dind["resequence-ac-split"]="./.github/scripts/test_resequence.sh ac-split"
 
+declare -A task_pid
 declare -A task_status
 
 # Colors for output
@@ -56,7 +60,11 @@ for task in "${!tasks[@]}"; do
     echo "Running task: $task"
     CMD="${BASE_CMD} sh -c \"${tasks[$task]}\""
     echo "Command: $CMD"
-    eval $CMD > $LOGSDIR/logs-$task.log 2>&1
+    eval $CMD > $LOGSDIR/logs-$task.log 2>&1 &
+    task_pid[$task]=$!
+done
+for task in "${!tasks[@]}"; do
+    wait ${task_pid[$task]}
     if [ $? -ne 0 ]; then
         echo -e "${NC}Task $task ${RED}failed${NC}."
         task_status[$task]="failed"
@@ -65,6 +73,18 @@ for task in "${!tasks[@]}"; do
         task_status[$task]="succeeded"
     fi
 done
+
+# Summary
+echo ""
+for task in "${!tasks_status[@]}"; do
+    if [ "${task_status[$task]}" == "failed" ]; then
+        echo -e "${NC}$task ${RED}failed${NC}"
+    else
+        echo -e "${NC}$task ${GREEN}succeeded${NC}"
+    fi
+done
+
+exit 1
 
 # DinD Docker command
 BASE_CMD="--privileged xlayer-erigon-ci:latest sh -c \"./.github/scripts/configure_kurtosis_cdk.sh && ./.github/scripts/setup_kurtosis_cdk.sh $DOCKER_REGISTRY_IP_PORT"
@@ -83,6 +103,16 @@ for task in "${!tasks_dind[@]}"; do
     else
         echo -e "${NC}Task $task ${GREEN}succeeded${NC}."
         task_status[$task]="succeeded"
+    fi
+done
+
+# Summary
+echo ""
+for task in "${!tasks_status[@]}"; do
+    if [ "${task_status[$task]}" == "failed" ]; then
+        echo -e "${NC}$task ${RED}failed${NC}"
+    else
+        echo -e "${NC}$task ${GREEN}succeeded${NC}"
     fi
 done
 
