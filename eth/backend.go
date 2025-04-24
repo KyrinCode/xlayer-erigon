@@ -242,7 +242,7 @@ type Ethereum struct {
 	stopNode           func() error
 	gasTracker         *jsonrpc.RecurringL1GasPriceTracker
 
-	// For X Layer, split db
+	// For X Layer, split db and ac
 	smtFlushCtx    context.Context
 	smtFlushCancel context.CancelFunc
 	smtFlushDoneCh chan struct{}
