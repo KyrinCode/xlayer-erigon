@@ -1,11 +1,12 @@
 package rocksdb
 
 import (
-	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/linxGnu/grocksdb"
 	"os"
 	"testing"
 
+	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
+	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -745,7 +746,7 @@ func TestRocksDbCursor_putNoOverwrite(t *testing.T) {
 
 	// key exist, value exist: return error
 	err = c.putNoOverwrite([]byte("key1"), []byte("value1.x"))
-	require.EqualError(t, err, ErrKeyExist.Error())
+	require.EqualError(t, err, common.ErrKeyExist.Error())
 	// even putNoOverwrite, but it change current
 	k, v, err = c.Current()
 	require.NoError(t, err)
@@ -754,7 +755,7 @@ func TestRocksDbCursor_putNoOverwrite(t *testing.T) {
 
 	// key exist, value not exist: return error
 	err = c.putNoOverwrite([]byte("key1"), []byte("value1.1xxx"))
-	require.EqualError(t, err, ErrKeyExist.Error())
+	require.EqualError(t, err, common.ErrKeyExist.Error())
 
 	// key not exist, value not exist, return success
 	err = c.putNoOverwrite([]byte("key2"), []byte("value2.1"))
@@ -773,7 +774,7 @@ func TestRocksDBCursor_putCurrent(t *testing.T) {
 	csi, err := tx.RwCursor(kv.Sequence)
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
-	require.EqualError(t, cs.putCurrent([]byte("key0"), []byte("value0")), ErrInvalidIter.Error())
+	require.EqualError(t, cs.putCurrent([]byte("key0"), []byte("value0")), common.ErrInvalidIter.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -782,7 +783,7 @@ func TestRocksDBCursor_putCurrent(t *testing.T) {
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
 
-	require.EqualError(t, c.putCurrent([]byte("new1"), []byte("newvalue1")), ErrKeyMismatch.Error())
+	require.EqualError(t, c.putCurrent([]byte("new1"), []byte("newvalue1")), common.ErrKeyMismatch.Error())
 
 	require.NoError(t, c.putCurrent([]byte("key1"), []byte("newvalue1")))
 	k, v, err = c.Current()
@@ -834,7 +835,7 @@ func TestRocksDBCursor_getBothRange(t *testing.T) {
 	require.Equal(t, []byte("value1.3"), v)
 
 	v, err = c.getBothRange([]byte("key1"), []byte("x"))
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 	k, v, err = c.Current()
 	require.Error(t, err)
 }
@@ -918,7 +919,7 @@ func TestRocksDBCursor_setRange(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	k, v, err := cs.setRange([]byte("key1"))
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -951,7 +952,7 @@ func TestRocksDBCursor_set(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	k, v, err := cs.set([]byte("key1"))
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -992,12 +993,12 @@ func TestRocksDBCursor_putAppendDup(t *testing.T) {
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.3"), v)
 
-	require.EqualError(t, c.putAppendDup([]byte("key3"), []byte("append3.1")), ErrValueLeLatest.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key3"), []byte("append3.1")), common.ErrValueLeLatest.Error())
 	require.NoError(t, c.putAppendDup([]byte("key3"), []byte("xppend3.1")))
 
-	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("value1.1")), ErrValueLeLatest.Error())
-	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("value1.3")), ErrValueLeLatest.Error())
-	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("append1.2")), ErrValueLeLatest.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("value1.1")), common.ErrValueLeLatest.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("value1.3")), common.ErrValueLeLatest.Error())
+	require.EqualError(t, c.putAppendDup([]byte("key1"), []byte("append1.2")), common.ErrValueLeLatest.Error())
 	require.NoError(t, c.putAppendDup([]byte("key1"), []byte("value1.4")))
 
 	require.NoError(t, c.putAppendDup([]byte("key2"), []byte("append2.1")))
@@ -1053,7 +1054,7 @@ func TestRocksDBCursor_putAppend(t *testing.T) {
 	require.Equal(t, []byte("value0.1"), v)
 
 	err = c.putAppend([]byte("key1"), []byte("value1.1"))
-	require.EqualError(t, err, ErrKeyMismatch.Error())
+	require.EqualError(t, err, common.ErrKeyMismatch.Error())
 
 	k, v, err = c.Current()
 	require.NoError(t, err)
@@ -1061,16 +1062,16 @@ func TestRocksDBCursor_putAppend(t *testing.T) {
 	require.Equal(t, []byte("value3.3"), v)
 
 	err = c.putAppend([]byte("key3"), []byte("value3.4"))
-	require.EqualError(t, err, ErrKeyMismatch.Error())
+	require.EqualError(t, err, common.ErrKeyMismatch.Error())
 	err = c.putAppend([]byte("key4"), []byte("value4.4"))
 	require.NoError(t, err)
 	err = c.putAppend([]byte("key4"), []byte("value4.5"))
-	require.EqualError(t, err, ErrKeyMismatch.Error())
+	require.EqualError(t, err, common.ErrKeyMismatch.Error())
 
 	_, _, err = c.Seek([]byte("key1"))
 	require.NoError(t, err)
 	err = c.putAppend([]byte("key2"), []byte("value2.1"))
-	require.EqualError(t, err, ErrKeyMismatch.Error())
+	require.EqualError(t, err, common.ErrKeyMismatch.Error())
 
 	_, _, err = c.Last()
 	require.NoError(t, err)
@@ -1111,14 +1112,14 @@ func TestRocksDBCursor_delAllDupData(t *testing.T) {
 	csi, err := tx.RwCursor(kv.Sequence)
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
-	require.EqualError(t, cs.delAllDupData(), ErrInvalidIter.Error())
+	require.EqualError(t, cs.delAllDupData(), common.ErrInvalidIter.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.delAllDupData())
 
 	k, v, err := c.Current()
-	require.EqualError(t, err, ErrInvalidIter.Error())
+	require.EqualError(t, err, common.ErrInvalidIter.Error())
 
 	k, v, err = c.First()
 	require.NoError(t, err)
@@ -1172,13 +1173,13 @@ func TestRocksDBCursor_delCurrent(t *testing.T) {
 	csi, err := tx.RwCursor(kv.Sequence)
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
-	require.EqualError(t, cs.delCurrent(), ErrInvalidIter.Error())
+	require.EqualError(t, cs.delCurrent(), common.ErrInvalidIter.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
 	require.NoError(t, c.delCurrent())
 	k, v, err := c.Current()
-	require.EqualError(t, err, ErrInvalidIter.Error())
+	require.EqualError(t, err, common.ErrInvalidIter.Error())
 
 	k, v, err = c.First()
 	require.NoError(t, err)
@@ -1261,7 +1262,7 @@ func TestRocksDBCursor_lastDup(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	_, err = cs.lastDup()
-	require.EqualError(t, err, ErrInvalidIter.Error())
+	require.EqualError(t, err, common.ErrInvalidIter.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -1298,7 +1299,7 @@ func TestRocksDBCursor_firstDup(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	_, err = cs.firstDup()
-	require.EqualError(t, err, ErrInvalidIter.Error())
+	require.EqualError(t, err, common.ErrInvalidIter.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -1328,7 +1329,7 @@ func TestRocksDbCursor_nextDup(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	_, _, err = cs.nextDup()
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -1355,7 +1356,7 @@ func TestRocksDbCursor_prevDup(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	_, _, err = cs.prevDup()
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -1408,21 +1409,21 @@ func TestRocksDbCursor_getBoth(t *testing.T) {
 	require.NoError(t, err)
 
 	v, err = c.getBoth([]byte("key3"), []byte("v"))
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 	k, v, err = c.Current()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
 
 	v, err = c.getBoth([]byte("key1"), []byte("u"))
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 	k, v, err = c.Current()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
 
 	v, err = c.getBoth([]byte("key1"), []byte("value1.11"))
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 	k, v, err = c.Current()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
@@ -1454,7 +1455,7 @@ func TestRocksDbCursor_nextNoDup(t *testing.T) {
 	require.NoError(t, err)
 	cs := csi.(*RocksDbCursor)
 	_, _, err = cs.nextNoDup()
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	c := ci.(*RocksDbDupSortCursor)
 
@@ -1463,7 +1464,7 @@ func TestRocksDbCursor_nextNoDup(t *testing.T) {
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.3"), v)
 	_, _, err = c.nextNoDup()
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	k, v, err = c.First()
 	require.NoError(t, err)
@@ -1474,7 +1475,7 @@ func TestRocksDbCursor_nextNoDup(t *testing.T) {
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
 	_, _, err = c.nextNoDup()
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 
 	_, _, err = c.First()
 	require.NoError(t, err)
@@ -1486,7 +1487,7 @@ func TestRocksDbCursor_nextNoDup(t *testing.T) {
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
 	_, _, err = c.nextNoDup()
-	require.EqualError(t, err, ErrNotFound.Error())
+	require.EqualError(t, err, common.ErrNotFound.Error())
 }
 
 func TestRocksDbCursor_Put(t *testing.T) {
@@ -1818,8 +1819,8 @@ func TestRDB(t *testing.T) {
 	nextTestTable1, _ := kv.NextSubtree([]byte(testTable1))
 
 	ropts := grocksdb.NewDefaultReadOptions()
-	ropts.SetIterateLowerBound(mergeKey(testTable1, []byte{}))
-	ropts.SetIterateUpperBound(mergeKey(string(nextTestTable1), []byte{}))
+	ropts.SetIterateLowerBound(common.MergeKey(testTable1, []byte{}))
+	ropts.SetIterateUpperBound(common.MergeKey(string(nextTestTable1), []byte{}))
 	// ropts.SetTailing(false)
 	it := tx.NewIterator(ropts)
 
@@ -1835,11 +1836,11 @@ func TestRDB(t *testing.T) {
 	//require.Equal(t, []byte("key1"), k.Data())
 	//require.Equal(t, []byte("value1"), v.Data())
 
-	require.NoError(t, tx.Put(mergeKey(string(nextTestTable1), []byte("")), []byte("value next")))
+	require.NoError(t, tx.Put(common.MergeKey(string(nextTestTable1), []byte("")), []byte("value next")))
 	require.NoError(t, tx.Put([]byte("111"), []byte("value2")))
 
-	require.NoError(t, tx.Put(mergeKey(testTable1, []byte("key2")), []byte("value2")))
-	require.NoError(t, tx.Put(mergeKey(testTable1, []byte("key4")), []byte("value4")))
+	require.NoError(t, tx.Put(common.MergeKey(testTable1, []byte("key2")), []byte("value2")))
+	require.NoError(t, tx.Put(common.MergeKey(testTable1, []byte("key4")), []byte("value4")))
 
 	it.SeekToFirst()
 	require.True(t, it.Valid())
@@ -1848,7 +1849,7 @@ func TestRDB(t *testing.T) {
 	defer k.Free()
 	v := it.Value()
 	defer v.Free()
-	require.Equal(t, mergeKey(testTable1, []byte("key2")), k.Data())
+	require.Equal(t, common.MergeKey(testTable1, []byte("key2")), k.Data())
 	require.Equal(t, []byte("value2"), v.Data())
 	it.Next()
 	require.True(t, it.Valid())
@@ -1857,21 +1858,21 @@ func TestRDB(t *testing.T) {
 	defer k.Free()
 	v = it.Value()
 	defer v.Free()
-	require.Equal(t, mergeKey(testTable1, []byte("key4")), k.Data())
+	require.Equal(t, common.MergeKey(testTable1, []byte("key4")), k.Data())
 	require.Equal(t, []byte("value4"), v.Data())
 	it.Next()
 	require.False(t, it.Valid())
 
 	it = tx.NewIterator(ropts)
-	it.SeekForPrev(mergeKey(string(nextTestTable1), []byte{}))
+	it.SeekForPrev(common.MergeKey(string(nextTestTable1), []byte{}))
 	require.True(t, it.Valid())
-	table, key := splitKey(moveSliceToBytes(it.Key()))
+	table, key := common.SplitKey(common.MoveSliceToBytes(it.Key()))
 	if table != testTable1 {
 		it.Prev()
-		table, key = splitKey(moveSliceToBytes(it.Key()))
+		table, key = common.SplitKey(common.MoveSliceToBytes(it.Key()))
 	}
 	require.True(t, it.Valid())
-	value := moveSliceToBytes(it.Value())
+	value := common.MoveSliceToBytes(it.Value())
 	require.Equal(t, testTable1, table)
 	require.Equal(t, []byte("key4"), key)
 	require.Equal(t, []byte("value4"), value)
@@ -1879,7 +1880,7 @@ func TestRDB(t *testing.T) {
 	it = tx.NewIterator(ropts)
 	it.SeekToLast()
 	require.True(t, it.Valid())
-	table, key = splitKey(moveSliceToBytes(it.Key()))
+	table, key = common.SplitKey(common.MoveSliceToBytes(it.Key()))
 	require.Equal(t, testTable1, table)
 	require.Equal(t, []byte("key4"), key)
 	require.Equal(t, []byte("value4"), it.Value().Data())

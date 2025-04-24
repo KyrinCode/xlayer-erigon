@@ -3,6 +3,7 @@ package rocksdb
 import (
 	"errors"
 	"fmt"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 )
 
 type RocksDbDupSortCursor struct {
@@ -19,7 +20,7 @@ func (c *RocksDbDupSortCursor) DeleteExact(k1, k2 []byte) error {
 func (c *RocksDbDupSortCursor) SeekBothExact(key, value []byte) ([]byte, []byte, error) {
 	v, err := c.getBoth(key, value)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil, nil
 		}
 		return []byte{}, nil, fmt.Errorf("in SeekBothExact: %w", err)
@@ -31,7 +32,7 @@ func (c *RocksDbDupSortCursor) SeekBothExact(key, value []byte) ([]byte, []byte,
 func (c *RocksDbDupSortCursor) SeekBothRange(key, value []byte) ([]byte, error) {
 	v, err := c.getBothRange(key, value)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("in SeekBothRange, table=%s: %w", c.table, err)
@@ -43,7 +44,7 @@ func (c *RocksDbDupSortCursor) SeekBothRange(key, value []byte) ([]byte, error) 
 func (c *RocksDbDupSortCursor) FirstDup() ([]byte, error) {
 	v, err := c.firstDup()
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("in FirstDup: %w", err)
@@ -55,7 +56,7 @@ func (c *RocksDbDupSortCursor) FirstDup() ([]byte, error) {
 func (c *RocksDbDupSortCursor) NextDup() ([]byte, []byte, error) {
 	k, v, err := c.nextDup()
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil, nil
 		}
 		return []byte{}, nil, fmt.Errorf("in NextDup: %w", err)
@@ -67,7 +68,7 @@ func (c *RocksDbDupSortCursor) NextDup() ([]byte, []byte, error) {
 func (c *RocksDbDupSortCursor) NextNoDup() ([]byte, []byte, error) {
 	k, v, err := c.nextNoDup()
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil, nil
 		}
 		return []byte{}, nil, fmt.Errorf("in NextNoDup: %w", err)
@@ -78,7 +79,7 @@ func (c *RocksDbDupSortCursor) NextNoDup() ([]byte, []byte, error) {
 func (c *RocksDbDupSortCursor) PrevDup() ([]byte, []byte, error) {
 	k, v, err := c.prevDup()
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil, nil
 		}
 		return []byte{}, nil, fmt.Errorf("in PrevDup: %w", err)
@@ -93,7 +94,7 @@ func (c *RocksDbDupSortCursor) PrevNoDup() ([]byte, []byte, error) {
 func (c *RocksDbDupSortCursor) LastDup() ([]byte, error) {
 	v, err := c.lastDup()
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("in LastDup: %w", err)

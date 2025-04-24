@@ -13,6 +13,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/linxGnu/grocksdb"
 	"golang.org/x/sync/semaphore"
@@ -159,7 +160,7 @@ func openRocksDB(path string, rdbType rocksdb.RDBType, logger log.Logger) kv.RwD
 	return db
 }
 
-func writeDeduplicatedDirect(data map[string][]byte, dbPath string) {
+func writeDeduplicatedDirect(data map[string]*common.DBValue, dbPath string) {
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	defer opts.Destroy()
@@ -177,7 +178,7 @@ func writeDeduplicatedDirect(data map[string][]byte, dbPath string) {
 
 	batchCount := 0
 	for key, value := range data {
-		if err := tx.Put([]byte(key), value); err != nil {
+		if err := tx.Put([]byte(key), value.Serialize()); err != nil {
 			panic(err)
 		}
 

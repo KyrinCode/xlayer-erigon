@@ -2,6 +2,7 @@ package memrdb
 
 import (
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 	"github.com/linxGnu/grocksdb"
 )
 
@@ -13,11 +14,11 @@ func NewMemoryRTX(db *MemoryRDB) *MemoryRTX {
 	return &MemoryRTX{db: db}
 }
 
-func (rtx *MemoryRTX) Get(opts *grocksdb.ReadOptions, key []byte) ([]byte, error) {
+func (rtx *MemoryRTX) Get(opts *grocksdb.ReadOptions, key []byte) (*common.DBValue, error) {
 	return rtx.db.get(key)
 }
 
-func (rtx *MemoryRTX) Put(key, value []byte) error {
+func (rtx *MemoryRTX) Put(key []byte, value *common.DBValue) error {
 	// todo: should store data in MemoryRTX first
 	return rtx.db.put(key, value)
 }

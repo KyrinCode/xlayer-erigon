@@ -1,11 +1,9 @@
 package rdb
 
 import (
-	"errors"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 	"github.com/linxGnu/grocksdb"
 )
-
-var ErrKeyNotExist = errors.New("key not exists")
 
 type RDB interface {
 	TransactionBegin(opts *grocksdb.WriteOptions, transactionOpts *grocksdb.TransactionOptions, oldTransaction *grocksdb.Transaction) RDBTransaction
@@ -13,8 +11,8 @@ type RDB interface {
 }
 
 type RDBTransaction interface {
-	Get(opts *grocksdb.ReadOptions, key []byte) ([]byte, error)
-	Put(key, value []byte) error
+	Get(opts *grocksdb.ReadOptions, key []byte) (*common.DBValue, error)
+	Put(key []byte, value *common.DBValue) error
 	Delete(key []byte) error
 	Commit() error
 	Rollback() error
@@ -30,7 +28,7 @@ type RDBIterator interface {
 	Prev()
 	Seek(key []byte)
 	Key() []byte
-	Value() []byte
+	Value() *common.DBValue
 	Close()
 	Err() error
 }

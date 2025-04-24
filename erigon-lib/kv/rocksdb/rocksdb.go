@@ -9,6 +9,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/dbg"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/memrdb"
 	"github.com/ledgerwatch/log/v3"
 	"github.com/linxGnu/grocksdb"
@@ -73,7 +74,7 @@ func NewRocksDB(dbPath string, logger log.Logger, tablesCfg kv.TableCfg, label k
 	}, nil
 }
 
-func (db *RocksDB) GetMemStorage() map[string][]byte {
+func (db *RocksDB) GetMemStorage() map[string]*common.DBValue {
 	return db.db.(*memrdb.MemoryRDB).GetMemStorage()
 }
 

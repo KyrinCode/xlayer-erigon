@@ -1,4 +1,4 @@
-package rocksdb
+package common
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 
 type DBValueStamp struct {
 	index int
-	value []byte
+	Value []byte
 }
 
 type DBValue struct {
@@ -74,7 +74,7 @@ func (dbv *DBValue) Serialize() []byte {
 }
 
 func (dbv *DBValue) First() []byte {
-	return newDBValueIterator(dbv).First()
+	return NewDBValueIterator(dbv).First()
 }
 
 func (dbv *DBValue) SortedInsert(v []byte) {
@@ -88,7 +88,7 @@ func (dbv *DBValue) Replace(valueStamp DBValueStamp, newV []byte) {
 	if valueStamp.index < 0 || valueStamp.index >= len(dbv.values) {
 		panic("index out of range for DBValue.Replace")
 	}
-	if oldV := dbv.values[valueStamp.index]; !bytes.Equal(oldV, valueStamp.value) {
+	if oldV := dbv.values[valueStamp.index]; !bytes.Equal(oldV, valueStamp.Value) {
 		panic("value is different with value stamp when Replace")
 	}
 	dbv.values[valueStamp.index] = newV
@@ -98,7 +98,7 @@ func (dbv *DBValue) Delete(valueStamp DBValueStamp) {
 	if valueStamp.index < 0 || valueStamp.index >= len(dbv.values) {
 		panic("index out of range for DBValue.Delete")
 	}
-	if oldV := dbv.values[valueStamp.index]; !bytes.Equal(oldV, valueStamp.value) {
+	if oldV := dbv.values[valueStamp.index]; !bytes.Equal(oldV, valueStamp.Value) {
 		panic("value is different with value stamp when Delete")
 	}
 	dbv.values = append(dbv.values[:valueStamp.index], dbv.values[valueStamp.index+1:]...)
@@ -113,7 +113,7 @@ type DBValueIterator struct {
 	current int
 }
 
-func newDBValueIterator(dbv *DBValue) *DBValueIterator {
+func NewDBValueIterator(dbv *DBValue) *DBValueIterator {
 	return &DBValueIterator{dbv: dbv, current: -1}
 }
 
@@ -198,7 +198,7 @@ func (it *DBValueIterator) Current() ([]byte, bool) {
 func (it *DBValueIterator) CurrentStamp() DBValueStamp {
 	return DBValueStamp{
 		index: it.current,
-		value: it.dbv.values[it.current],
+		Value: it.dbv.values[it.current],
 	}
 }
 
@@ -234,7 +234,7 @@ func (it *DBValueIterator) SeekToOverLast() {
 	it.current = len(it.dbv.values)
 }
 
-func (it *DBValueIterator) mustSeekToValue(value []byte) {
+func (it *DBValueIterator) MustSeekToValue(value []byte) {
 	for i := 0; i < len(it.dbv.values); i++ {
 		if bytes.Equal(it.dbv.values[i], value) {
 			it.current = i

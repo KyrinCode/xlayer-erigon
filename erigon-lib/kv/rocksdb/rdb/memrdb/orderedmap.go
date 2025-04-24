@@ -3,11 +3,13 @@ package memrdb
 import (
 	"errors"
 	"sort"
+
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 )
 
 // ascend order map
 type OrderedMap struct {
-	data map[string][]byte
+	data map[string]*common.DBValue
 	keys []string
 }
 
@@ -24,12 +26,12 @@ type OrderedMapIterator struct {
 
 func NewOrderedMap() *OrderedMap {
 	return &OrderedMap{
-		data: make(map[string][]byte),
+		data: make(map[string]*common.DBValue),
 		keys: make([]string, 0),
 	}
 }
 
-func (m *OrderedMap) Put(key, value []byte) {
+func (m *OrderedMap) Put(key []byte, value *common.DBValue) {
 	sKey := string(key)
 
 	if _, exists := m.data[sKey]; !exists {
@@ -39,7 +41,7 @@ func (m *OrderedMap) Put(key, value []byte) {
 	m.sort()
 }
 
-func (m *OrderedMap) Get(key []byte) ([]byte, bool) {
+func (m *OrderedMap) Get(key []byte) (*common.DBValue, bool) {
 	sKey := string(key)
 
 	val, ok := m.data[sKey]
@@ -184,7 +186,7 @@ func (iter *OrderedMapIterator) Key() []byte {
 	return []byte(curKey)
 }
 
-func (iter *OrderedMapIterator) Value() []byte {
+func (iter *OrderedMapIterator) Value() *common.DBValue {
 	if !iter.Valid() {
 		return nil
 	}

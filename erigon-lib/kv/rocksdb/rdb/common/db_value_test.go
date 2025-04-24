@@ -1,4 +1,4 @@
-package rocksdb
+package common
 
 import (
 	"testing"
