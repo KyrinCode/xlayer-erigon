@@ -212,7 +212,7 @@ func (tx *CombineTx) Cursor(table string) (kv.Cursor, error) {
 	rocksdbCursor, err2 := tx.rocksdbTx.Cursor(table)
 	assertError(tx.logger, err1, err2, "Cursor")
 
-	return newCombineCursor(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor), nil
+	return newCombineCursor(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor, table), nil
 }
 
 func (tx *CombineTx) CursorDupSort(table string) (kv.CursorDupSort, error) {
@@ -223,7 +223,7 @@ func (tx *CombineTx) CursorDupSort(table string) (kv.CursorDupSort, error) {
 	rocksdbCursor, err2 := tx.rocksdbTx.CursorDupSort(table)
 	assertError(tx.logger, err1, err2, "CursorDupSort")
 
-	return newCombineCursorDupSort(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor), nil
+	return newCombineCursorDupSort(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor, table), nil
 }
 
 func (tx *CombineTx) DBSize() (uint64, error) {
@@ -433,7 +433,7 @@ func (tx *CombineRwTx) RwCursor(table string) (kv.RwCursor, error) {
 	rocksdbCursor, err2 := tx.rocksdbTx.RwCursor(table)
 	assertError(tx.logger, err1, err2, "RwCursor")
 
-	return newCombineRwCursor(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor), nil
+	return newCombineRwCursor(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor, table), nil
 }
 
 func (tx *CombineRwTx) RwCursorDupSort(table string) (kv.RwCursorDupSort, error) {
@@ -444,7 +444,7 @@ func (tx *CombineRwTx) RwCursorDupSort(table string) (kv.RwCursorDupSort, error)
 	rocksdbCursor, err2 := tx.rocksdbTx.RwCursorDupSort(table)
 	assertError(tx.logger, err1, err2, "RwCursorDupSort")
 
-	return newCombineRwCursorDupSort(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor), nil
+	return newCombineRwCursorDupSort(tx.logger.getPrefix(), mdbxCursor, rocksdbCursor, table), nil
 }
 
 func (tx *CombineRwTx) CollectMetrics() {

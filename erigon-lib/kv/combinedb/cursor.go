@@ -38,33 +38,33 @@ type CombineRwCursorDupSort struct {
 
 var cursorCounter atomic.Uint64
 
-func newCombineCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.Cursor) *CombineCursor {
+func newCombineCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.Cursor, table string) *CombineCursor {
 	return &CombineCursor{
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
-		logger:        newCombinLogger(fmt.Sprintf("%s cursorid=%d", txPrefix, cursorCounter.Add(1))),
+		logger:        newCombinLogger(fmt.Sprintf("%s cursorid=%d table=%s", txPrefix, cursorCounter.Add(1), table)),
 	}
 }
-func newCombineRwCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursor) *CombineRwCursor {
+func newCombineRwCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursor, table string) *CombineRwCursor {
 	return &CombineRwCursor{
-		CombineCursor: newCombineCursor(txPrefix, mdbxCursor, rocksdbCursor),
+		CombineCursor: newCombineCursor(txPrefix, mdbxCursor, rocksdbCursor, table),
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
 	}
 }
 
-func newCombineCursorDupSort(txPrefix string, mdbxCursor, rocksdbCursor kv.CursorDupSort) *CombineCursorDupSort {
+func newCombineCursorDupSort(txPrefix string, mdbxCursor, rocksdbCursor kv.CursorDupSort, table string) *CombineCursorDupSort {
 	return &CombineCursorDupSort{
-		CombineCursor: newCombineCursor(txPrefix, mdbxCursor, rocksdbCursor),
+		CombineCursor: newCombineCursor(txPrefix, mdbxCursor, rocksdbCursor, table),
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
 	}
 }
 
-func newCombineRwCursorDupSort(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursorDupSort) kv.RwCursorDupSort {
+func newCombineRwCursorDupSort(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursorDupSort, table string) kv.RwCursorDupSort {
 	return &CombineRwCursorDupSort{
-		CombineCursorDupSort: newCombineCursorDupSort(txPrefix, mdbxCursor, rocksdbCursor),
-		CombineRwCursor:      newCombineRwCursor(txPrefix, mdbxCursor, rocksdbCursor),
+		CombineCursorDupSort: newCombineCursorDupSort(txPrefix, mdbxCursor, rocksdbCursor, table),
+		CombineRwCursor:      newCombineRwCursor(txPrefix, mdbxCursor, rocksdbCursor, table),
 
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
@@ -84,12 +84,12 @@ func (c *CombineCursor) First() ([]byte, []byte, error) {
 	return k1, v2, nil
 }
 
-func (c *CombineCursor) Seek(seek []byte) ([]byte, []byte, error) {
-	c.logger.Info("Seek()")
+func (c *CombineCursor) Seek(key []byte) ([]byte, []byte, error) {
+	c.logger.Infof("Seek(key=%x)", key)
 	defer c.logger.Info("Seek() done")
 
-	k1, v1, err1 := c.mdbxCursor.Seek(seek)
-	k2, v2, err2 := c.rocksdbCursor.Seek(seek)
+	k1, v1, err1 := c.mdbxCursor.Seek(key)
+	k2, v2, err2 := c.rocksdbCursor.Seek(key)
 	assertError(c.logger, err1, err2, "Seek")
 
 	assertEqualF(c.logger, k1, k2, "Seek key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
@@ -98,7 +98,7 @@ func (c *CombineCursor) Seek(seek []byte) ([]byte, []byte, error) {
 }
 
 func (c *CombineCursor) SeekExact(key []byte) ([]byte, []byte, error) {
-	c.logger.Info("SeekExact()")
+	c.logger.Infof("SeekExact(key=%x)", key)
 	defer c.logger.Info("SeekExact() done")
 
 	k1, v1, err1 := c.mdbxCursor.SeekExact(key)
