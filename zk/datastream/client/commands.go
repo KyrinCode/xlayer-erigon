@@ -6,10 +6,10 @@ const (
 	CmdStart
 	CmdStop
 	CmdHeader
-	CmdStartBookmark    // CmdStartBookmark for the start from bookmark TCP client command
-	CmdStartEndBookmark // CmdStartEndBookmark for the start and end from bookmark TCP client command
-	CmdEntry            // CmdEntry for the get entry TCP client command
-	CmdBookmark         // CmdBookmark for the get bookmark TCP client command
+	CmdStartBookmark // CmdStartBookmark for the start from bookmark TCP client command
+	CmdEntry         // CmdEntry for the get entry TCP client command
+	CmdBookmark      // CmdBookmark for the get bookmark TCP client command
+	CmdRangeBookmark // CmdRangeBookmark for the start and end bookmarks TCP client command
 )
 
 // sendHeaderCmd sends the header command to the server.
@@ -40,9 +40,9 @@ func (c *StreamClient) sendBookmarkCmd(bookmark []byte, streaming bool) error {
 	return c.writeToConn(bookmark)
 }
 
-// sendRangeBookmarkCmd sends the CmdStartEndBookmark with the start and end bookmark value.
+// sendRangeBookmarkCmd sends the CmdRangeBookmark with the start and end bookmark value.
 func (c *StreamClient) sendRangeBookmarkCmd(startBookmark []byte, endBookmark []byte) error {
-	command := CmdStartEndBookmark
+	command := CmdRangeBookmark
 	// Send the command
 	if err := c.sendCommand(command); err != nil {
 		return err
