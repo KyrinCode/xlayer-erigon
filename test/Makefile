@@ -181,7 +181,7 @@ resequence-ac-split:
 
 .PHONY: kurtosis-cdk
 kurtosis-cdk:
-	cd ../ && bash ./.github/scripts/run_kurtosis_cdk.sh
+	cd ../ && bash ./.github/scripts/cdk.sh
 
 .PHONY: kurtosis-cdk-post-london
 kurtosis-cdk-post-london:
