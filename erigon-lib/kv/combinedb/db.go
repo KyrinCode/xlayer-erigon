@@ -37,7 +37,7 @@ func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) 
 
 	rocksdbDir := path.Join(dbDir, "rocksdb")
 	opts.GetLogger().Info("Set rocksdb path", "new path", rocksdbDir)
-	rocksdb, err := rocksdb.NewRocksDB(rocksdbDir, opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.WriteMethodPut)
+	rocksdb, err := rocksdb.NewRocksDB(rocksdbDir, opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.RealRDB)
 	if err != nil {
 		return nil, err
 	}
