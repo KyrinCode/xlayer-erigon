@@ -145,24 +145,69 @@ min-run: build-docker ## Runs a minimal node
 .PHONY: test
 test: 
 	make test-e2e
-	echo "E2E tests passed"
-	sleep 3
 	make test-data-loss
-	echo "Data loss tests passed"
-	sleep 3
 	make test-executor
-	echo "Executor tests passed"
-	sleep 3
+	make tests
+	make lint
+	make check_chinese_characters
+	make test-unwind-default
+	make test-unwind-ac-split
+	make kurtosis-cdk
+	make resequence-default
+	make resequence-ac-split
+
+.PHONY: test-unwind-default
+test-unwind-default:
+	cd ../ && make test-unwind
+	echo "Unwind tests passed"
+
+.PHONY: test-unwind-ac-split
+test-unwind-ac-split:
+	cd ../ && make test-unwind
+	echo "Unwind tests passed"
+
+.PHONY: check_chinese_characters
+check_chinese_characters:
+	cd ../ && bash ./.github/scripts/check_chinese_characters.sh
+	echo "Chinese characters check passed"
+
+resequence-default:
+	cd ../ && bash ./.github/scripts/test_resequence.sh default
+	echo "Default resequence tests passed"
+
+resequence-ac-split:
+	cd ../ && bash ./.github/scripts/test_resequence.sh ac-split
+	echo "AC split resequence tests passed"
+
+.PHONY: kurtosis-cdk
+kurtosis-cdk:
+	cd ../ && bash ./.github/scripts/run_kurtosis_cdk.sh
+
+.PHONY: kurtosis-cdk-post-london
+kurtosis-cdk-post-london:
+	cd ../ && bash ./.github/scripts/run_kurtosis_cdk_post_london.sh
+
+.PHONY: tests
+tests:
+	cd ../ && make -B test
+	echo "All tests passed"
+
+.PHONY: lint
+lint:
+	cd ../docs/endpoints && make check-doc
+	echo "Lint passed"
 
 .PHONY: test-e2e
 test-e2e: stop all ## Runs group xlayer feature e2e tests checking race conditions
 	sleep 3
 	docker ps -a
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/...
+	echo "E2E tests passed"
 
 # Target to add data loss testing logic
 .PHONY: test-data-loss
 test-data-loss: data-loss-1 data-loss-2 data-loss-3 data-loss-4 data-loss-5 data-loss-6 data-loss-7 data-loss-8
+	echo "Data loss tests passed"
 
 # interrupt before doFinishBlockAndUpdateState (before RemoveMinedTransactions)
 # txs are still in txpool, data is lost in chaindata and not written to datastream yet
@@ -410,6 +455,7 @@ test-executor:
 	sleep 30 # wait for the executor to be ready
 	docker ps -a
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/... -run "^TestEthTransfer$$"
+	echo "Executor tests passed"
 
 mainnet: build-docker
 	# base services
