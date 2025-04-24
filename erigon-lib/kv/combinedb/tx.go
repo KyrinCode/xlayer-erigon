@@ -327,8 +327,9 @@ func (tx *CombineRwTx) Delete(table string, k []byte) error {
 	tx.logger.Infof("Delete(table=%s, k=%x)", table, k)
 	defer tx.logger.Info("Delete done")
 
-	err1 := tx.mdbxTx.Delete(table, k)
+	// NOTE: mdbx Delete will change the slice passed in, so we have to call rocksdb Delete first
 	err2 := tx.rocksdbTx.Delete(table, k)
+	err1 := tx.mdbxTx.Delete(table, k)
 	assertError(tx.logger, err1, err2, "Delete")
 
 	return nil
