@@ -142,28 +142,49 @@ min-run: build-docker ## Runs a minimal node
 	$(RUN_DOCKER_PROMETHEUS)
 	$(RUN_DOCKER_GRAFANA)
 
-.PHONY: test
+.PHONY: test # Run all tests on Linux, but some are not supported on Mac
 test: 
-	make test-e2e
-	make test-data-loss
-	make test-executor
-	make tests
-	make lint
-	make check_chinese_characters
-	make test-unwind-default
-	make test-unwind-ac-split
-	make kurtosis-cdk
-	make resequence-default
-	make resequence-ac-split
+	@echo "Starting tests at $$(date)"
+	@ERROR_COUNT=0; \
+	run_test() { \
+		echo "\n========== Running $$1... =========="; \
+		if make $$1; then \
+			echo "✅ $$1 passed"; \
+		else \
+			echo "❌ $$1 FAILED"; \
+			ERROR_COUNT=$$((ERROR_COUNT+1)); \
+		fi; \
+	}; \
+	
+	run_test test-e2e; \
+	run_test test-data-loss; \
+	run_test test-executor; \
+	run_test tests; \
+	run_test lint; \
+	run_test check_chinese_characters; \
+	run_test test-unwind-default; \
+	run_test test-unwind-ac-split; \
+	run_test kurtosis-cdk; \
+	run_test resequence-default; \
+	run_test resequence-ac-split; \
+
+	echo "\n========== Tests completed at $$(date) =========="; \
+	if [ $$ERROR_COUNT -gt 0 ]; then \
+		echo "❌ $$ERROR_COUNT tests failed."; \
+		exit 1; \
+	else \
+		echo "✅ All tests passed successfully!"; \
+	fi
 
 .PHONY: test-unwind-default
 test-unwind-default:
-	cd ../ && make test-unwind
+	cd ../ && make test-unwind-default
 	echo "Unwind tests passed"
 
 .PHONY: test-unwind-ac-split
 test-unwind-ac-split:
-	cd ../ && make test-unwind
+	cd ../ && make test-unwind-ac-split
+	kill 
 	echo "Unwind tests passed"
 
 .PHONY: check_chinese_characters
@@ -172,24 +193,22 @@ check_chinese_characters:
 	echo "Chinese characters check passed"
 
 resequence-default:
-	cd ../ && bash ./.github/scripts/test_resequence.sh default
+	cd ../ && bash .github/scripts/make-init-cdk.sh default && bash ./.github/scripts/test_resequence.sh default
 	echo "Default resequence tests passed"
 
 resequence-ac-split:
-	cd ../ && bash ./.github/scripts/test_resequence.sh ac-split
+	cd ../ && bash .github/scripts/make-init-cdk.sh ac-split && bash ./.github/scripts/test_resequence.sh ac-split
 	echo "AC split resequence tests passed"
 
 .PHONY: kurtosis-cdk
 kurtosis-cdk:
-	cd ../ && bash ./.github/scripts/cdk.sh
-
-.PHONY: kurtosis-cdk-post-london
-kurtosis-cdk-post-london:
-	cd ../ && bash ./.github/scripts/run_kurtosis_cdk_post_london.sh
+	cd ../ && bash .github/scripts/make-init-cdk.sh ac-split && bash ./.github/scripts/make-cdk.sh
+	echo "Kurtosis cdk tests passed"
 
 .PHONY: tests
 tests:
-	cd ../ && make -B test
+	mkdir -p $(CURDIR)/app/tmp
+	cd ../ && TMPDIR=$(CURDIR)/app/tmp make -B test
 	echo "All tests passed"
 
 .PHONY: lint
@@ -455,6 +474,7 @@ test-executor:
 	sleep 30 # wait for the executor to be ready
 	docker ps -a
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/... -run "^TestEthTransfer$$"
+	git checkout -- ../test/config/test.erigon.seq.config.yaml
 	echo "Executor tests passed"
 
 mainnet: build-docker
