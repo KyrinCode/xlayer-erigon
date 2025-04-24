@@ -8,6 +8,10 @@ import (
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 )
 
+const TableSmt = "HermezSmt"
+const TableStats = "HermezSmtStats"
+const MetaLastHeight = "lastHeight"
+
 var flushSmtCachePeriod = uint64(50)
 
 type SmtCacheSave struct {
@@ -34,6 +38,7 @@ type SmtCache struct {
 	PrimaryCacheLock    sync.RWMutex
 
 	LastResetHeight       uint64
+	LastResetSmtHeight    uint64
 	LastRecordBlockHeight uint64
 }
 
@@ -54,6 +59,7 @@ func CreateNewSmtCache() *SmtCache {
 		PrimaryCacheHistory: make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]]),
 
 		LastResetHeight:       0,
+		LastResetSmtHeight:    0,
 		LastRecordBlockHeight: 0,
 	}
 }
@@ -219,13 +225,13 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 	cache.CurrentBatchBlockSnapshotList = NewSmtCacheList()
 	cache.CurrentBatchSnapshotLock.Unlock()
 
-	height, err := utils.ConvertBytesToUint64(cache.ToPushedSmtCache["HermezSmtStats"]["lastHeight"])
+	height, err := utils.ConvertBytesToUint64(cache.ToPushedSmtCache[TableStats][MetaLastHeight])
 	if err != nil {
 		return err
 	}
 
 	if height-cache.LastResetHeight > 10*flushSmtCachePeriod {
-		cache.resetPrimaryCache(height)
+		cache.resetPrimaryCache(height, height-cache.LastResetSmtHeight >= 100*flushSmtCachePeriod)
 	} else {
 		cache.PrimaryCacheLock.Lock()
 		cache.PrimaryCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
@@ -252,7 +258,7 @@ func (cache *SmtCache) FlushSmtCache(batchPush, grace bool) error {
 	}
 }
 
-func (cache *SmtCache) resetPrimaryCache(currentHeight uint64) {
+func (cache *SmtCache) resetPrimaryCache(currentHeight uint64, resetSmt bool) {
 	cache.DeltaSnapshotLock.RLock()
 	allDeltas := cache.DeltaSnapshotList.GetAllChanges()
 	cache.DeltaSnapshotLock.RUnlock()
@@ -263,6 +269,10 @@ func (cache *SmtCache) resetPrimaryCache(currentHeight uint64) {
 	newCache := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	for _, delta := range allDeltas {
 		for table, keys := range delta.ChangedKeys {
+			if (table == TableSmt || table == TableStats) && !resetSmt {
+				continue
+			}
+
 			innerMap, _ := newCache.Get(table)
 			if innerMap == nil {
 				innerMap = immutable.NewMap[string, []byte](nil)
@@ -282,8 +292,24 @@ func (cache *SmtCache) resetPrimaryCache(currentHeight uint64) {
 			newCache = newCache.Set(table, innerMap)
 		}
 	}
+
+	if !resetSmt {
+		curSmtInner, _ := cache.PrimaryCache.Get(TableSmt)
+		if curSmtInner != nil {
+			newCache = newCache.Set(TableSmt, curSmtInner)
+		}
+
+		curStatusInner, _ := cache.PrimaryCache.Get(TableStats)
+		if curStatusInner != nil {
+			newCache = newCache.Set(TableStats, curStatusInner)
+		}
+	}
+
 	cache.PrimaryCache = newCache
 	cache.LastResetHeight = currentHeight
+	if resetSmt {
+		cache.LastResetSmtHeight = currentHeight
+	}
 
 	cache.PrimaryCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
 }
@@ -339,5 +365,6 @@ func (cache *SmtCache) ResetCurrentBatch(resetBlockHeight uint64) {
 	cache.PrimaryCache = newCache
 	cache.PrimaryCacheHistory = make(map[uint64]*immutable.Map[string, *immutable.Map[string, []byte]])
 	cache.LastResetHeight = resetBlockHeight - 1
+	cache.LastResetSmtHeight = resetBlockHeight - 1
 	cache.LastRecordBlockHeight = resetBlockHeight - 1
 }
