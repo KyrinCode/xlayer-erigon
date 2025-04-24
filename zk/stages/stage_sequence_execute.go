@@ -158,7 +158,7 @@ func sequencingBatchStep(
 		return err
 	}
 
-	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt, cfg.zk.XLayer.EnableAsyncCommit)
+	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt, cfg.zk.XLayer.EnableAsyncCommit, nil, nil)
 	if err != nil {
 		return err
 	}

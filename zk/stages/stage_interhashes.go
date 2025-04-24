@@ -9,7 +9,6 @@ import (
 	"github.com/ledgerwatch/erigon-lib/state"
 	state2 "github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
-	db2 "github.com/ledgerwatch/erigon/smt/pkg/db"
 	"github.com/ledgerwatch/erigon/smt/pkg/smt"
 	"github.com/ledgerwatch/erigon/smt/pkg/utils"
 	"github.com/ledgerwatch/erigon/zk/hermez_db"
@@ -141,24 +140,28 @@ func SpawnZkIntermediateHashesStage(s *stagedsync.StageState, u stagedsync.Unwin
 	shouldIncrementBecauseOfExecutionConditions := s.BlockNumber > 0 && !shouldRegenerate
 	shouldIncrement := shouldIncrementBecauseOfAFlag || shouldIncrementBecauseOfExecutionConditions
 
-	eridb := db2.NewEriDb(txsmt, tx)
-	if txsmt == nil {
-		eridb = db2.NewEriDb(tx, tx)
+	sdb, err := newStageDb(ctx, cfg.db, cfg.dbsmt, cfg.zk.XLayer.EnableAsyncCommit, tx, txsmt)
+	if err != nil {
+		return trie.EmptyRoot, err
 	}
-	smt := smt.NewSMT(eridb, false)
+	defer sdb.Rollback()
+
+	if sdb.supportAC {
+		sdb.eridb.SetCache(s.GetSmtCache())
+	}
 
 	if shouldIncrement {
 		if shouldIncrementBecauseOfAFlag {
 			log.Debug(fmt.Sprintf("[%s] IncrementTreeAlways true - incrementing tree", logPrefix), "previousRootHeight", s.BlockNumber, "calculatingRootHeight", to)
 		}
 
-		eridb.OpenBatch(quit)
+		sdb.eridb.OpenBatch(quit)
 
-		if root, err = zkIncrementIntermediateHashes(ctx, logPrefix, s, tx, smt, s.BlockNumber, to); err != nil {
+		if root, err = zkIncrementIntermediateHashes(ctx, logPrefix, s, sdb.tx, sdb.smt, s.BlockNumber, to); err != nil {
 			return trie.EmptyRoot, err
 		}
 	} else {
-		if root, err = regenerateIntermediateHashes(ctx, logPrefix, tx, eridb, smt, to); err != nil {
+		if root, err = regenerateIntermediateHashes(ctx, logPrefix, tx, sdb.eridb, sdb.smt, to); err != nil {
 			return trie.EmptyRoot, err
 		}
 	}
@@ -178,7 +181,7 @@ func SpawnZkIntermediateHashesStage(s *stagedsync.StageState, u stagedsync.Unwin
 		headerHash := syncHeadHeader.Hash()
 		if root != expectedRootHash {
 			if shouldIncrement {
-				eridb.RollbackBatch()
+				sdb.eridb.RollbackBatch()
 			}
 			panic(fmt.Sprintf("[%s] Wrong trie root of block %d: %x, expected (from header): %x. Block hash: %x", logPrefix, to, root, expectedRootHash, headerHash))
 		}
@@ -187,7 +190,12 @@ func SpawnZkIntermediateHashesStage(s *stagedsync.StageState, u stagedsync.Unwin
 	}
 
 	if shouldIncrement {
-		if err := eridb.CommitBatch(); err != nil {
+		if sdb.supportAC {
+			cache := sdb.eridb.RetriveAndCleanCache()
+			s.SetSmtCache(to, cache)
+			s.FlushSmtCache(cfg.zk.XLayer.StandaloneSMTDatabase, false)
+		}
+		if err := sdb.eridb.CommitBatch(); err != nil {
 			return trie.EmptyRoot, err
 		}
 	}
@@ -270,7 +278,7 @@ func UnwindZkIntermediateHashesStage(u *stagedsync.UnwindState, s *stagedsync.St
 	return nil
 }
 
-func regenerateIntermediateHashes(ctx context.Context, logPrefix string, db kv.RwTx, eridb *db2.EriDb, smtIn *smt.SMT, toBlock uint64) (common.Hash, error) {
+func regenerateIntermediateHashes(ctx context.Context, logPrefix string, db kv.RwTx, eridb smt.DB, smtIn *smt.SMT, toBlock uint64) (common.Hash, error) {
 	log.Info(fmt.Sprintf("[%s] Regeneration trie hashes started", logPrefix))
 	defer log.Info(fmt.Sprintf("[%s] Regeneration ended", logPrefix))
 

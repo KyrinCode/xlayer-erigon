@@ -58,9 +58,8 @@ func AsyncFlushSmtData(ctx context.Context,
 	logger log.Logger,
 	smtFlushDoneCh chan struct{},
 ) {
-	if !sequencer.IsSequencer() || !config.EnableAsyncCommit {
+	if !config.EnableAsyncCommit {
 		logger.Info("AsyncFlushSmtData skipped",
-			"isSequencer", sequencer.IsSequencer(),
 			"enableAsyncCommit", config.EnableAsyncCommit)
 		return
 	}

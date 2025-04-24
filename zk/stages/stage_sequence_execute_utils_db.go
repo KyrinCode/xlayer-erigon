@@ -27,11 +27,12 @@ type stageDb struct {
 	supportAC bool
 }
 
-func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *stageDb, err error) {
-	var tx kv.RwTx
-	if tx, err = db.BeginRw(ctx); err != nil {
-		log.Error("failed to start maindb tx", "err", err)
-		return nil, err
+func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool, tx, txsmt kv.RwTx) (sdb *stageDb, err error) {
+	if tx == nil {
+		if tx, err = db.BeginRw(ctx); err != nil {
+			log.Error("failed to start maindb tx", "err", err)
+			return nil, err
+		}
 	}
 
 	sdb = &stageDb{
@@ -43,15 +44,15 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 
 	if supportAC {
 		// Support Async IO, only need to create read-only transaction
-		var txsmt kv.Tx = nil
+		var txRoSmt kv.Tx = nil
 		if dbsmt != nil {
 			// use multi mdbx
-			if txsmt, err = dbsmt.BeginRo(ctx); err != nil {
+			if txRoSmt, err = dbsmt.BeginRo(ctx); err != nil {
 				log.Error("failed to start smt tx", "err", err)
 				return nil, err
 			}
-			eridb := db2.NewEriCacheDb(sdb.ctx, txsmt, tx)
-			sdb.SetTx(tx, txsmt, eridb)
+			eridb := db2.NewEriCacheDb(sdb.ctx, txRoSmt, tx)
+			sdb.SetTx(tx, txRoSmt, eridb)
 		} else {
 			// use only one mdbx
 			eridb := db2.NewEriDb(tx, tx)
@@ -59,12 +60,13 @@ func newStageDb(ctx context.Context, db, dbsmt kv.RwDB, supportAC bool) (sdb *st
 		}
 	} else {
 		// Support Sync IO，so need to create read-write transaction
-		var txsmt kv.RwTx = nil
 		if dbsmt != nil {
 			// use multi mdbx
-			if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
-				log.Error("failed to start smt tx", "err", err)
-				return nil, err
+			if txsmt == nil {
+				if txsmt, err = dbsmt.BeginRw(ctx); err != nil {
+					log.Error("failed to start smt tx", "err", err)
+					return nil, err
+				}
 			}
 			eridb := db2.NewEriDb(txsmt, tx)
 			sdb.SetTx(tx, txsmt, eridb)
