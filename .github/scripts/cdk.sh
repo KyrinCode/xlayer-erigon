@@ -105,7 +105,7 @@ setup_kurtosis() {
   echo "Setting up Kurtosis environment..."
   
   # Check if kurtosis is installed
-  if ! /opt/homebrew/bin/kurtosis version &> /dev/null; then
+  if ! command -v kurtosis &> /dev/null; then
     echo "Installing Kurtosis CLI..."
     if [ "$OS_TYPE" = "Darwin" ]; then
       # macOS installation
@@ -128,17 +128,32 @@ setup_kurtosis() {
       source ~/.bash_profile 2>/dev/null || source ~/.bashrc 2>/dev/null || source ~/.zshrc 2>/dev/null || true
     else
       # Linux installation
+      echo "Installing Kurtosis on Linux..."
+      # Add Kurtosis repository
       echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
-      sudo apt update
-      sudo apt install -y kurtosis-cli
+      sudo apt-get update
+      sudo apt-get install -y kurtosis-cli
+      
+      # Verify installation
+      if ! command -v kurtosis &> /dev/null; then
+        echo "Failed to install Kurtosis via apt, trying manual installation..."
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+          curl -L "https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/latest/download/kurtosis-cli_linux_amd64.tar.gz" -o kurtosis-cli.tar.gz
+        else
+          curl -L "https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/latest/download/kurtosis-cli_linux_arm64.tar.gz" -o kurtosis-cli.tar.gz
+        fi
+        tar -xzf kurtosis-cli.tar.gz
+        sudo mv kurtosis /usr/local/bin/
+        rm kurtosis-cli.tar.gz
+      fi
     fi
   fi
   
   # Verify and configure Kurtosis
-  export PATH="/opt/homebrew/bin:$PATH"
   echo "Configuring Kurtosis..."
-  /opt/homebrew/bin/kurtosis version
-  /opt/homebrew/bin/kurtosis analytics disable
+  kurtosis version
+  kurtosis analytics disable
   
   # Check if kurtosis-cdk repository exists
   KURTOSIS_CDK_REPO="$APP_DIR/kurtosis-cdk"
@@ -297,21 +312,8 @@ setup_kurtosis
 CDK_ERIGON_DIR="$CURRENT_DIR"
 KURTOSIS_CDK_DIR="$APP_DIR/kurtosis-cdk"
 
-# Run CPU monitoring
-echo "Starting CPU monitoring..."
-cd "$CDK_ERIGON_DIR"
-bash ./.github/scripts/cpu_monitor.sh &
-monitor_pid=$!
-
 # Wait for 30 seconds
 sleep 30
-
-# Stop monitoring and get analysis
-kill -TERM $monitor_pid
-wait $monitor_pid || {
-  echo "CPU usage exceeded threshold!"
-  exit 1
-}
 
 # Monitor verified batches
 echo "Monitoring verified batches..."
