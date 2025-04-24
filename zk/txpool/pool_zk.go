@@ -133,6 +133,9 @@ func (p *TxPool) onSenderStateChange(senderID uint64, senderNonce uint64, sender
 		// 2. Absence of nonce gaps. Set to 1 for transactions whose nonce is N, state nonce for
 		// the sender is M, and there are transactions for all nonces between M and N from the same
 		// sender. Set to 0 is the transaction's nonce is divided from the state nonce by one or more nonce gaps.
+		// if mt.currentSubPool == PendingSubPool {
+		// 	log.Info(fmt.Sprintf("TX TRACING: onSenderStateChange loop iteration sender=%x, idHash=%x, noGapsNonce=%d, txn.nonce=%d, currentSubPool=%s", p.senders.senderID2Addr[mt.Tx.SenderID], mt.Tx.IDHash, noGapsNonce, mt.Tx.Nonce, mt.currentSubPool))
+		// }
 		mt.subPool &^= NoNonceGaps
 		if noGapsNonce == mt.Tx.Nonce {
 			mt.subPool |= NoNonceGaps
@@ -244,6 +247,12 @@ func (p *TxPool) bestRead(n uint16, txs *types.TxsRlp, tx kv.Tx, onTopOf, availa
 	count := 0
 
 	p.pending.EnforceBestInvariants()
+
+	for i, tx := range best.ms {
+		if i < 50 || i == len(best.ms)-1 {
+			log.Info("p.best tx", "i", i, "tx", common.BytesToHash(tx.Tx.IDHash[:]), "nonce", tx.Tx.Nonce, "sender", p.senders.senderID2Addr[tx.Tx.SenderID])
+		}
+	}
 
 	for i := 0; count < int(n) && i < len(best.ms); i++ {
 		// if we wouldn't have enough gas for a standard transaction then quit out early
@@ -411,6 +420,7 @@ func (p *TxPool) TriggerSenderStateChanges(ctx context.Context, tx kv.Tx, blockG
 		if err != nil {
 			return err
 		}
+		log.Info("[tx_pool] Triggering sender state change", "senderID", senderID, "nonce", nonce, "balance", balance)
 		p.onSenderStateChange(senderID, nonce, balance, p.all,
 			baseFee, blockGasLimit, p.pending, p.baseFee, p.queued, p.discardLocked)
 	}

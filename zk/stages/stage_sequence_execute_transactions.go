@@ -46,6 +46,15 @@ func getNextPoolTransactions(ctx context.Context, cfg SequenceBlockCfg, executio
 		return nil, nil, allConditionsOk, err
 	}
 
+	for i, txBytes := range slots.Txs {
+		if i < 50 || i == len(slots.Txs)-1 {
+			tx, _ := types.DecodeTransaction(txBytes)
+			tx.SetSender(slots.Senders.AddressAt(i))
+			tx.Hash()
+			log.Info(fmt.Sprintf("tx %d from the pool", i), "tx", tx.Hash(), "sender", slots.Senders.AddressAt(i), "nonce", tx.GetNonce())
+		}
+	}
+
 	yieldedTxs, yieldedIds, toRemove, err := extractTransactionsFromSlot(&slots, executionAt, cfg)
 	if err != nil {
 		return nil, nil, allConditionsOk, err

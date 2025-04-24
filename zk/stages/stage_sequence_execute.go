@@ -526,6 +526,13 @@ func sequencingBatchStep(
 					return err
 				}
 
+				// for i, tx := range newTransactions {
+				// 	if i < 50 || i == len(newTransactions)-1 {
+				// 		sender, _ := tx.GetSender()
+				// 		log.Info(fmt.Sprintf("[%s] tx %d from the pool", logPrefix, i), "tx", tx.Hash(), "sender", sender, "nonce", tx.GetNonce())
+				// 	}
+				// }
+
 				metrics.GetLogStatistics().CumulativeTiming(metrics.GetTxTiming, time.Since(getTxTime))
 
 				batchState.blockState.transactionsForInclusion = append(batchState.blockState.transactionsForInclusion, newTransactions...)
@@ -596,6 +603,7 @@ func sequencingBatchStep(
 				}
 
 				if _, found := sendersToSkip[txSender]; found {
+					// log.Info(fmt.Sprintf("[%s] Skipping transaction from sender %s", logPrefix, txSender))
 					continue
 				}
 
@@ -637,7 +645,7 @@ func sequencingBatchStep(
 						// we want to skip transactions for this sender in this batch for now and ask the pool to trigger a sender
 						// state change for this sender.  This will cause the pool to skip any transactions from this sender until
 						// the sender's nonce is corrected in the pending pool
-						log.Info(fmt.Sprintf("[%s] nonce issue detected for sender, skipping transactions for now", logPrefix), "sender", txSender.Hex(), "nonceIssue", err)
+						log.Info(fmt.Sprintf("[%s] nonce issue detected for sender, skipping transactions %x for now", logPrefix, txHash), "sender", txSender.Hex(), "nonceIssue", err)
 						sendersToSkip[txSender] = struct{}{}
 						sendersToTriggerStatechanges[txSender] = struct{}{}
 						continue
@@ -812,8 +820,11 @@ func sequencingBatchStep(
 		// this could happen if there were lots of nonce issues from transaction in the pool due to a failed tx processing or similar and
 		// there wasn't much time left in the batch to mine any transactions
 		if len(batchState.blockState.transactionsForInclusion) > 0 && len(batchState.blockState.builtBlockElements.transactions) == 0 {
-			log.Info(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
-			break
+			if cfg.zk.XLayer.SequencerSkipEmptyBlocks {
+				log.Info(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
+				break
+			}
+			log.Info(fmt.Sprintf("[%s] Keeping empty block %d to keep liveness", logPrefix, blockNumber))
 		}
 
 		if batchContext.sdb.supportAC {

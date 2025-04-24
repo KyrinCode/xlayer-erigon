@@ -1382,8 +1382,14 @@ func removeMined(byNonce *BySenderAndNonce, minedTxs []*types.TxSlot, pending *P
 // promote reasserts invariants of the subpool and returns the list of transactions that ended up
 // being promoted to the pending or basefee pool, for re-broadcasting
 func promote(pending *PendingPool, baseFee, queued *SubPool, pendingBaseFee uint64, discard func(*metaTx, DiscardReason), announcements *types.Announcements) {
+	if pending.Worst() != nil {
+		log.Info("promote", "worst", pending.Worst().Tx.IDHash, "subPool", pending.Worst().subPool, "BaseFeePoolBits", BaseFeePoolBits)
+	} else {
+		log.Info("promote", "pending.Worst()", "nil")
+	}
 	// Demote worst transactions that do not qualify for pending sub pool anymore, to other sub pools, or discard
 	for worst := pending.Worst(); pending.Len() > 0 && (worst.subPool < BaseFeePoolBits || worst.minFeeCap.Cmp(uint256.NewInt(pendingBaseFee)) < 0); worst = pending.Worst() {
+		log.Info(fmt.Sprintf("TX TRACING: promote idHash=%x senderId=%d, currentSubPool=%s", worst.Tx.IDHash, worst.Tx.SenderID, worst.currentSubPool))
 		if worst.subPool >= BaseFeePoolBits {
 			tx := pending.PopWorst()
 			announcements.Append(tx.Tx.Type, tx.Tx.Size, tx.Tx.IDHash[:])
