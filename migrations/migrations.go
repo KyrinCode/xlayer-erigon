@@ -62,13 +62,13 @@ var (
 )
 
 func NewMigrator(label kv.Label, isStandaloneSMTDatabase bool) *Migrator {
-	// For X Layer, split db
+	// For X Layer, split db and ac
 	m := migrations[label]
 	if !isStandaloneSMTDatabase && label == kv.ChainDB {
 		m = append(m, refactorTableLastRoot)
 	}
 	return &Migrator{
-		Migrations: m, // For X Layer, split db
+		Migrations: m, // For X Layer, split db and ac
 	}
 }
 

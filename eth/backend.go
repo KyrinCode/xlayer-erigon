@@ -361,6 +361,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		stopNode: func() error {
 			return stack.Close()
 		},
+		// For X Layer, split db and ac
 		smtDB:          smtdb,
 		smtFlushCtx:    smtFlushCtx,
 		smtFlushCancel: smtFlushCancel,
@@ -1209,7 +1210,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 				}
 			}
 
-			// For X Layer, split db
+			// For X Layer, split db and ac
 			backend.verifier = legacy_executor_verifier.NewLegacyExecutorVerifier(
 				*cfg.Zk,
 				legacyExecutors,
@@ -1995,7 +1996,7 @@ func (s *Ethereum) Start() error {
 		if s.config.DebugNoSync {
 			return nil
 		}
-		// For X Layer, split db
+		// For X Layer, split db and ac
 		smtdb := s.smtDB
 		if s.smtDB == nil {
 			smtdb = s.chainDB
@@ -2079,7 +2080,7 @@ func (s *Ethereum) Stop() error {
 		s.agg.Close()
 	}
 
-	// For X Layer, ac
+	// For X Layer, split db and ac
 	if sequencer.IsSequencer() && s.config.Zk.XLayer.EnableAsyncCommit {
 		s.logger.Info("Stopping SMT flush service...")
 		s.smtFlushCancel()

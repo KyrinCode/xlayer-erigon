@@ -95,23 +95,6 @@ func NewMDBX(log log.Logger) MdbxOpts {
 	return opts
 }
 
-func (opts MdbxOpts) toMap() map[string]interface{} {
-	return map[string]interface{}{
-		"path":            opts.path,
-		"syncPeriod":      opts.syncPeriod,
-		"mapSize":         opts.mapSize,
-		"growthStep":      opts.growthStep,
-		"shrinkThreshold": opts.shrinkThreshold,
-		"flags":           opts.flags,
-		"pageSize":        opts.pageSize,
-		"dirtySpace":      opts.dirtySpace,
-		"mergeThreshold":  opts.mergeThreshold,
-		"verbosity":       opts.verbosity,
-		"label":           opts.label,
-		"inMem":           opts.inMem,
-	}
-}
-
 func (opts MdbxOpts) GetLabel() kv.Label  { return opts.label }
 func (opts MdbxOpts) GetInMem() bool      { return opts.inMem }
 func (opts MdbxOpts) GetPageSize() uint64 { return opts.pageSize }
@@ -492,7 +475,6 @@ func (opts MdbxOpts) Open(ctx context.Context) (kv.RwDB, error) {
 	}
 	db.path = opts.path
 	addToPathDbMap(opts.path, db)
-
 	return db, nil
 }
 

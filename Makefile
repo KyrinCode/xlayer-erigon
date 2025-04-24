@@ -165,9 +165,9 @@ db-tools:
 ## test-unwind:                       run the unwind tests
 test-unwind:
 	make cdk-erigon
-	# For X Layer, split db
+	# For X Layer, split-db
 	./zk/tests/unwinds/unwind.sh default
-	./zk/tests/unwinds/unwind.sh ac-split
+	./zk/tests/unwinds/unwind.sh split-db
 
 
 test-erigon-lib:

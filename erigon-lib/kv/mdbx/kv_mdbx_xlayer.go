@@ -74,3 +74,20 @@ func (opts MdbxOpts) Logger(log log.Logger) MdbxOpts {
 	opts.log = log
 	return opts
 }
+
+func (opts MdbxOpts) toMap() map[string]interface{} {
+	return map[string]interface{}{
+		"path":            opts.path,
+		"syncPeriod":      opts.syncPeriod,
+		"mapSize":         opts.mapSize,
+		"growthStep":      opts.growthStep,
+		"shrinkThreshold": opts.shrinkThreshold,
+		"flags":           opts.flags,
+		"pageSize":        opts.pageSize,
+		"dirtySpace":      opts.dirtySpace,
+		"mergeThreshold":  opts.mergeThreshold,
+		"verbosity":       opts.verbosity,
+		"label":           opts.label,
+		"inMem":           opts.inMem,
+	}
+}
