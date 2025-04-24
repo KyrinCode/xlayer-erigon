@@ -133,6 +133,9 @@ func (rtx *RocksDbTx) Delete(table string, k []byte) error {
 
 // impl kv.StatelessReadTx interface
 func (rtx *RocksDbTx) Commit() error { // Commit all the operations of a transaction into the database.
+	if rtx.closed {
+		return nil
+	}
 	rtx.CollectMetrics()
 
 	now := time.Now()
@@ -147,6 +150,9 @@ func (rtx *RocksDbTx) Commit() error { // Commit all the operations of a transac
 }
 
 func (rtx *RocksDbTx) Rollback() { // Rollback - abandon all the operations of the transaction instead of saving them.
+	if rtx.closed {
+		return
+	}
 	if err := rtx.close(rtx.tx.Rollback); err != nil {
 		panic(fmt.Sprintf("rocksdb tx: rollback failed: %v", err))
 	}
@@ -399,7 +405,6 @@ func (rtx *RocksDbTx) close(action func() error) error {
 
 		rtx.tx.Destroy()
 		rtx.tx = nil
-		rtx.closed = true
 
 		rtx.ropts.Destroy()
 		rtx.ropts = nil
@@ -409,6 +414,8 @@ func (rtx *RocksDbTx) close(action func() error) error {
 
 		rtx.txopt.Destroy()
 		rtx.txopt = nil
+
+		rtx.closed = true
 	}()
 
 	return action()
