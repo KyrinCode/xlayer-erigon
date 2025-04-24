@@ -143,8 +143,15 @@ min-run: build-docker ## Runs a minimal node
 	$(RUN_DOCKER_GRAFANA)
 
 .PHONY: test
-test: test-e2e ## Runs all e2e tests
-	echo "Tests passed"
+test: 
+	make test-e2e
+	echo "E2E tests passed"
+	sleep 3
+	make test-data-loss
+	echo "Data loss tests passed"
+	sleep 3
+	make test-executor
+	echo "Executor tests passed"
 	sleep 3
 
 .PHONY: test-e2e
@@ -396,7 +403,10 @@ data-recovery:
 
 
 .PHONY: test-executor
-test-executor: stop run ## Runs group 2 to check if the true executor is working
+test-executor:
+	cd ../ && bash ./.github/scripts/update_config.sh
+	make stop
+	make run
 	sleep 30 # wait for the executor to be ready
 	docker ps -a
 	trap '$(STOP)' EXIT; MallocNanoZone=0 go test -count=1 -failfast -race -v -p 1 -timeout 600s ../ci/e2e-1/... -run "^TestEthTransfer$$"

@@ -43,9 +43,9 @@ for ((i=0; i<$NT; i++)); do
         continue
     fi
 
-    TASK_NAME=$(yq ".tasks[$i].name" $WORKFLOWFILE)
-    TASK_TYPE=$(yq ".tasks[$i].type" $WORKFLOWFILE)
-    TASK_CMD=$(yq ".tasks[$i].command" $WORKFLOWFILE)
+    TASK_NAME=$(yq ".tasks[$i].name" $WORKFLOWFILE | tr -d '"')
+    TASK_TYPE=$(yq ".tasks[$i].type" $WORKFLOWFILE | tr -d '"')
+    TASK_CMD=$(yq ".tasks[$i].command" $WORKFLOWFILE | tr -d '"')
 
     if [ "$TASK_TYPE" == "base" ]; then
         tasks_base["$TASK_NAME"]="$TASK_CMD"
