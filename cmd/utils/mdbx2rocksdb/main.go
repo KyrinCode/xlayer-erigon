@@ -78,7 +78,7 @@ func main() {
 	defer memDstDB.Close()
 	totalRecords += convertTables(specialTables, srcDB, memDstDB, logger, func() {
 		memDatas := memDstDB.(*rocksdb.RocksDB).GetMemStorage()
-		writeDeduplicatedDirect(memDatas, *rocksdbPath)
+		writeDeduplicatedDirect(memDatas, *rocksdbPath, logger)
 	})
 	memDstDB.Close()
 
@@ -160,7 +160,7 @@ func openRocksDB(path string, rdbType rocksdb.RDBType, logger log.Logger) kv.RwD
 	return db
 }
 
-func writeDeduplicatedDirect(data map[string]*common.DBValue, dbPath string) {
+func writeDeduplicatedDirect(data map[string]*common.DBValue, dbPath string, logger log.Logger) {
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	defer opts.Destroy()
@@ -176,6 +176,7 @@ func writeDeduplicatedDirect(data map[string]*common.DBValue, dbPath string) {
 	defer txopts.Destroy()
 	tx := rdb.TransactionBegin(wopts, txopts, nil)
 
+	logger.Info("total deduplicated data", "total", len(data))
 	batchCount := 0
 	for key, value := range data {
 		if err := tx.Put([]byte(key), value.Serialize()); err != nil {
@@ -188,6 +189,7 @@ func writeDeduplicatedDirect(data map[string]*common.DBValue, dbPath string) {
 				panic(err)
 			}
 			tx.Destroy()
+			logger.Info("committed deduplicated", "count", batchCount)
 
 			tx = rdb.TransactionBegin(wopts, txopts, nil)
 		}

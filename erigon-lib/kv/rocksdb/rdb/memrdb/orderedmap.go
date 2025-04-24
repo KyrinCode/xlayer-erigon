@@ -2,15 +2,13 @@ package memrdb
 
 import (
 	"errors"
-	"sort"
-
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 )
 
 // ascend order map
 type OrderedMap struct {
-	data map[string]*common.DBValue
-	keys []string
+	data       map[string]*common.DBValue
+	sortedKeys []string
 }
 
 type OrderedMapIterator struct {
@@ -26,19 +24,33 @@ type OrderedMapIterator struct {
 
 func NewOrderedMap() *OrderedMap {
 	return &OrderedMap{
-		data: make(map[string]*common.DBValue),
-		keys: make([]string, 0),
+		data:       make(map[string]*common.DBValue),
+		sortedKeys: make([]string, 0),
 	}
 }
 
 func (m *OrderedMap) Put(key []byte, value *common.DBValue) {
 	sKey := string(key)
 
-	if _, exists := m.data[sKey]; !exists {
-		m.keys = append(m.keys, sKey)
+	if _, exists := m.data[sKey]; exists {
+		m.data[sKey] = value
+		// key has existed, don't need to insert new key
+		return
 	}
+
 	m.data[sKey] = value
-	m.sort()
+
+	// insert new key
+	idx, _ := m.sortedSeek(sKey)
+	m.sortedKeys = append(m.sortedKeys, "")
+	copy(m.sortedKeys[idx+1:], m.sortedKeys[idx:]) // move back
+	m.sortedKeys[idx] = sKey                       // insert
+}
+
+func (m *OrderedMap) sortedSeek(key string) (int, bool) {
+	return common.SortedSeek(m.sortedKeys, key, func(k1 string, k2 string) bool {
+		return k1 >= k2
+	})
 }
 
 func (m *OrderedMap) Get(key []byte) (*common.DBValue, bool) {
@@ -53,19 +65,13 @@ func (m *OrderedMap) Delete(key []byte) {
 
 	if _, ok := m.data[sKey]; ok {
 		delete(m.data, sKey)
-		for i, k := range m.keys {
+		for i, k := range m.sortedKeys {
 			if k == sKey {
-				m.keys = append(m.keys[:i], m.keys[i+1:]...)
+				m.sortedKeys = append(m.sortedKeys[:i], m.sortedKeys[i+1:]...)
 				break
 			}
 		}
 	}
-}
-
-func (m *OrderedMap) sort() {
-	sort.Slice(m.keys, func(i, j int) bool {
-		return m.keys[i] < m.keys[j]
-	})
 }
 
 func (m *OrderedMap) NewIterator(beginPrefix, endPrefix []byte) *OrderedMapIterator {
@@ -85,7 +91,7 @@ func (iter *OrderedMapIterator) Valid() bool {
 
 func (iter *OrderedMapIterator) SeekToFirst() {
 	if iter.beginPrefix == nil {
-		if len(iter.omap.keys) == 0 {
+		if len(iter.omap.sortedKeys) == 0 {
 			iter.setInvalid("SeekToFirst: no keys")
 			return
 		}
@@ -95,7 +101,7 @@ func (iter *OrderedMapIterator) SeekToFirst() {
 
 	iter.setInvalid("SeekToFirst: don't find begin prefix")
 	beginPrefix := string(iter.beginPrefix)
-	for i, key := range iter.omap.keys {
+	for i, key := range iter.omap.sortedKeys {
 		if key >= beginPrefix {
 			iter.setValid(i)
 			break
@@ -105,18 +111,18 @@ func (iter *OrderedMapIterator) SeekToFirst() {
 
 func (iter *OrderedMapIterator) SeekToLast() {
 	if iter.endPrefix == nil {
-		if len(iter.omap.keys) == 0 {
+		if len(iter.omap.sortedKeys) == 0 {
 			iter.setInvalid("SeekToLast: no keys")
 			return
 		}
-		iter.setValid(len(iter.omap.keys) - 1)
+		iter.setValid(len(iter.omap.sortedKeys) - 1)
 		return
 	}
 
 	iter.setInvalid("SeekToLast: don't find end prefix")
 	endPrefix := string(iter.endPrefix)
-	for i := len(iter.omap.keys) - 1; i >= 0; i-- {
-		key := iter.omap.keys[i]
+	for i := len(iter.omap.sortedKeys) - 1; i >= 0; i-- {
+		key := iter.omap.sortedKeys[i]
 		if key < endPrefix {
 			iter.setValid(i)
 			break
@@ -130,7 +136,7 @@ func (iter *OrderedMapIterator) Next() {
 	}
 
 	iter.current++
-	if iter.current >= len(iter.omap.keys) {
+	if iter.current >= len(iter.omap.sortedKeys) {
 		iter.setInvalid("Next: no more items")
 		return
 	}
@@ -167,14 +173,13 @@ func (iter *OrderedMapIterator) Seek(key []byte) {
 	}
 
 	seekKey := string(key)
-	for iter.SeekToFirst(); iter.Valid(); iter.Next() {
-		curKey := iter.currentKey()
-		if curKey >= seekKey {
-			return
-		}
+	idx, ok := iter.omap.sortedSeek(seekKey)
+	if !ok {
+		iter.setInvalid("Seek: dont find seek key")
+		return
 	}
 
-	iter.setInvalid("Seek: dont find seek key")
+	iter.setValid(idx)
 }
 
 func (iter *OrderedMapIterator) Key() []byte {
@@ -191,7 +196,7 @@ func (iter *OrderedMapIterator) Value() *common.DBValue {
 		return nil
 	}
 
-	curKey := iter.omap.keys[iter.current]
+	curKey := iter.omap.sortedKeys[iter.current]
 	return iter.omap.data[curKey]
 }
 
@@ -204,7 +209,7 @@ func (iter *OrderedMapIterator) Err() error {
 }
 
 func (iter *OrderedMapIterator) currentKey() string {
-	return iter.omap.keys[iter.current]
+	return iter.omap.sortedKeys[iter.current]
 }
 
 func (iter *OrderedMapIterator) setInvalid(err string) {

@@ -46,3 +46,19 @@ func TestDeserialize(t *testing.T) {
 		},
 	}, dbv)
 }
+
+func TestSortedInsert(t *testing.T) {
+	dbv := DBValue{values: [][]byte{}}
+
+	dbv.SortedInsert([]byte("xbcd"))
+	dbv.SortedInsert([]byte("gbcd"))
+	dbv.SortedInsert([]byte("abcd"))
+	dbv.SortedInsert([]byte("bbcd"))
+
+	require.Equal(t, [][]byte{
+		[]byte("abcd"),
+		[]byte("bbcd"),
+		[]byte("gbcd"),
+		[]byte("xbcd"),
+	}, dbv.values)
+}

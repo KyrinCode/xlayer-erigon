@@ -3,7 +3,7 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
-	"sort"
+	"fmt"
 )
 
 type DBValueStamp struct {
@@ -12,6 +12,7 @@ type DBValueStamp struct {
 }
 
 type DBValue struct {
+	// values must be always sorted
 	values [][]byte
 }
 
@@ -78,9 +79,16 @@ func (dbv *DBValue) First() []byte {
 }
 
 func (dbv *DBValue) SortedInsert(v []byte) {
-	dbv.values = append(dbv.values, v)
-	sort.Slice(dbv.values, func(i, j int) bool {
-		return bytes.Compare(dbv.values[i], dbv.values[j]) < 0
+	idx, _ := dbv.sortedSeek(v)
+
+	dbv.values = append(dbv.values, nil)
+	copy(dbv.values[idx+1:], dbv.values[idx:]) // move back
+	dbv.values[idx] = v                        // insert
+}
+
+func (dbv *DBValue) sortedSeek(v []byte) (int, bool) {
+	return SortedSeek(dbv.values, v, func(v1 []byte, v2 []byte) bool {
+		return bytes.Compare(v1, v2) >= 0
 	})
 }
 
@@ -134,36 +142,37 @@ func (it *DBValueIterator) Last() []byte {
 }
 
 func (it *DBValueIterator) Seek(seekV []byte) ([]byte, error) {
-	it.SeekToFirst()
-
 	if seekV == nil {
+		// if seek value is nil, it sould seek to the first one
+		it.SeekToFirst()
 		return it.First(), nil
 	}
 
-	for v, ok := it.Current(); ok; v, ok = it.Next() {
-		compareResult := bytes.Compare(seekV, v)
-		if compareResult <= 0 {
-			return v, nil
-		}
+	index, ok := it.dbv.sortedSeek(seekV)
+	if !ok {
+		it.SeekToLast()
+		return nil, ErrNotFound
 	}
 
-	return nil, ErrNotFound
+	it.setCurrent(index)
+	v, ok := it.Current()
+	if !ok {
+		panic("current must be exist")
+	}
+	return v, nil
 }
 
 func (it *DBValueIterator) SeekExact(seekV []byte) ([]byte, error) {
-	it.SeekToFirst()
-
-	if seekV == nil {
-		return it.First(), nil
+	v, err := it.Seek(seekV)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(v, seekV) {
+		it.SeekToLast()
+		return nil, ErrNotFound
 	}
 
-	for v, ok := it.Current(); ok; v, ok = it.Next() {
-		if bytes.Equal(v, seekV) {
-			return v, nil
-		}
-	}
-
-	return nil, ErrNotFound
+	return v, nil
 }
 
 // Next return false if it iterated past either the first or the last value
@@ -235,12 +244,16 @@ func (it *DBValueIterator) SeekToOverLast() {
 }
 
 func (it *DBValueIterator) MustSeekToValue(value []byte) {
-	for i := 0; i < len(it.dbv.values); i++ {
-		if bytes.Equal(it.dbv.values[i], value) {
-			it.current = i
-			return
-		}
+	_, err := it.SeekExact(value)
+	if err != nil {
+		panic(fmt.Sprintf("MustSeekToValue failed. value=%x. err=%v", value, err))
 	}
-	panic("didn't find value")
+}
 
+func (it *DBValueIterator) setCurrent(current int) {
+	if current < 0 || current >= len(it.dbv.values) {
+		panic(fmt.Sprintf("current index out of range: new current:%d. max length:%d", current, len(it.dbv.values)))
+	}
+
+	it.current = current
 }

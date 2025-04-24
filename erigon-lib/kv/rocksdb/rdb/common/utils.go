@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/linxGnu/grocksdb"
 	"math"
+	"sort"
 )
 
 func MoveSliceToBytes(s *grocksdb.Slice) []byte {
@@ -45,4 +46,22 @@ func SplitKey(k []byte) (string, []byte) {
 	table := string(k[1 : l+1])
 	k = k[l+1:]
 	return table, k
+}
+
+// SortedSeek seek the first index that makes slice[index] >= v.
+// `compare` compares the two given values and return if the first one >= the second one.
+// if it seeked an appropriate position, it returns the index and ok,
+// if it doesn't find an appropriate position, it returns length of the values slice and false.
+func SortedSeek[V any](slice []V, seekV V, compare func(V, V) bool) (int, bool) {
+	idx := sort.Search(len(slice), func(i int) bool {
+		return compare(slice[i], seekV)
+	})
+	if idx < 0 {
+		panic(fmt.Sprintf("dbv.sortedSeek: invalid index:%d", idx))
+	}
+	if idx >= len(slice) {
+		return idx, false
+	}
+
+	return idx, true
 }
