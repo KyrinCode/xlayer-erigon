@@ -146,6 +146,7 @@ min-run: build-docker ## Runs a minimal node
 test: 
 	@echo "Starting tests at $$(date)"
 	@ERROR_COUNT=0; \
+	FAILED_TESTS=""; \
 	run_test() { \
 		echo "\n========== Running $$1... =========="; \
 		if make $$1; then \
@@ -153,9 +154,11 @@ test:
 		else \
 			echo "❌ $$1 FAILED"; \
 			ERROR_COUNT=$$((ERROR_COUNT+1)); \
+			FAILED_TESTS="$$FAILED_TESTS\n  - $$1"; \
 		fi; \
 	}; \
 	
+	# all test cases
 	run_test test-e2e; \
 	run_test test-data-loss; \
 	run_test test-executor; \
@@ -170,7 +173,8 @@ test:
 
 	echo "\n========== Tests completed at $$(date) =========="; \
 	if [ $$ERROR_COUNT -gt 0 ]; then \
-		echo "❌ $$ERROR_COUNT tests failed."; \
+		echo "❌ $$ERROR_COUNT tests failed:"; \
+		echo -e "$$FAILED_TESTS"; \
 		exit 1; \
 	else \
 		echo "✅ All tests passed successfully!"; \
@@ -209,7 +213,7 @@ kurtosis-cdk:
 tests:
 	mkdir -p $(CURDIR)/app/tmp
 	cd ../ && TMPDIR=$(CURDIR)/app/tmp make -B test
-	echo "All tests passed"
+	echo "Unit tests passed"
 
 .PHONY: lint
 lint:
