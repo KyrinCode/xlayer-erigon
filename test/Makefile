@@ -147,20 +147,19 @@ test:
 	@echo "Starting tests at $$(date)"
 	@ERROR_COUNT=0; \
 	FAILED_TESTS=""; \
-	run_test() { \
-		echo "\n========== Running $$1... =========="; \
-		if make $$1; then \
-			echo "✅ $$1 passed"; \
-		else \
-			echo "❌ $$1 FAILED"; \
-			ERROR_COUNT=$$((ERROR_COUNT+1)); \
-			FAILED_TESTS="$$FAILED_TESTS\n  - $$1"; \
-		fi; \
-	}; \
-	export -f run_test; \
-	export ERROR_COUNT; \
-	export FAILED_TESTS; \
 	/bin/bash -c ' \
+		run_test() { \
+			echo "\n========== Running $$1... =========="; \
+			if make $$1; then \
+				echo "✅ $$1 passed"; \
+			else \
+				echo "❌ $$1 FAILED"; \
+				ERROR_COUNT=$$((ERROR_COUNT+1)); \
+				FAILED_TESTS="$$FAILED_TESTS\n  - $$1"; \
+			fi; \
+		}; \
+		export ERROR_COUNT=0; \
+		export FAILED_TESTS=""; \
 		run_test test-e2e; \
 		run_test test-data-loss; \
 		run_test test-executor; \
@@ -172,15 +171,15 @@ test:
 		run_test kurtosis-cdk; \
 		run_test resequence-default; \
 		run_test resequence-ac-split; \
-	'; \
-	echo "\n========== Tests completed at $$(date) =========="; \
-	if [ $$ERROR_COUNT -gt 0 ]; then \
-		echo "❌ $$ERROR_COUNT tests failed:"; \
-		echo -e "$$FAILED_TESTS"; \
-		exit 1; \
-	else \
-		echo "✅ All tests passed successfully!"; \
-	fi
+		echo "\n========== Tests completed at $$(date) =========="; \
+		if [ $$ERROR_COUNT -gt 0 ]; then \
+			echo "❌ $$ERROR_COUNT tests failed:"; \
+			echo -e "$$FAILED_TESTS"; \
+			exit 1; \
+		else \
+			echo "✅ All tests passed successfully!"; \
+		fi \
+	'
 
 .PHONY: test-unwind-default
 test-unwind-default:
