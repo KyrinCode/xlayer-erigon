@@ -2,6 +2,7 @@ package realdb
 
 import (
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
 	"github.com/linxGnu/grocksdb"
 )
 
@@ -22,4 +23,15 @@ func (db *RealRDB) TransactionBegin(opts *grocksdb.WriteOptions, transactionOpts
 func (db *RealRDB) Close() {
 	db.db.Close()
 	db.db = nil
+}
+
+func (db *RealRDB) Get(k []byte) (*common.DBValue, error) {
+	ropts := grocksdb.NewDefaultReadOptions()
+	defer ropts.Destroy()
+	s, err := db.db.Get(ropts, k)
+	if err != nil {
+		return nil, err
+	}
+	defer s.Free()
+	return common.DeserializeDBValue(common.MoveSliceToBytes(s)), nil
 }

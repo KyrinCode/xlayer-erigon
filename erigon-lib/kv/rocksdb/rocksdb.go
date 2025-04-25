@@ -99,6 +99,10 @@ func (db *RocksDB) Close() {
 	}
 }
 
+func (db *RocksDB) Get(table string, k []byte) (*common.DBValue, error) {
+	return db.db.Get(common.MergeKey(table, k))
+}
+
 // impl Ro interface
 func (db *RocksDB) ReadOnly() bool {
 	return db.readOnly

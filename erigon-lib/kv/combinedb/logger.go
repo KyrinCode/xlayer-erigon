@@ -21,7 +21,7 @@ func (cl *combineLogger) getPrefix() string {
 
 func (cl *combineLogger) Fatal(msg string, args ...interface{}) {
 	args = append([]interface{}{"msg", msg}, args...)
-	log.Error(cl.prefix, args...)
+	log.Error(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
 	panic("fatal error")
 }
 
@@ -31,7 +31,7 @@ func (cl *combineLogger) Fatalf(format string, args ...interface{}) {
 
 func (cl *combineLogger) Error(msg string, args ...interface{}) {
 	args = append([]interface{}{"msg", msg}, args...)
-	log.Error(cl.prefix, args...)
+	log.Error(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
 }
 
 func (cl *combineLogger) Errorf(format string, args ...interface{}) {
@@ -40,7 +40,7 @@ func (cl *combineLogger) Errorf(format string, args ...interface{}) {
 
 func (cl *combineLogger) Warn(msg string, args ...interface{}) {
 	args = append([]interface{}{"msg", msg}, args...)
-	log.Warn(cl.prefix, args...)
+	log.Warn(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
 }
 
 func (cl *combineLogger) Warnf(format string, args ...interface{}) {
@@ -49,7 +49,7 @@ func (cl *combineLogger) Warnf(format string, args ...interface{}) {
 
 func (cl *combineLogger) Info(msg string, args ...interface{}) {
 	args = append([]interface{}{"msg", msg}, args...)
-	log.Info(cl.prefix, args...)
+	log.Info(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
 }
 
 func (cl *combineLogger) Infof(format string, args ...interface{}) {
@@ -58,7 +58,7 @@ func (cl *combineLogger) Infof(format string, args ...interface{}) {
 
 func (cl *combineLogger) Debug(msg string, args ...interface{}) {
 	args = append([]interface{}{"msg", msg}, args...)
-	log.Debug(cl.prefix, args...)
+	log.Debug(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
 }
 
 func (cl *combineLogger) Debugf(format string, args ...interface{}) {
@@ -67,7 +67,7 @@ func (cl *combineLogger) Debugf(format string, args ...interface{}) {
 
 func (cl *combineLogger) Trace(msg string, args ...interface{}) {
 	args = append([]interface{}{"msg", msg}, args...)
-	log.Trace(cl.prefix, args...)
+	log.Trace(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
 }
 
 func (cl *combineLogger) Tracef(msg string, args ...interface{}) {

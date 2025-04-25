@@ -16,6 +16,14 @@ func NewMemoryRDB() *MemoryRDB {
 	}
 }
 
+func (db *MemoryRDB) Get(key []byte) (*common.DBValue, error) {
+	dbv, ok := db.storage.Get(key)
+	if !ok {
+		return nil, common.ErrKeyNotExist
+	}
+	return dbv, nil
+}
+
 func (db *MemoryRDB) Close() {
 	// do nothing
 }

@@ -6,6 +6,7 @@ import (
 )
 
 type RDB interface {
+	Get(key []byte) (*common.DBValue, error)
 	TransactionBegin(opts *grocksdb.WriteOptions, transactionOpts *grocksdb.TransactionOptions, oldTransaction *grocksdb.Transaction) RDBTransaction
 	Close()
 }

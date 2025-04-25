@@ -39,10 +39,12 @@ type CombineRwCursorDupSort struct {
 var cursorCounter atomic.Uint64
 
 func newCombineCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.Cursor, table string) *CombineCursor {
+	logger := newCombinLogger(fmt.Sprintf("%s cursorid=%d table=%s", txPrefix, cursorCounter.Add(1), table))
+	logger.Info("create combine cursor", "table", table)
 	return &CombineCursor{
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
-		logger:        newCombinLogger(fmt.Sprintf("%s cursorid=%d table=%s", txPrefix, cursorCounter.Add(1), table)),
+		logger:        logger,
 	}
 }
 func newCombineRwCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursor, table string) *CombineRwCursor {

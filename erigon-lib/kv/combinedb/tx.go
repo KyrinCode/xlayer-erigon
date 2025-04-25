@@ -32,10 +32,12 @@ type kvPair struct {
 }
 
 func newCombineTx(dbPrefix string, mdbxTx kv.Tx, rocksdbTx kv.Tx) *CombineTx {
+	logger := newCombinLogger(fmt.Sprintf("%s txid=%d", dbPrefix, txCounter.Add(1)))
+	logger.Info("create combine tx")
 	return &CombineTx{
 		mdbxTx:    mdbxTx,
 		rocksdbTx: rocksdbTx,
-		logger:    newCombinLogger(fmt.Sprintf("%s txid=%d", dbPrefix, txCounter.Add(1))),
+		logger:    logger,
 	}
 }
 
@@ -153,8 +155,8 @@ func (tx *CombineTx) Commit() error {
 	tx.logger.Info("Commit")
 	defer tx.logger.Info("Commit done")
 
-	err1 := tx.mdbxTx.Commit()
 	err2 := tx.rocksdbTx.Commit()
+	err1 := tx.mdbxTx.Commit()
 	assertError(tx.logger, err1, err2, "Commit")
 
 	return nil
@@ -327,7 +329,7 @@ func (tx *CombineRwTx) Delete(table string, k []byte) error {
 	tx.logger.Infof("Delete(table=%s, k=%x)", table, k)
 	defer tx.logger.Info("Delete done")
 
-	// NOTE: mdbx Delete will change the slice passed in, so we have to call rocksdb Delete first
+	// NOTE: don't know why if call mdbx Delete first the `k` will be changed
 	err2 := tx.rocksdbTx.Delete(table, k)
 	err1 := tx.mdbxTx.Delete(table, k)
 	assertError(tx.logger, err1, err2, "Delete")
