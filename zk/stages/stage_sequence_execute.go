@@ -362,6 +362,7 @@ func sequencingBatchStep(
 	sendersToSkip := make(map[common.Address]struct{})
 
 	blockNumber := uint64(0)
+BatchLoop:
 	for blockNumber = executionAt + 1; runLoopBlocks; blockNumber++ {
 		if batchTimedOut {
 			log.Debug(fmt.Sprintf("[%s] Closing batch due to timeout", logPrefix))
@@ -816,7 +817,8 @@ func sequencingBatchStep(
 				log.Warn(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
 				break
 			}
-			log.Warn(fmt.Sprintf("[%s] Keeping empty block %d to keep liveness", logPrefix, blockNumber))
+			log.Warn(fmt.Sprintf("[%s] Closing batch to keep liveness when encountering empty block", logPrefix, blockNumber))
+			break BatchLoop
 		}
 
 		if batchContext.sdb.supportAC {
