@@ -813,10 +813,10 @@ func sequencingBatchStep(
 		// there wasn't much time left in the batch to mine any transactions
 		if len(batchState.blockState.transactionsForInclusion) > 0 && len(batchState.blockState.builtBlockElements.transactions) == 0 {
 			if cfg.zk.XLayer.SequencerSkipEmptyBlocks {
-				log.Info(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
+				log.Warn(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
 				break
 			}
-			log.Info(fmt.Sprintf("[%s] Keeping empty block %d to keep liveness", logPrefix, blockNumber))
+			log.Warn(fmt.Sprintf("[%s] Keeping empty block %d to keep liveness", logPrefix, blockNumber))
 		}
 
 		if batchContext.sdb.supportAC {
