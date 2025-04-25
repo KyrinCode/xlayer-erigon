@@ -23,9 +23,10 @@ func UnwindZkSMT(ctx context.Context, logPrefix string, from, to uint64, tx kv.R
 		defer log.Info(fmt.Sprintf("[%s] Unwind ended", logPrefix))
 	}
 
-	var eridb *db2.EriDb = nil
+	var eridb smt.DB
 	if txsmt != nil {
-		eridb = db2.NewEriDb(txsmt, tx)
+		eridb = db2.NewEriCacheDb(ctx, txsmt, tx)
+		eridb.SetCache(cache)
 	} else {
 		eridb = db2.NewEriDb(tx, tx)
 	}

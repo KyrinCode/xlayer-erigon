@@ -269,7 +269,10 @@ func (cache *SmtCache) resetPrimaryCache(currentHeight uint64, resetSmt bool) {
 	newCache := immutable.NewMap[string, *immutable.Map[string, []byte]](nil)
 	for _, delta := range allDeltas {
 		for table, keys := range delta.ChangedKeys {
-			if (table == TableSmt || table == TableStats) && !resetSmt {
+			//if (table == TableSmt || table == TableStats) && !resetSmt {
+			//	continue
+			//}
+			if table == TableStats && !resetSmt {
 				continue
 			}
 
@@ -294,10 +297,10 @@ func (cache *SmtCache) resetPrimaryCache(currentHeight uint64, resetSmt bool) {
 	}
 
 	if !resetSmt {
-		curSmtInner, _ := cache.PrimaryCache.Get(TableSmt)
-		if curSmtInner != nil {
-			newCache = newCache.Set(TableSmt, curSmtInner)
-		}
+		//curSmtInner, _ := cache.PrimaryCache.Get(TableSmt)
+		//if curSmtInner != nil {
+		//	newCache = newCache.Set(TableSmt, curSmtInner)
+		//}
 
 		curStatusInner, _ := cache.PrimaryCache.Get(TableStats)
 		if curStatusInner != nil {
