@@ -157,20 +157,22 @@ test:
 			FAILED_TESTS="$$FAILED_TESTS\n  - $$1"; \
 		fi; \
 	}; \
-	
-	# all test cases
-	run_test test-e2e; \
-	run_test test-data-loss; \
-	run_test test-executor; \
-	run_test tests; \
-	run_test lint; \
-	run_test check_chinese_characters; \
-	run_test test-unwind-default; \
-	run_test test-unwind-ac-split; \
-	run_test kurtosis-cdk; \
-	run_test resequence-default; \
-	run_test resequence-ac-split; \
-
+	export -f run_test; \
+	export ERROR_COUNT; \
+	export FAILED_TESTS; \
+	/bin/bash -c ' \
+		run_test test-e2e; \
+		run_test test-data-loss; \
+		run_test test-executor; \
+		run_test tests; \
+		run_test lint; \
+		run_test check_chinese_characters; \
+		run_test test-unwind-default; \
+		run_test test-unwind-ac-split; \
+		run_test kurtosis-cdk; \
+		run_test resequence-default; \
+		run_test resequence-ac-split; \
+	'; \
 	echo "\n========== Tests completed at $$(date) =========="; \
 	if [ $$ERROR_COUNT -gt 0 ]; then \
 		echo "❌ $$ERROR_COUNT tests failed:"; \
@@ -193,7 +195,7 @@ test-unwind-ac-split:
 
 .PHONY: check_chinese_characters
 check_chinese_characters:
-	cd ../ && bash ./.github/scripts/check_chinese_characters.sh
+	cd ../ && bash .github/scripts/check_chinese_characters.sh
 	echo "Chinese characters check passed"
 
 resequence-default:
