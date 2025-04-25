@@ -821,8 +821,6 @@ func sequencingBatchStep(
 			if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
 				return err
 			}
-			sendersToSkip = make(map[common.Address]struct{})
-			sendersToTriggerStatechanges = make(map[common.Address]struct{})
 		}
 
 		if batchContext.sdb.supportAC {
