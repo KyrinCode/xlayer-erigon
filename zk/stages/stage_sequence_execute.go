@@ -362,7 +362,7 @@ func sequencingBatchStep(
 	sendersToSkip := make(map[common.Address]struct{})
 
 	blockNumber := uint64(0)
-BatchLoop:
+
 	for blockNumber = executionAt + 1; runLoopBlocks; blockNumber++ {
 		if batchTimedOut {
 			log.Debug(fmt.Sprintf("[%s] Closing batch due to timeout", logPrefix))
@@ -817,8 +817,10 @@ BatchLoop:
 				log.Warn(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
 				break
 			}
-			log.Warn(fmt.Sprintf("[%s] Closing batch to keep liveness when encountering empty block", logPrefix, blockNumber))
-			break BatchLoop
+			log.Warn(fmt.Sprintf("[%s] Keeping empty block %d to keep liveness", logPrefix, blockNumber))
+			if err := cfg.txPool.TriggerSenderStateChanges(ctx, sdb.tx, header.GasLimit, sendersToTriggerStatechanges); err != nil {
+				return err
+			}
 		}
 
 		if batchContext.sdb.supportAC {
