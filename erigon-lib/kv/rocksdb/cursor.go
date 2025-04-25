@@ -31,6 +31,10 @@ func newRocksDbCursorRW(table string, tableCfg kv.TableCfgItem, rtx *RocksDbTx, 
 	}, nil
 }
 
+func (c *RocksDbCursor) UpdateSnapshot() {
+	c.it.UpdateSnapshot()
+}
+
 // impl Cursor interface
 
 func (c *RocksDbCursor) First() ([]byte, []byte, error) { // First - position at first key/data item

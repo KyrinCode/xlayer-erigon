@@ -16,7 +16,9 @@ func NewRealRDB(opts *grocksdb.Options, txopts *grocksdb.TransactionDBOptions, d
 }
 
 func (db *RealRDB) TransactionBegin(opts *grocksdb.WriteOptions, transactionOpts *grocksdb.TransactionOptions, oldTransaction *grocksdb.Transaction) rdb.RDBTransaction {
-	return newRealRtx(db.db.TransactionBegin(opts, transactionOpts, oldTransaction))
+	return newRealRtx(db.db.TransactionBegin(opts, transactionOpts, oldTransaction), func() *grocksdb.Snapshot {
+		return db.db.NewSnapshot()
+	})
 
 }
 

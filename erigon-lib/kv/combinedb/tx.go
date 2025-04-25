@@ -2,18 +2,25 @@ package combinedb
 
 import "C"
 import (
+	"bytes"
 	"fmt"
-	"github.com/ledgerwatch/erigon-lib/kv/iter"
-	"github.com/ledgerwatch/erigon-lib/kv/order"
+	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/kv/iter"
+	"github.com/ledgerwatch/erigon-lib/kv/order"
+	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
+	"github.com/linxGnu/grocksdb"
 )
 
 type CombineTx struct {
 	mdbxTx    kv.Tx
 	rocksdbTx kv.Tx
+
+	latestSnapshotCreator func() *grocksdb.Snapshot
 
 	logger *combineLogger
 }
@@ -66,12 +73,35 @@ func (tx *CombineTx) GetOne(table string, key []byte) (val []byte, err error) {
 	tx.logger.Infof("GetOne(table=%s, key=%x)", table, key)
 	defer tx.logger.Info("GetOne done")
 
-	v1, err1 := tx.mdbxTx.GetOne(table, key)
-	v2, err2 := tx.rocksdbTx.GetOne(table, key)
+	// sometimes the data is commiting and another goroutine is reading the data,
+	// but the different database can't commit data at the same time,
+	// which will make one get the right value and another get a old value.
+	// so we have to try multiple times to make sure data is all commit as much as possible.
+	const retryCount = 10
+	var mdbxErrs, rockErrs [retryCount]error
+	var mdbxValues, rockValues [retryCount][]byte
 
-	assertError(tx.logger, err1, err2, "GetOne")
-	assertEqualF(tx.logger, v1, v2, "GetOne mismatch: mdbx: %x. rocksdb: %x", v1, v2)
-	return v1, nil
+	for i := 0; i < retryCount; i++ {
+		mdbxValues[i], mdbxErrs[i] = tx.mdbxTx.GetOne(table, key)
+		rockValues[i], rockErrs[i] = tx.rocksdbTx.GetOne(table, key)
+
+		if (mdbxErrs[i] == nil && rockErrs[i] == nil) && bytes.Equal(mdbxValues[i], rockValues[i]) {
+			return mdbxValues[i], nil
+		}
+
+		tx.rocksdbTx.(*rocksdb.RocksDbTx).UpdateSnapshot()
+		time.Sleep(time.Millisecond * 500)
+	}
+
+	var mdbxValuesHex, rockValuesHex [retryCount]string
+	for i := 0; i < retryCount; i++ {
+		mdbxValuesHex[i] = fmt.Sprintf("%x", mdbxValues[i])
+		rockValuesHex[i] = fmt.Sprintf("%x", rockValues[i])
+	}
+	tx.logger.Fatalf(
+		"GetOne(table=%s, key=%x) mismatch. mdbx values:%v. rocks values:%v. mdbx errors:%v. rocks errors:%v",
+		table, key, mdbxValuesHex, rockValuesHex, mdbxErrs, rockErrs)
+	return nil, nil
 }
 
 func (tx *CombineTx) ForEach(table string, fromPrefix []byte, walker func(k, v []byte) error) error {
@@ -155,10 +185,23 @@ func (tx *CombineTx) Commit() error {
 	tx.logger.Info("Commit")
 	defer tx.logger.Info("Commit done")
 
-	err2 := tx.rocksdbTx.Commit()
-	err1 := tx.mdbxTx.Commit()
-	assertError(tx.logger, err1, err2, "Commit")
+	var wg sync.WaitGroup
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := tx.rocksdbTx.Commit(); err != nil {
+			tx.logger.Error("rocksdb tx Commit error", "error", err)
+			panic(err)
+		}
+	}()
+	// mdbx tx can't be used in another goroutine(thread)
+	if err := tx.mdbxTx.Commit(); err != nil {
+		tx.logger.Error("mdbx tx Commit error", "error", err)
+		panic(err)
+	}
+
+	wg.Wait()
 	return nil
 }
 

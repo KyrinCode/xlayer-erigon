@@ -56,6 +56,15 @@ func newRocksDbTx(db *RocksDB, ctx context.Context, closeCallback func()) (*Rock
 	}, nil
 }
 
+func (rtx *RocksDbTx) UpdateSnapshot() {
+	for _, c := range rtx.statelessCursors {
+		c.(*RocksDbCursor).UpdateSnapshot()
+	}
+	for _, c := range rtx.cursors {
+		c.(*RocksDbCursor).UpdateSnapshot()
+	}
+}
+
 // impl kv.Has interface
 func (rtx *RocksDbTx) Has(table string, key []byte) (bool, error) {
 	_, err := rtx.tx.Get(rtx.ropts, common.MergeKey(table, key))

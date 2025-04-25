@@ -90,6 +90,11 @@ func NewRocksDbIterator(tx rdb.RDBTransaction, table string) *RocksDbIterator {
 	}
 }
 
+func (iter *RocksDbIterator) UpdateSnapshot() {
+	// create a new iterator will use the latest snapshot
+	iter.reCreateIterator()
+}
+
 func (iter *RocksDbIterator) Close() {
 	if iter.it != nil {
 		iter.it.Close()

@@ -8,10 +8,13 @@ import (
 
 type RealRtx struct {
 	tx *grocksdb.Transaction
+
+	latestSnapshotCreator func() *grocksdb.Snapshot
+	snapshots             []*grocksdb.Snapshot
 }
 
-func newRealRtx(tx *grocksdb.Transaction) *RealRtx {
-	return &RealRtx{tx: tx}
+func newRealRtx(tx *grocksdb.Transaction, latestSnapshotCreator func() *grocksdb.Snapshot) *RealRtx {
+	return &RealRtx{tx: tx, latestSnapshotCreator: latestSnapshotCreator}
 }
 
 func (rtx *RealRtx) Get(opts *grocksdb.ReadOptions, key []byte) (*common.DBValue, error) {
@@ -43,13 +46,23 @@ func (rtx *RealRtx) Rollback() error {
 }
 
 func (rtx *RealRtx) NewIterator(beginPrefix, endPrefix []byte) rdb.RDBIterator {
+	// todo: combinedb need update snapshot in some situation.
+	//   if combinedb isn't used, code here could ignore call `ropts.SetSnapshot`
+	ss := rtx.latestSnapshotCreator()
+	rtx.snapshots = append(rtx.snapshots, ss)
+
 	ropts := grocksdb.NewDefaultReadOptions()
 	ropts.SetIterateLowerBound(beginPrefix)
 	ropts.SetIterateUpperBound(endPrefix)
+	ropts.SetSnapshot(ss)
 
 	return newRealIterator(ropts, rtx.tx.NewIterator(ropts))
 }
 
 func (rtx *RealRtx) Destroy() {
 	rtx.tx.Destroy()
+	for _, ss := range rtx.snapshots {
+		ss.Destroy()
+	}
+	rtx.snapshots = nil
 }
