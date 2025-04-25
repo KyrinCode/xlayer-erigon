@@ -168,7 +168,8 @@ type Config struct {
 
 	Http httpcfg.HttpCfg
 
-	DatabaseType dbbuilder.DatabseType
+	DatabaseType     dbbuilder.DatabseType
+	EnableConbineLog bool
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

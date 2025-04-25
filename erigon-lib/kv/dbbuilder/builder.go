@@ -30,14 +30,14 @@ func ToDatabaseType(s string) DatabseType {
 	}
 }
 
-func NewDB(dbType DatabseType, ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) (kv.RwDB, error) {
+func NewDB(dbType DatabseType, ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg, enableCombineLog bool) (kv.RwDB, error) {
 	switch dbType {
 	case DatabseTypeMdbx:
 		return opts.Open(ctx)
 	case DatabaseTypeRocksDB:
 		return rocksdb.NewRocksDB(opts.GetPath(), opts.GetLogger(), tableCfg, opts.GetLabel(), opts.GetRoTxsLimiter(), opts.IsReadonly(), rocksdb.RealRDB)
 	case DatabaseTypeCombine:
-		return combinedb.NewCombinDB(ctx, opts, tableCfg)
+		return combinedb.NewCombinDB(ctx, opts, tableCfg, enableCombineLog)
 	default:
 		panic(fmt.Sprintf("unknown db type: %v", dbType))
 	}

@@ -64,7 +64,8 @@ type Config struct {
 
 	PurgeDistance time.Duration
 
-	DatabaseType dbbuilder.DatabseType
+	DatabaseType     dbbuilder.DatabseType
+	EnableConbineLog bool
 }
 
 var DefaultConfig = Config{

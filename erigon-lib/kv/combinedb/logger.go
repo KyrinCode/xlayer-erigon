@@ -6,17 +6,23 @@ import (
 )
 
 type combineLogger struct {
+	enable bool
 	prefix string
 }
 
-func newCombinLogger(prefix string) *combineLogger {
+func newCombinLogger(enable bool, prefix string) *combineLogger {
 	return &combineLogger{
+		enable: enable,
 		prefix: prefix,
 	}
 }
 
 func (cl *combineLogger) getPrefix() string {
 	return cl.prefix
+}
+
+func (cl *combineLogger) isEnable() bool {
+	return cl.enable
 }
 
 func (cl *combineLogger) Fatal(msg string, args ...interface{}) {
@@ -48,8 +54,10 @@ func (cl *combineLogger) Warnf(format string, args ...interface{}) {
 }
 
 func (cl *combineLogger) Info(msg string, args ...interface{}) {
-	args = append([]interface{}{"msg", msg}, args...)
-	log.Info(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
+	if cl.enable {
+		args = append([]interface{}{"msg", msg}, args...)
+		log.Info(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
+	}
 }
 
 func (cl *combineLogger) Infof(format string, args ...interface{}) {
@@ -57,8 +65,10 @@ func (cl *combineLogger) Infof(format string, args ...interface{}) {
 }
 
 func (cl *combineLogger) Debug(msg string, args ...interface{}) {
-	args = append([]interface{}{"msg", msg}, args...)
-	log.Debug(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
+	if cl.enable {
+		args = append([]interface{}{"msg", msg}, args...)
+		log.Debug(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
+	}
 }
 
 func (cl *combineLogger) Debugf(format string, args ...interface{}) {
@@ -66,8 +76,10 @@ func (cl *combineLogger) Debugf(format string, args ...interface{}) {
 }
 
 func (cl *combineLogger) Trace(msg string, args ...interface{}) {
-	args = append([]interface{}{"msg", msg}, args...)
-	log.Trace(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
+	if cl.enable {
+		args = append([]interface{}{"msg", msg}, args...)
+		log.Trace(fmt.Sprintf("[GID %d] %s", GoID(), cl.prefix), args...)
+	}
 }
 
 func (cl *combineLogger) Tracef(msg string, args ...interface{}) {

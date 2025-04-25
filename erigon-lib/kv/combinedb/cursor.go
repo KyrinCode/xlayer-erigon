@@ -38,8 +38,8 @@ type CombineRwCursorDupSort struct {
 
 var cursorCounter atomic.Uint64
 
-func newCombineCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.Cursor, table string) *CombineCursor {
-	logger := newCombinLogger(fmt.Sprintf("%s cursorid=%d table=%s", txPrefix, cursorCounter.Add(1), table))
+func newCombineCursor(parentLogger *combineLogger, mdbxCursor, rocksdbCursor kv.Cursor, table string) *CombineCursor {
+	logger := newCombinLogger(parentLogger.isEnable(), fmt.Sprintf("%s cursorid=%d table=%s", parentLogger.getPrefix(), cursorCounter.Add(1), table))
 	logger.Info("create combine cursor", "table", table)
 	return &CombineCursor{
 		mdbxCursor:    mdbxCursor,
@@ -47,26 +47,26 @@ func newCombineCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.Cursor, tabl
 		logger:        logger,
 	}
 }
-func newCombineRwCursor(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursor, table string) *CombineRwCursor {
+func newCombineRwCursor(parentLogger *combineLogger, mdbxCursor, rocksdbCursor kv.RwCursor, table string) *CombineRwCursor {
 	return &CombineRwCursor{
-		CombineCursor: newCombineCursor(txPrefix, mdbxCursor, rocksdbCursor, table),
+		CombineCursor: newCombineCursor(parentLogger, mdbxCursor, rocksdbCursor, table),
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
 	}
 }
 
-func newCombineCursorDupSort(txPrefix string, mdbxCursor, rocksdbCursor kv.CursorDupSort, table string) *CombineCursorDupSort {
+func newCombineCursorDupSort(parentLogger *combineLogger, mdbxCursor, rocksdbCursor kv.CursorDupSort, table string) *CombineCursorDupSort {
 	return &CombineCursorDupSort{
-		CombineCursor: newCombineCursor(txPrefix, mdbxCursor, rocksdbCursor, table),
+		CombineCursor: newCombineCursor(parentLogger, mdbxCursor, rocksdbCursor, table),
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,
 	}
 }
 
-func newCombineRwCursorDupSort(txPrefix string, mdbxCursor, rocksdbCursor kv.RwCursorDupSort, table string) kv.RwCursorDupSort {
+func newCombineRwCursorDupSort(parentLogger *combineLogger, mdbxCursor, rocksdbCursor kv.RwCursorDupSort, table string) kv.RwCursorDupSort {
 	return &CombineRwCursorDupSort{
-		CombineCursorDupSort: newCombineCursorDupSort(txPrefix, mdbxCursor, rocksdbCursor, table),
-		CombineRwCursor:      newCombineRwCursor(txPrefix, mdbxCursor, rocksdbCursor, table),
+		CombineCursorDupSort: newCombineCursorDupSort(parentLogger, mdbxCursor, rocksdbCursor, table),
+		CombineRwCursor:      newCombineRwCursor(parentLogger, mdbxCursor, rocksdbCursor, table),
 
 		mdbxCursor:    mdbxCursor,
 		rocksdbCursor: rocksdbCursor,

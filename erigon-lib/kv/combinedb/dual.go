@@ -16,11 +16,11 @@ type CombineDual struct {
 
 var dualCounter atomic.Uint64
 
-func newCombineDual(prefix string, mdbxDual iter.KV, rocksdbDual iter.KV) iter.KV {
+func newCombineDual(parentLogger *combineLogger, mdbxDual iter.KV, rocksdbDual iter.KV) iter.KV {
 	return &CombineDual{
 		mdbxDual:    mdbxDual,
 		rocksdbDual: rocksdbDual,
-		logger:      newCombinLogger(fmt.Sprintf("%s dualid=%d", prefix, dualCounter.Add(1))),
+		logger:      newCombinLogger(parentLogger.isEnable(), fmt.Sprintf("%s dualid=%d", parentLogger.getPrefix(), dualCounter.Add(1))),
 	}
 }
 

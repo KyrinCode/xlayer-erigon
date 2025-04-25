@@ -1522,6 +1522,12 @@ var (
 		Name:  "chaindata.dbtype",
 		Usage: "the type of database the node will use to store chain data",
 	}
+
+	CombineDBLogEnable = cli.BoolFlag{
+		Name:  "combinedb.log.enable",
+		Usage: "whether enable combined db log",
+		Value: false,
+	}
 )
 
 var MetricFlags = []cli.Flag{&MetricsEnabledFlag, &MetricsHTTPFlag, &MetricsPortFlag, &DiagDisabledFlag, &DiagEndpointAddrFlag, &DiagEndpointPortFlag, &DiagSpeedTestFlag}
@@ -2502,10 +2508,16 @@ func setChainDataDBType(ctx *cli.Context, cfg *nodecfg.Config) {
 	if ctx.IsSet(ChainDataDBTypeFlag.Name) {
 		cfg.DatabaseType = dbbuilder.ToDatabaseType(ctx.String(ChainDataDBTypeFlag.Name))
 	}
+	if ctx.IsSet(CombineDBLogEnable.Name) {
+		cfg.EnableConbineLog = ctx.Bool(CombineDBLogEnable.Name)
+	}
 }
 
 func setTxPoolBType(ctx *cli.Context, cfg *txpoolcfg.Config) {
 	if ctx.IsSet(TxPoolDBTypeFlag.Name) {
 		cfg.DatabaseType = dbbuilder.ToDatabaseType(ctx.String(TxPoolDBTypeFlag.Name))
+	}
+	if ctx.IsSet(CombineDBLogEnable.Name) {
+		cfg.EnableConbineLog = ctx.Bool(CombineDBLogEnable.Name)
 	}
 }

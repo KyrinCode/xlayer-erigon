@@ -55,6 +55,7 @@ var DefaultFlags = []cli.Flag{
 	&BadBlockFlag,
 	&utils.TxPoolDBTypeFlag,
 	&utils.ChainDataDBTypeFlag,
+	&utils.CombineDBLogEnable,
 
 	&utils.HTTPEnabledFlag,
 	&utils.HTTPServerEnabledFlag,

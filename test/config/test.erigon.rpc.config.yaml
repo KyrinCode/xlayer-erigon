@@ -90,3 +90,5 @@ txpool.dbtype: "mdbx"
 # database type of chain data. the value could be:
 # mdbx, rocksdb, combine
 chaindata.dbtype: "mdbx"
+
+combinedb.log.enable: false

@@ -20,7 +20,7 @@ type CombineDB struct {
 
 var dbCounter atomic.Uint64
 
-func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) (db kv.RwDB, err error) {
+func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg, enableLog bool) (db kv.RwDB, err error) {
 	dbDir := opts.GetPath()
 
 	opts = opts.Path(path.Join(dbDir, "mdbx"))
@@ -51,7 +51,7 @@ func NewCombinDB(ctx context.Context, opts mdbx.MdbxOpts, tableCfg kv.TableCfg) 
 		mdbx:    mdbx,
 		rocksdb: rocksdb,
 
-		logger: newCombinLogger(fmt.Sprintf("combinedb dbid=%d", dbCounter.Add(1))),
+		logger: newCombinLogger(enableLog, fmt.Sprintf("combinedb dbid=%d", dbCounter.Add(1))),
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
 
 	return db.mdbx.View(ctx, func(mdbxTx kv.Tx) error {
 		return db.rocksdb.View(ctx, func(rocksdbTx kv.Tx) error {
-			ctx := newCombineTx(db.logger.getPrefix(), mdbxTx, rocksdbTx)
+			ctx := newCombineTx(db.logger, mdbxTx, rocksdbTx)
 			return f(ctx)
 		})
 	})
@@ -96,7 +96,7 @@ func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
 	rocksdbTx, err2 := db.rocksdb.BeginRo(ctx)
 	assertError(db.logger, err1, err2, "BeginRo")
 
-	return newCombineTx(db.logger.getPrefix(), mdbxTx, rocksdbTx), nil
+	return newCombineTx(db.logger, mdbxTx, rocksdbTx), nil
 }
 
 func (db *CombineDB) AllTables() kv.TableCfg {
@@ -138,7 +138,7 @@ func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error
 
 	return db.mdbx.Update(ctx, func(mdbxTx kv.RwTx) error {
 		return db.rocksdb.Update(ctx, func(rocksdbTx kv.RwTx) error {
-			ctx := newCombineRwTx(db.logger.getPrefix(), mdbxTx, rocksdbTx)
+			ctx := newCombineRwTx(db.logger, mdbxTx, rocksdbTx)
 			return f(ctx)
 		})
 	})
@@ -150,7 +150,7 @@ func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error)
 
 	return db.mdbx.UpdateNosync(ctx, func(mdbxTx kv.RwTx) error {
 		return db.rocksdb.Update(ctx, func(rocksdbTx kv.RwTx) error {
-			ctx := newCombineRwTx(db.logger.getPrefix(), mdbxTx, rocksdbTx)
+			ctx := newCombineRwTx(db.logger, mdbxTx, rocksdbTx)
 			return f(ctx)
 		})
 	})
@@ -164,7 +164,7 @@ func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
 	rocksdbTx, err2 := db.rocksdb.BeginRw(ctx)
 	assertError(db.logger, err1, err2, "BeginRw")
 
-	return newCombineRwTx(db.logger.getPrefix(), mdbxTx, rocksdbTx), nil
+	return newCombineRwTx(db.logger, mdbxTx, rocksdbTx), nil
 }
 
 func (db *CombineDB) BeginRwNosync(ctx context.Context) (kv.RwTx, error) {
@@ -175,5 +175,5 @@ func (db *CombineDB) BeginRwNosync(ctx context.Context) (kv.RwTx, error) {
 	rocksdbTx, err2 := db.rocksdb.BeginRwNosync(ctx)
 	assertError(db.logger, err1, err2, "BeginRwNosync")
 
-	return newCombineRwTx(db.logger.getPrefix(), mdbxTx, rocksdbTx), nil
+	return newCombineRwTx(db.logger, mdbxTx, rocksdbTx), nil
 }
