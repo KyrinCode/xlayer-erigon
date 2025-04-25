@@ -31,23 +31,11 @@ fi
 # Clone or update kurtosis-cdk repository
 if [ -d "$KURTOSIS_CDK_DIR" ]; then
   echo "Kurtosis CDK repo already exists, checking status..."
-  cd "$KURTOSIS_CDK_DIR"
-  
-  # Check if in detached HEAD state or other abnormal states
-  if ! git symbolic-ref -q HEAD >/dev/null; then
-    echo "Repository is in detached HEAD state, fetching and checking out v0.2.24 branch..."
-    git fetch origin
-    git checkout v0.2.24 || git checkout main || git checkout master
-  else
-    # Normal update
-    git pull
-  fi
 else
   echo "Cloning kurtosis-cdk repository..."
   git clone --branch v0.2.24 https://github.com/0xPolygon/kurtosis-cdk.git "$KURTOSIS_CDK_DIR"
-  cd "$KURTOSIS_CDK_DIR"
 fi
-
+cd "$KURTOSIS_CDK_DIR"
 # Check if polycli is installed, if not install it
 if [ ! -x /usr/local/bin/polycli ]; then
     echo "Installing polycli..."

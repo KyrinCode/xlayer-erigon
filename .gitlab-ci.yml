@@ -1,0 +1,89 @@
+stages:
+  - build
+  - test
+  - kurtosis
+  - e2e
+  - post-london
+  - check
+
+variables:
+  DOCKERHUB_USERNAME: $DOCKERHUB_USERNAME
+  DOCKERHUB_TOKEN: $DOCKERHUB_TOKEN
+
+default:
+  image: golang:1.24
+
+before_script:
+  - apt update && apt install -y build-essential
+  - go version
+
+build:
+  stage: build
+  script:
+    - make BUILD_TAGS=nosqlite,noboltdb,nosilkworm cdk-erigon
+    - make cdk-erigon
+    - shasum -a256 ./build/bin/cdk-erigon > erigon1.sha256
+    - make cdk-erigon
+    - shasum -a256 ./build/bin/cdk-erigon > erigon2.sha256
+    - diff erigon1.sha256 erigon2.sha256 || (echo "Reproducible build broken" && exit 1)
+
+test:
+  stage: test
+  script:
+    - make -B test
+
+kurtosis-cdk:
+  stage: kurtosis
+  image: ubuntu:latest
+  services:
+    - docker:dind
+  script:
+    - apt update && apt install -y bash curl git
+    - ./scripts/setup_kurtosis.sh
+    - bash ./cdk-erigon/.github/scripts/cpu_monitor.sh &
+    - sleep 30
+    - kill %1
+    - kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc
+    - ./kurtosis-cdk/.github/scripts/monitor-verified-batches.sh --enclave zdk-v1 --rpc-url $(kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc) --target 20 --timeout 900
+
+post-london:
+  stage: post-london
+  script:
+    - ./scripts/setup_kurtosis.sh
+    - kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc
+    - polycli loadtest --rpc-url "$(kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc)" --private-key "0x12d7..." --verbosity 700 --requests 500 --rate-limit 50 --mode uniswapv3 --legacy
+
+test-e2e:
+  stage: e2e
+  script:
+    - make build-docker
+    - cd test && sudo -E make test-e2e
+
+test-data-loss:
+  stage: e2e
+  parallel:
+    matrix:
+      - CASE: 1
+      - CASE: 2
+      - CASE: 3
+      - CASE: 4
+      - CASE: 5
+      - CASE: 6
+      - CASE: 7
+      - CASE: 8
+  script:
+    - cd test && sudo -E make data-loss-${CASE}
+
+test-executor:
+  stage: e2e
+  script:
+    - make build-docker
+    - bash ./.github/scripts/update_config.sh
+    - cd test && make test-executor
+
+check-chinese-chars:
+  stage: check
+  only:
+    - merge_requests
+  script:
+    - bash ./.github/scripts/check_chinese_characters.sh

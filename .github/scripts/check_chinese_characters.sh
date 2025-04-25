@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 set -e
 
 # Detect OS and choose grep command

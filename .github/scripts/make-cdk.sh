@@ -4,13 +4,10 @@ set -e
 
 BRIDGE_BRANCH="v0.6.0-RC10"
 
-# # Setup paths
+# Setup paths
 CURRENT_DIR=$(pwd)
 MAIN_REPO_DIR="$CURRENT_DIR"
-# Create test/app directory if it doesn't exist
-TEST_APP_DIR="$CURRENT_DIR/test/app"
 mkdir -p "$TEST_APP_DIR"
-# Use the same relative path as in CI but in test/app directory
 KURTOSIS_CDK_DIR="$TEST_APP_DIR/kurtosis-cdk"
 
 # Monitor verified batches
@@ -25,8 +22,6 @@ POLYCLI_EXIT_CODE=$?
 
 echo "polycli loadtest completed with exit code: $POLYCLI_EXIT_CODE"
 
-# Set up environment variables
-echo "Setting up environment variables..."
 cd "$CURRENT_DIR"
 # Clean up existing directory if it exists
 if [ -d "$TEST_APP_DIR/bridge-config-artifact" ]; then
@@ -62,22 +57,10 @@ if [ -z "$BRIDGE_ADDRESS" ]; then
   fi
 fi
 
-# Get port information with error handling
 echo "Getting port information..."
-
-# Get ETH L1 RPC URL
 ETH_RPC_URL=$(kurtosis port print cdk-v1 el-1-geth-lighthouse rpc)
-
-# Get Bridge API URL
 BRIDGE_API_URL=$(kurtosis port print cdk-v1 zkevm-bridge-service-001 rpc)
-
-# Get L2 RPC URL
 L2_RPC_URL=$(kurtosis port print cdk-v1 cdk-erigon-rpc-001 rpc)
-
-# Strip any existing protocol prefix to ensure clean URLs
-ETH_RPC_URL=$(echo "$ETH_RPC_URL" | sed -E 's|^(https?:)?//||')
-L2_RPC_URL=$(echo "$L2_RPC_URL" | sed -E 's|^(https?:)?//||')
-BRIDGE_API_URL=$(echo "$BRIDGE_API_URL" | sed -E 's|^(https?:)?//||')
 
 echo "BRIDGE_ADDRESS=$BRIDGE_ADDRESS"
 echo "ETH_RPC_URL=$ETH_RPC_URL"
@@ -86,26 +69,11 @@ echo "L2_RPC_URL=$L2_RPC_URL"
 
 # Handle bridge repository
 BRIDGE_REPO="$TEST_APP_DIR/bridge"
-
 if [ -d "$BRIDGE_REPO" ]; then
   echo "Bridge repository already exists, updating to $BRIDGE_BRANCH..."
-  cd "$BRIDGE_REPO"
-  
-  # Check if we are in detached HEAD state and handle it properly
-  if ! git symbolic-ref -q HEAD >/dev/null; then
-    echo "Repository is in detached HEAD state, fetching and checking out $BRIDGE_BRANCH branch..."
-    git fetch origin
-    git checkout $BRIDGE_BRANCH || git checkout master || git checkout main
-  else
-    # Normal branch update
-    git fetch
-    git checkout $BRIDGE_BRANCH
-    git pull origin $BRIDGE_BRANCH
-  fi
 else
   echo "Cloning bridge repository..."
   git clone --recurse-submodules -j8 https://github.com/0xPolygonHermez/zkevm-bridge-service.git -b $BRIDGE_BRANCH "$BRIDGE_REPO"
-  cd "$BRIDGE_REPO"
 fi
 
 # Build docker image
