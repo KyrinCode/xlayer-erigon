@@ -223,8 +223,8 @@ func (c *CombineRwCursor) DeleteCurrent() error {
 
 	k1, v1, err1 := c.mdbxCursor.Current()
 	k2, v2, err2 := c.rocksdbCursor.Current()
-	assertEqualF(c.logger, k1, v1, "DeleteCurrent key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
-	assertEqualF(c.logger, k1, v1, "DeleteCurrent value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
+	assertEqualF(c.logger, k1, k2, "DeleteCurrent key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
+	assertEqualF(c.logger, v1, v2, "DeleteCurrent value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 
 	err1 = c.mdbxCursor.DeleteCurrent()
 	err2 = c.rocksdbCursor.DeleteCurrent()
@@ -233,8 +233,8 @@ func (c *CombineRwCursor) DeleteCurrent() error {
 	// make sure the current value is still same after delete
 	k1, v1, err1 = c.mdbxCursor.Current()
 	k2, v2, err2 = c.rocksdbCursor.Current()
-	assertEqualF(c.logger, k1, v1, "DeleteCurrent after delete key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
-	assertEqualF(c.logger, k1, v1, "DeleteCurrent after delete value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
+	assertEqualF(c.logger, k1, k2, "DeleteCurrent after delete key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
+	assertEqualF(c.logger, v1, v2, "DeleteCurrent after delete value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 
 	return nil
 }
