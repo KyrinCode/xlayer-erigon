@@ -71,7 +71,7 @@ func (tx *CombineTx) Has(table string, key []byte) (bool, error) {
 
 func (tx *CombineTx) GetOne(table string, key []byte) (val []byte, err error) {
 	tx.logger.Infof("GetOne(table=%s, key=%x)", table, key)
-	defer tx.logger.Info("GetOne done")
+	defer tx.logger.Infof("GetOne done. table=%s, key=%x, val=%x, err=%v", table, key, val, err)
 
 	// sometimes the data is commiting and another goroutine is reading the data,
 	// but the different database can't commit data at the same time,
