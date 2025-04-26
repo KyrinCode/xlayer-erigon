@@ -1,6 +1,8 @@
 package rocksdb
 
 import (
+	"encoding/binary"
+	"fmt"
 	"github.com/ledgerwatch/erigon-lib/kv/iter"
 	"github.com/ledgerwatch/erigon-lib/kv/order"
 	"testing"
@@ -581,6 +583,34 @@ func TestDelete(t *testing.T) {
 		require.Nil(t, k)
 		require.Nil(t, v)
 	})
+	t.Run("DupSort.SeekNextFor", func(t *testing.T) {
+		_, mtx, _ := mdbxBaseCase(t)
+		_, rtx, _ := rocksdbBaseCase(t)
+
+		// construct data
+		fromBlock := uint64(1)
+		for i := fromBlock; i < fromBlock+10; i++ {
+			require.NoError(t, mtx.Put(mdbxTestTable2, Uint64ToBytes(i), []byte(fmt.Sprintf("value%d", i))))
+			require.NoError(t, rtx.Put(rocksdbTestTable2, Uint64ToBytes(i), []byte(fmt.Sprintf("value%d", i))))
+		}
+
+		mc, err := mtx.RwCursor(mdbxTestTable2)
+		require.NoError(t, err)
+		rc, err := rtx.RwCursor(rocksdbTestTable2)
+		require.NoError(t, err)
+
+		for k, _, err := mc.Seek(Uint64ToBytes(fromBlock + 1)); k != nil; k, _, err = mc.Next() {
+			require.NoError(t, err)
+			require.NoError(t, mtx.Delete(mdbxTestTable2, k))
+		}
+
+		for k, _, err := rc.Seek(Uint64ToBytes(fromBlock + 1)); k != nil; k, _, err = rc.Next() {
+			fmt.Printf("loop. rc:%v\n", rc)
+			require.NoError(t, err)
+			require.NoError(t, rtx.Delete(rocksdbTestTable2, k))
+			fmt.Printf("loop end\n")
+		}
+	})
 	t.Run("notDupSort", func(t *testing.T) {
 		_, mtx, _ := mdbxBaseCase(t)
 		_, rtx, _ := rocksdbBaseCase(t)
@@ -620,6 +650,34 @@ func TestDelete(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, k)
 		require.Nil(t, v)
+	})
+	t.Run("notDupSort.SeekNextFor", func(t *testing.T) {
+		_, mtx, _ := mdbxBaseCase(t)
+		_, rtx, _ := rocksdbBaseCase(t)
+
+		// construct data
+		fromBlock := uint64(1)
+		for i := fromBlock; i < fromBlock+10; i++ {
+			require.NoError(t, mtx.Put(mdbxNotDupSortTestTable, Uint64ToBytes(i), []byte(fmt.Sprintf("value%d", i))))
+			require.NoError(t, rtx.Put(rocksdbNotDupSortTestTable, Uint64ToBytes(i), []byte(fmt.Sprintf("value%d", i))))
+		}
+
+		mc, err := mtx.RwCursor(mdbxNotDupSortTestTable)
+		require.NoError(t, err)
+		rc, err := rtx.RwCursor(rocksdbNotDupSortTestTable)
+		require.NoError(t, err)
+
+		for k, _, err := mc.Seek(Uint64ToBytes(fromBlock + 1)); k != nil; k, _, err = mc.Next() {
+			require.NoError(t, err)
+			require.NoError(t, mtx.Delete(mdbxNotDupSortTestTable, k))
+		}
+
+		for k, _, err := rc.Seek(Uint64ToBytes(fromBlock + 1)); k != nil; k, _, err = rc.Next() {
+			fmt.Printf("loop. rc:%v\n", rc)
+			require.NoError(t, err)
+			require.NoError(t, rtx.Delete(rocksdbNotDupSortTestTable, k))
+			fmt.Printf("loop end\n")
+		}
 	})
 }
 
@@ -1441,4 +1499,10 @@ func TestClearBucket(t *testing.T) {
 	v, err = rtx.GetOne(rocksdbTestTable, []byte("key1"))
 	require.NoError(t, err)
 	require.Nil(t, v)
+}
+
+func Uint64ToBytes(i uint64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, i)
+	return buf
 }

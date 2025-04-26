@@ -7,6 +7,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
+	"github.com/ledgerwatch/log/v3"
 )
 
 type pairCache struct {
@@ -167,17 +168,18 @@ func (avit *alwaysValidRDBIterator) reCreate() {
 	if avit.currentKey != nil {
 		avit.it.Seek(avit.currentKey)
 		if !avit.it.Valid() {
-			panic(fmt.Sprintf("seek to %x should always valid", avit.currentKey))
+			log.Warn("seek to %x failed. may be deleted", avit.currentKey)
+			avit.InvalidCurrent()
+		} else {
+			avit.currentValue = avit.it.Value()
 		}
-		avit.currentValue = avit.it.Value()
 	} else {
 		avit.it.SeekToFirst()
 		if avit.it.Valid() {
 			avit.currentKey = avit.it.Key()
 			avit.currentValue = avit.it.Value()
 		} else {
-			avit.currentKey = nil
-			avit.currentValue = nil
+			avit.InvalidCurrent()
 		}
 	}
 
