@@ -5,15 +5,16 @@ import (
 	"reflect"
 )
 
-func assertError(logger *combineLogger, mdbxErr, rocksdbErr error, funcName string) {
+func assertError(logger *combineLogger, mdbxErr, rocksdbErr error, funcName string) error {
 	if mdbxErr != nil && rocksdbErr != nil {
 		logger.Errorf("%s() err. mdbx err=%v. rocksdb err=%v", funcName, mdbxErr, rocksdbErr)
-		return
+		return rocksdbErr
 	}
 	if mdbxErr != nil || rocksdbErr != nil {
 		logger.Fatalf("%s() single error. mdbx err=%v. rocksdb err=%v", funcName, mdbxErr, rocksdbErr)
-		return
+		return rocksdbErr
 	}
+	return nil
 }
 
 func assertEqualF(logger *combineLogger, expected, actual interface{}, format string, msgAndArgs ...interface{}) {

@@ -62,10 +62,11 @@ func (tx *CombineTx) Has(table string, key []byte) (bool, error) {
 
 	b1, err1 := tx.mdbxTx.Has(table, key)
 	b2, err2 := tx.rocksdbTx.Has(table, key)
+	if err := assertError(tx.logger, err1, err2, "Has"); err != nil {
+		return false, err
+	}
 
-	assertError(tx.logger, err1, err2, "Has")
 	assertEqualF(tx.logger, b1, b2, "Has mismatch: mdbx: %v. rocksdb: %v", b1, b2)
-
 	return b1, nil
 }
 
@@ -119,7 +120,9 @@ func (tx *CombineTx) ForEach(table string, fromPrefix []byte, walker func(k, v [
 		return nil
 	})
 
-	assertError(tx.logger, err1, err2, "ForEach")
+	if err := assertError(tx.logger, err1, err2, "ForEach"); err != nil {
+		return err
+	}
 	assertEqualF(tx.logger, mdbxPairs, rocksdbPairs, "ForEach mismatch: mdbx: %v. rocksdb: %v", mdbxPairs, rocksdbPairs)
 
 	for _, pair := range mdbxPairs {
@@ -145,7 +148,9 @@ func (tx *CombineTx) ForPrefix(table string, prefix []byte, walker func(k, v []b
 		return nil
 	})
 
-	assertError(tx.logger, err1, err2, "ForPrefix")
+	if err := assertError(tx.logger, err1, err2, "ForPrefix"); err != nil {
+		return err
+	}
 	assertEqualF(tx.logger, mdbxPairs, rocksdbPairs, "ForPrefix mismatch: mdbx: %v. rocksdb %v", mdbxPairs, rocksdbPairs)
 
 	for _, pair := range mdbxPairs {
@@ -170,7 +175,9 @@ func (tx *CombineTx) ForAmount(table string, prefix []byte, amount uint32, walke
 		rocksdbPairs = append(rocksdbPairs, kvPair{k, v})
 		return nil
 	})
-	assertError(tx.logger, err1, err2, "ForAmount")
+	if err := assertError(tx.logger, err1, err2, "ForAmount"); err != nil {
+		return err
+	}
 	assertEqualF(tx.logger, mdbxPairs, rocksdbPairs, "ForAmount mismatch: mdbx: %v. rocksdb: %v", mdbxPairs, rocksdbPairs)
 
 	for _, pair := range mdbxPairs {
@@ -222,7 +229,9 @@ func (tx *CombineTx) ReadSequence(table string) (uint64, error) {
 
 	s1, err1 := tx.mdbxTx.ReadSequence(table)
 	s2, err2 := tx.rocksdbTx.ReadSequence(table)
-	assertError(tx.logger, err1, err2, "ReadSequence")
+	if err := assertError(tx.logger, err1, err2, "ReadSequence"); err != nil {
+		return 0, err
+	}
 
 	assertEqualF(tx.logger, s1, s2, "ReadSequence mismatch: mdbx %v. rocksdb %v", s1, s2)
 	return s1, nil
@@ -235,7 +244,9 @@ func (tx *CombineTx) ListBuckets() ([]string, error) {
 	table1, err1 := tx.mdbxTx.ListBuckets()
 	table2, err2 := tx.rocksdbTx.ListBuckets()
 
-	assertError(tx.logger, err1, err2, "ListBuckets")
+	if err := assertError(tx.logger, err1, err2, "ListBuckets"); err != nil {
+		return nil, err
+	}
 	assertEqualF(tx.logger, table1, table2, "ListBuckets mismatch: mdbx %v. rocksdb %v", table1, table2)
 
 	return table1, nil
@@ -258,7 +269,9 @@ func (tx *CombineTx) Cursor(table string) (kv.Cursor, error) {
 
 	mdbxCursor, err1 := tx.mdbxTx.Cursor(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.Cursor(table)
-	assertError(tx.logger, err1, err2, "Cursor")
+	if err := assertError(tx.logger, err1, err2, "Cursor"); err != nil {
+		return nil, err
+	}
 
 	return newCombineCursor(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }
@@ -269,7 +282,9 @@ func (tx *CombineTx) CursorDupSort(table string) (kv.CursorDupSort, error) {
 
 	mdbxCursor, err1 := tx.mdbxTx.CursorDupSort(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.CursorDupSort(table)
-	assertError(tx.logger, err1, err2, "CursorDupSort")
+	if err := assertError(tx.logger, err1, err2, "CursorDupSort"); err != nil {
+		return nil, err
+	}
 
 	return newCombineCursorDupSort(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }
@@ -280,7 +295,9 @@ func (tx *CombineTx) DBSize() (uint64, error) {
 
 	v1, err1 := tx.mdbxTx.DBSize()
 	v2, err2 := tx.rocksdbTx.DBSize()
-	assertError(tx.logger, err1, err2, "DBSize")
+	if err := assertError(tx.logger, err1, err2, "DBSize"); err != nil {
+		return 0, err
+	}
 	assertEqualF(tx.logger, v1, v2, "DBSize mismatch: mdbx: %v. rocksdb: %v", v1, v2)
 
 	return v1, nil
@@ -292,7 +309,9 @@ func (tx *CombineTx) Range(table string, fromPrefix, toPrefix []byte) (iter.KV, 
 
 	iter1, err1 := tx.mdbxTx.Range(table, fromPrefix, toPrefix)
 	iter2, err2 := tx.rocksdbTx.Range(table, fromPrefix, toPrefix)
-	assertError(tx.logger, err1, err2, "Range")
+	if err := assertError(tx.logger, err1, err2, "Range"); err != nil {
+		return nil, err
+	}
 
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
@@ -303,7 +322,9 @@ func (tx *CombineTx) RangeAscend(table string, fromPrefix, toPrefix []byte, limi
 
 	iter1, err1 := tx.mdbxTx.RangeAscend(table, fromPrefix, toPrefix, limit)
 	iter2, err2 := tx.rocksdbTx.RangeAscend(table, fromPrefix, toPrefix, limit)
-	assertError(tx.logger, err1, err2, "RangeAscend")
+	if err := assertError(tx.logger, err1, err2, "RangeAscend"); err != nil {
+		return nil, err
+	}
 
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
@@ -314,7 +335,9 @@ func (tx *CombineTx) RangeDescend(table string, fromPrefix, toPrefix []byte, lim
 
 	iter1, err1 := tx.mdbxTx.RangeDescend(table, fromPrefix, toPrefix, limit)
 	iter2, err2 := tx.rocksdbTx.RangeDescend(table, fromPrefix, toPrefix, limit)
-	assertError(tx.logger, err1, err2, "RangeDescend")
+	if err := assertError(tx.logger, err1, err2, "RangeDescend"); err != nil {
+		return nil, err
+	}
 
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
@@ -325,7 +348,9 @@ func (tx *CombineTx) Prefix(table string, prefix []byte) (iter.KV, error) {
 
 	iter1, err1 := tx.mdbxTx.Prefix(table, prefix)
 	iter2, err2 := tx.rocksdbTx.Prefix(table, prefix)
-	assertError(tx.logger, err1, err2, "Prefix")
+	if err := assertError(tx.logger, err1, err2, "Prefix"); err != nil {
+		return nil, err
+	}
 
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
@@ -336,7 +361,9 @@ func (tx *CombineTx) RangeDupSort(table string, key []byte, fromPrefix, toPrefix
 
 	iter1, err1 := tx.mdbxTx.RangeDupSort(table, key, fromPrefix, toPrefix, asc, limit)
 	iter2, err2 := tx.rocksdbTx.RangeDupSort(table, key, fromPrefix, toPrefix, asc, limit)
-	assertError(tx.logger, err1, err2, "RangeDupSort")
+	if err := assertError(tx.logger, err1, err2, "RangeDupSort"); err != nil {
+		return nil, err
+	}
 
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
@@ -354,7 +381,9 @@ func (tx *CombineTx) BucketSize(table string) (uint64, error) {
 
 	v1, err1 := tx.mdbxTx.BucketSize(table)
 	v2, err2 := tx.rocksdbTx.BucketSize(table)
-	assertError(tx.logger, err1, err2, "BucketSize")
+	if err := assertError(tx.logger, err1, err2, "BucketSize"); err != nil {
+		return 0, err
+	}
 
 	assertEqualF(tx.logger, v1, v2, "BucketSize mismatch: mdbx: %d. rocksdb: %d", v1, v2)
 	return v1, nil
@@ -366,9 +395,7 @@ func (tx *CombineRwTx) Put(table string, k, v []byte) error {
 
 	err1 := tx.mdbxTx.Put(table, k, v)
 	err2 := tx.rocksdbTx.Put(table, k, v)
-	assertError(tx.logger, err1, err2, "Put")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "Put")
 }
 
 func (tx *CombineRwTx) Delete(table string, k []byte) error {
@@ -378,9 +405,7 @@ func (tx *CombineRwTx) Delete(table string, k []byte) error {
 	// NOTE: don't know why if call mdbx Delete first the `k` will be changed
 	err2 := tx.rocksdbTx.Delete(table, k)
 	err1 := tx.mdbxTx.Delete(table, k)
-	assertError(tx.logger, err1, err2, "Delete")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "Delete")
 }
 
 func (tx *CombineRwTx) IncrementSequence(table string, amount uint64) (uint64, error) {
@@ -389,7 +414,9 @@ func (tx *CombineRwTx) IncrementSequence(table string, amount uint64) (uint64, e
 
 	v1, err1 := tx.mdbxTx.IncrementSequence(table, amount)
 	v2, err2 := tx.rocksdbTx.IncrementSequence(table, amount)
-	assertError(tx.logger, err1, err2, "IncrementSequence")
+	if err := assertError(tx.logger, err1, err2, "IncrementSequence"); err != nil {
+		return 0, err
+	}
 
 	assertEqualF(tx.logger, v1, v2, "IncrementSequence mismatch: mdbx: %d. rocksdb: %d", v1, v2)
 	return v1, nil
@@ -401,9 +428,7 @@ func (tx *CombineRwTx) Append(table string, k, v []byte) error {
 
 	err1 := tx.mdbxTx.Append(table, k, v)
 	err2 := tx.rocksdbTx.Append(table, k, v)
-	assertError(tx.logger, err1, err2, "Append")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "Append")
 }
 
 func (tx *CombineRwTx) AppendDup(table string, k, v []byte) error {
@@ -412,9 +437,7 @@ func (tx *CombineRwTx) AppendDup(table string, k, v []byte) error {
 
 	err1 := tx.mdbxTx.AppendDup(table, k, v)
 	err2 := tx.rocksdbTx.AppendDup(table, k, v)
-	assertError(tx.logger, err1, err2, "AppendDup")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "AppendDup")
 }
 
 func (tx *CombineRwTx) ListBuckets() ([]string, error) {
@@ -423,7 +446,9 @@ func (tx *CombineRwTx) ListBuckets() ([]string, error) {
 
 	list1, err1 := tx.mdbxTx.ListBuckets()
 	list2, err2 := tx.rocksdbTx.ListBuckets()
-	assertError(tx.logger, err1, err2, "ListBuckets")
+	if err := assertError(tx.logger, err1, err2, "ListBuckets"); err != nil {
+		return nil, err
+	}
 
 	assertEqualF(tx.logger, list1, list2, "ListBuckets mismatch: mdbx: %v. rocksdb: %v", list1, list2)
 	return list1, nil
@@ -435,9 +460,7 @@ func (tx *CombineRwTx) DropBucket(table string) error {
 
 	err1 := tx.mdbxTx.DropBucket(table)
 	err2 := tx.rocksdbTx.DropBucket(table)
-	assertError(tx.logger, err1, err2, "DropBucket")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "DropBucket")
 }
 
 func (tx *CombineRwTx) CreateBucket(table string) error {
@@ -446,9 +469,7 @@ func (tx *CombineRwTx) CreateBucket(table string) error {
 
 	err1 := tx.mdbxTx.CreateBucket(table)
 	err2 := tx.rocksdbTx.CreateBucket(table)
-	assertError(tx.logger, err1, err2, "CreateBucket")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "CreateBucket")
 }
 
 func (tx *CombineRwTx) ExistsBucket(table string) (bool, error) {
@@ -457,7 +478,9 @@ func (tx *CombineRwTx) ExistsBucket(table string) (bool, error) {
 
 	exists1, err1 := tx.mdbxTx.ExistsBucket(table)
 	exists2, err2 := tx.rocksdbTx.ExistsBucket(table)
-	assertError(tx.logger, err1, err2, "ExistsBucket")
+	if err := assertError(tx.logger, err1, err2, "ExistsBucket"); err != nil {
+		return false, err
+	}
 
 	assertEqualF(tx.logger, exists1, exists2, "ExistsBucket mismatch: mdbx: %v. rocksdb: %v", exists1, exists2)
 	return exists1, nil
@@ -469,9 +492,7 @@ func (tx *CombineRwTx) ClearBucket(table string) error {
 
 	err1 := tx.mdbxTx.ClearBucket(table)
 	err2 := tx.rocksdbTx.ClearBucket(table)
-	assertError(tx.logger, err1, err2, "ClearBucket")
-
-	return nil
+	return assertError(tx.logger, err1, err2, "ClearBucket")
 }
 
 func (tx *CombineRwTx) RwCursor(table string) (kv.RwCursor, error) {
@@ -480,7 +501,9 @@ func (tx *CombineRwTx) RwCursor(table string) (kv.RwCursor, error) {
 
 	mdbxCursor, err1 := tx.mdbxTx.RwCursor(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.RwCursor(table)
-	assertError(tx.logger, err1, err2, "RwCursor")
+	if err := assertError(tx.logger, err1, err2, "RwCursor"); err != nil {
+		return nil, err
+	}
 
 	return newCombineRwCursor(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }
@@ -491,7 +514,9 @@ func (tx *CombineRwTx) RwCursorDupSort(table string) (kv.RwCursorDupSort, error)
 
 	mdbxCursor, err1 := tx.mdbxTx.RwCursorDupSort(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.RwCursorDupSort(table)
-	assertError(tx.logger, err1, err2, "RwCursorDupSort")
+	if err := assertError(tx.logger, err1, err2, "RwCursorDupSort"); err != nil {
+		return nil, err
+	}
 
 	return newCombineRwCursorDupSort(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }

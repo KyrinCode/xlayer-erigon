@@ -30,7 +30,9 @@ func (d *CombineDual) Next() ([]byte, []byte, error) {
 
 	k1, v1, err1 := d.mdbxDual.Next()
 	k2, v2, err2 := d.rocksdbDual.Next()
-	assertError(d.logger, err1, err2, "Next")
+	if err := assertError(d.logger, err1, err2, "Next"); err != nil {
+		return nil, nil, err
+	}
 	assertEqualF(d.logger, k1, k2, "Next key mismatch. mdbx=%x. rocksdb=%x.", k1, k2)
 	assertEqualF(d.logger, v1, v2, "Next value mismatch. mdbx=%x. rocksdb=%s", v1, v2)
 

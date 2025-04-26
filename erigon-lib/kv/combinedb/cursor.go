@@ -79,7 +79,9 @@ func (c *CombineCursor) First() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.First()
 	k2, v2, err2 := c.rocksdbCursor.First()
-	assertError(c.logger, err1, err2, "First")
+	if err := assertError(c.logger, err1, err2, "First"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "First key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "First value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -92,7 +94,9 @@ func (c *CombineCursor) Seek(key []byte) ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.Seek(key)
 	k2, v2, err2 := c.rocksdbCursor.Seek(key)
-	assertError(c.logger, err1, err2, "Seek")
+	if err := assertError(c.logger, err1, err2, "Seek"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "Seek key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "Seek value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -105,7 +109,9 @@ func (c *CombineCursor) SeekExact(key []byte) ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.SeekExact(key)
 	k2, v2, err2 := c.rocksdbCursor.SeekExact(key)
-	assertError(c.logger, err1, err2, "SeekExact")
+	if err := assertError(c.logger, err1, err2, "SeekExact"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "SeekExact key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "SeekExact value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -118,7 +124,9 @@ func (c *CombineCursor) Next() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.Next()
 	k2, v2, err2 := c.rocksdbCursor.Next()
-	assertError(c.logger, err1, err2, "Next")
+	if err := assertError(c.logger, err1, err2, "Next"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "Next key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "Next value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -131,7 +139,9 @@ func (c *CombineCursor) Prev() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.Prev()
 	k2, v2, err2 := c.rocksdbCursor.Prev()
-	assertError(c.logger, err1, err2, "Prev")
+	if err := assertError(c.logger, err1, err2, "Prev"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "Prev key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "Prev value mismatch. mdbx: %x. rocksdb: %x", k1, k2)
@@ -144,7 +154,9 @@ func (c *CombineCursor) Last() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.Last()
 	k2, v2, err2 := c.rocksdbCursor.Last()
-	assertError(c.logger, err1, err2, "Last")
+	if err := assertError(c.logger, err1, err2, "Last"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "Last key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "Last value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -157,7 +169,9 @@ func (c *CombineCursor) Current() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.Current()
 	k2, v2, err2 := c.rocksdbCursor.Current()
-	assertError(c.logger, err1, err2, "Current")
+	if err := assertError(c.logger, err1, err2, "Current"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "Current key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "Current value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -170,7 +184,9 @@ func (c *CombineCursor) Count() (uint64, error) {
 
 	v1, err1 := c.mdbxCursor.Count()
 	v2, err2 := c.rocksdbCursor.Count()
-	assertError(c.logger, err1, err2, "Count")
+	if err := assertError(c.logger, err1, err2, "Count"); err != nil {
+		return 0, err
+	}
 
 	assertEqualF(c.logger, v1, v2, "Count mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 	return v1, nil
@@ -190,9 +206,7 @@ func (c *CombineRwCursor) Put(k, v []byte) error {
 
 	err1 := c.mdbxCursor.Put(k, v)
 	err2 := c.rocksdbCursor.Put(k, v)
-	assertError(c.logger, err1, err2, "Put")
-
-	return nil
+	return assertError(c.logger, err1, err2, "Put")
 }
 
 func (c *CombineRwCursor) Append(k []byte, v []byte) error {
@@ -201,9 +215,7 @@ func (c *CombineRwCursor) Append(k []byte, v []byte) error {
 
 	err1 := c.mdbxCursor.Append(k, v)
 	err2 := c.rocksdbCursor.Append(k, v)
-	assertError(c.logger, err1, err2, "Append")
-
-	return nil
+	return assertError(c.logger, err1, err2, "Append")
 }
 
 func (c *CombineRwCursor) Delete(k []byte) error {
@@ -212,9 +224,7 @@ func (c *CombineRwCursor) Delete(k []byte) error {
 
 	err1 := c.mdbxCursor.Delete(k)
 	err2 := c.rocksdbCursor.Delete(k)
-	assertError(c.logger, err1, err2, "Delete")
-
-	return nil
+	return assertError(c.logger, err1, err2, "Delete")
 }
 
 func (c *CombineRwCursor) DeleteCurrent() error {
@@ -228,11 +238,13 @@ func (c *CombineRwCursor) DeleteCurrent() error {
 
 	err1 = c.mdbxCursor.DeleteCurrent()
 	err2 = c.rocksdbCursor.DeleteCurrent()
-	assertError(c.logger, err1, err2, "DeleteCurrent")
+	if err := assertError(c.logger, err1, err2, "DeleteCurrent"); err != nil {
+		return err
+	}
 
 	// make sure the current value is still same after delete
-	k1, v1, err1 = c.mdbxCursor.Current()
-	k2, v2, err2 = c.rocksdbCursor.Current()
+	k1, v1, _ = c.mdbxCursor.Current()
+	k2, v2, _ = c.rocksdbCursor.Current()
 	assertEqualF(c.logger, k1, k2, "DeleteCurrent after delete key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "DeleteCurrent after delete value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 
@@ -245,7 +257,9 @@ func (c *CombineCursorDupSort) SeekBothExact(key, value []byte) ([]byte, []byte,
 
 	k1, v1, err1 := c.mdbxCursor.SeekBothExact(key, value)
 	k2, v2, err2 := c.rocksdbCursor.SeekBothExact(key, value)
-	assertError(c.logger, err1, err2, "SeekBothExact")
+	if err := assertError(c.logger, err1, err2, "SeekBothExact"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "SeekBothExact key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "SeekBothExact value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -258,7 +272,9 @@ func (c *CombineCursorDupSort) SeekBothRange(key, value []byte) ([]byte, error) 
 
 	v1, err1 := c.mdbxCursor.SeekBothRange(key, value)
 	v2, err2 := c.rocksdbCursor.SeekBothRange(key, value)
-	assertError(c.logger, err1, err2, "SeekBothRange")
+	if err := assertError(c.logger, err1, err2, "SeekBothRange"); err != nil {
+		return nil, err
+	}
 
 	assertEqualF(c.logger, v1, v2, "SeekBothRange mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 	return v1, nil
@@ -270,7 +286,9 @@ func (c *CombineCursorDupSort) FirstDup() ([]byte, error) {
 
 	v1, err1 := c.mdbxCursor.FirstDup()
 	v2, err2 := c.rocksdbCursor.FirstDup()
-	assertError(c.logger, err1, err2, "FirstDup")
+	if err := assertError(c.logger, err1, err2, "FirstDup"); err != nil {
+		return nil, err
+	}
 
 	assertEqualF(c.logger, v1, v2, "FirstDup mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 	return v1, nil
@@ -282,7 +300,9 @@ func (c *CombineCursorDupSort) NextDup() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.NextDup()
 	k2, v2, err2 := c.rocksdbCursor.NextDup()
-	assertError(c.logger, err1, err2, "NextDup")
+	if err := assertError(c.logger, err1, err2, "NextDup"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "NextDup key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "NextDup value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -295,7 +315,9 @@ func (c *CombineCursorDupSort) NextNoDup() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.NextNoDup()
 	k2, v2, err2 := c.rocksdbCursor.NextNoDup()
-	assertError(c.logger, err1, err2, "NextNoDup")
+	if err := assertError(c.logger, err1, err2, "NextNoDup"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "NextNoDup key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "NextNoDup value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -308,7 +330,9 @@ func (c *CombineCursorDupSort) PrevDup() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.PrevDup()
 	k2, v2, err2 := c.rocksdbCursor.PrevDup()
-	assertError(c.logger, err1, err2, "PrevDup")
+	if err := assertError(c.logger, err1, err2, "PrevDup"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "PrevDup key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "PrevDup value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -321,7 +345,9 @@ func (c *CombineCursorDupSort) PrevNoDup() ([]byte, []byte, error) {
 
 	k1, v1, err1 := c.mdbxCursor.PrevNoDup()
 	k2, v2, err2 := c.rocksdbCursor.PrevNoDup()
-	assertError(c.logger, err1, err2, "PrevNoDup")
+	if err := assertError(c.logger, err1, err2, "PrevNoDup"); err != nil {
+		return nil, nil, err
+	}
 
 	assertEqualF(c.logger, k1, k2, "PrevNoDup key mismatch. mdbx: %x. rocksdb: %x", k1, k2)
 	assertEqualF(c.logger, v1, v2, "PrevNoDup value mismatch. mdbx: %x. rocksdb: %x", v1, v2)
@@ -334,7 +360,9 @@ func (c *CombineCursorDupSort) LastDup() ([]byte, error) {
 
 	v1, err1 := c.mdbxCursor.LastDup()
 	v2, err2 := c.mdbxCursor.LastDup()
-	assertError(c.logger, err1, err2, "LastDup")
+	if err := assertError(c.logger, err1, err2, "LastDup"); err != nil {
+		return nil, err
+	}
 
 	assertEqualF(c.logger, v1, v2, "LastDup mismatch. mdbx: %x. rocksdb: %x", v1, v2)
 	return v1, nil
@@ -346,7 +374,9 @@ func (c *CombineCursorDupSort) CountDuplicates() (uint64, error) {
 
 	v1, err1 := c.mdbxCursor.CountDuplicates()
 	v2, err2 := c.rocksdbCursor.CountDuplicates()
-	assertError(c.logger, err1, err2, "CountDuplicates")
+	if err := assertError(c.logger, err1, err2, "CountDuplicates"); err != nil {
+		return 0, err
+	}
 
 	assertEqualF(c.logger, v1, v2, "CountDuplicates mismatch. mdbx: %d. rocksdb: %d", v1, v2)
 	return v1, nil
@@ -358,9 +388,7 @@ func (c *CombineRwCursorDupSort) PutNoDupData(key, value []byte) error {
 
 	err1 := c.mdbxCursor.PutNoDupData(key, value)
 	err2 := c.rocksdbCursor.PutNoDupData(key, value)
-	assertError(c.CombineCursorDupSort.logger, err1, err2, "PutNoDupData")
-
-	return nil
+	return assertError(c.CombineCursorDupSort.logger, err1, err2, "PutNoDupData")
 }
 
 func (c *CombineRwCursorDupSort) DeleteCurrentDuplicates() error {
@@ -369,9 +397,7 @@ func (c *CombineRwCursorDupSort) DeleteCurrentDuplicates() error {
 
 	err1 := c.mdbxCursor.DeleteCurrentDuplicates()
 	err2 := c.rocksdbCursor.DeleteCurrentDuplicates()
-	assertError(c.CombineCursorDupSort.logger, err1, err2, "DeleteCurrentDuplicates")
-
-	return nil
+	return assertError(c.CombineCursorDupSort.logger, err1, err2, "DeleteCurrentDuplicates")
 }
 
 func (c *CombineRwCursorDupSort) DeleteExact(k1, k2 []byte) error {
@@ -380,9 +406,7 @@ func (c *CombineRwCursorDupSort) DeleteExact(k1, k2 []byte) error {
 
 	err1 := c.mdbxCursor.DeleteExact(k1, k2)
 	err2 := c.rocksdbCursor.DeleteExact(k1, k2)
-	assertError(c.CombineCursorDupSort.logger, err1, err2, "DeleteExact")
-
-	return nil
+	return assertError(c.CombineCursorDupSort.logger, err1, err2, "DeleteExact")
 }
 
 func (c *CombineRwCursorDupSort) AppendDup(key, value []byte) error {
@@ -391,9 +415,7 @@ func (c *CombineRwCursorDupSort) AppendDup(key, value []byte) error {
 
 	err1 := c.mdbxCursor.AppendDup(key, value)
 	err2 := c.rocksdbCursor.AppendDup(key, value)
-	assertError(c.CombineCursorDupSort.logger, err1, err2, "AppendDup")
-
-	return nil
+	return assertError(c.CombineCursorDupSort.logger, err1, err2, "AppendDup")
 }
 
 func (c *CombineRwCursorDupSort) First() ([]byte, []byte, error) {

@@ -104,7 +104,9 @@ func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
 
 	mdbxTx, err1 := db.mdbx.BeginRo(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRo(ctx)
-	assertError(db.logger, err1, err2, "BeginRo")
+	if err := assertError(db.logger, err1, err2, "BeginRo"); err != nil {
+		return nil, err
+	}
 
 	return newCombineTx(db.logger, mdbxTx, rocksdbTx), nil
 }
@@ -181,7 +183,9 @@ func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
 
 	mdbxTx, err1 := db.mdbx.BeginRw(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRw(ctx)
-	assertError(db.logger, err1, err2, "BeginRw")
+	if err := assertError(db.logger, err1, err2, "BeginRw"); err != nil {
+		return nil, err
+	}
 
 	return newCombineRwTx(db.logger, mdbxTx, rocksdbTx), nil
 }
@@ -195,7 +199,9 @@ func (db *CombineDB) BeginRwNosync(ctx context.Context) (kv.RwTx, error) {
 
 	mdbxTx, err1 := db.mdbx.BeginRwNosync(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRwNosync(ctx)
-	assertError(db.logger, err1, err2, "BeginRwNosync")
+	if err := assertError(db.logger, err1, err2, "BeginRwNosync"); err != nil {
+		return nil, err
+	}
 
 	return newCombineRwTx(db.logger, mdbxTx, rocksdbTx), nil
 }
