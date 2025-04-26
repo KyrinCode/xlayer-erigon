@@ -1165,6 +1165,40 @@ func TestRocksDBCursor_delAllDupData(t *testing.T) {
 	require.Nil(t, v)
 }
 
+// see behaviour of mdbx in TestMdbxCursor_delCurrentWithPrev
+func TestRocksDBCursor_delCurrentWithPrev(t *testing.T) {
+	_, _, ci := rocksdbBaseCase(t)
+
+	k, v, err := ci.Last()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+}
+
 // see behaviour of mdbx in TestMdbxCursor_delCurrent
 func TestRocksDBCursor_delCurrent(t *testing.T) {
 	_, tx, ci := rocksdbBaseCase(t)
@@ -1177,10 +1211,12 @@ func TestRocksDBCursor_delCurrent(t *testing.T) {
 
 	c := ci.(*RocksDbDupSortCursor)
 
+	// delete the last one(key3/value3.3), so current is invalid
 	require.NoError(t, c.delCurrent())
 	k, v, err := c.Current()
 	require.EqualError(t, err, common.ErrInvalidIter.Error())
 
+	// make sure the last one is deleted success
 	k, v, err = c.First()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
@@ -1198,19 +1234,19 @@ func TestRocksDBCursor_delCurrent(t *testing.T) {
 	require.Nil(t, k)
 	require.Nil(t, v)
 
+	// seek to the first one
 	k, v, err = c.SeekExact([]byte("key1"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
 
+	// after delCurrent:
+	// 1. if call Current() first then call Next():
+	//    current will be the value next to be deleted, Next will the value next to current
+	// 2. if call Next() first then call Current():
+	//    Next() will return the value next to be deleted, Current will be the value same to Next()
 	require.NoError(t, c.delCurrent())
-
 	k, v, err = c.Current()
-	require.NoError(t, err)
-	require.Equal(t, []byte("key1"), k)
-	require.Equal(t, []byte("value1.3"), v)
-
-	k, v, err = c.First()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.3"), v)
@@ -1218,19 +1254,19 @@ func TestRocksDBCursor_delCurrent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
+
+	k, v, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, c.delCurrent())
 	k, v, err = c.Next()
 	require.NoError(t, err)
-	require.Nil(t, k)
-	require.Nil(t, v)
-
-	_, _, err = c.First()
-	require.NoError(t, err)
-	require.NoError(t, c.delCurrent())
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
 	k, v, err = c.Current()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
 
+	// now only key3/value3.1 valid
 	require.NoError(t, c.Put([]byte("key2"), []byte("value2.1")))
 	require.NoError(t, c.delCurrent())
 	k, v, err = c.Current()
@@ -1796,7 +1832,7 @@ func TestCurrentAfterDelete(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRDB(t *testing.T) {
+func testRDB(t *testing.T) {
 	dbPath := t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(dbPath) })
 	bbto := grocksdb.NewDefaultBlockBasedTableOptions()

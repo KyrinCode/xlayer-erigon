@@ -52,7 +52,7 @@ func (c *RocksDbCursor) Seek(seek []byte) (k []byte, v []byte, err error) { // S
 		k, v, err = c.setRange(seek)
 	}
 	if err != nil {
-		if errors.Is(err, common.ErrNotFound) {
+		if errors.Is(err, common.ErrNotFound) || errors.Is(err, common.ErrInvalidIter) {
 			return nil, nil, nil
 		}
 		err = fmt.Errorf("failed rocksdb cursor.Seek(): %w, bucket: %s,  key: %x", err, c.table, seek)
@@ -266,17 +266,15 @@ func (c *RocksDbCursor) delCurrent() error {
 	if err != nil {
 		return err
 	}
-	if _, _, err := c.it.Next(); err != nil {
-		if !errors.Is(err, common.ErrInvalidIter) {
-			return err
-		}
-		c.it.invalidCurrent()
-	}
 	defer func() {
 		if err != nil {
 			c.it.mustSeekToKeyValue(curK, valueStamp.Value)
 		}
 	}()
+
+	// must delete current of iterator first,
+	// for if delete data in db, the iterator may can't iterate data as expected.
+	c.it.deleteCurrent()
 
 	dbv, err := c.rtx.get(c.table, curK)
 	if err != nil {
@@ -285,9 +283,16 @@ func (c *RocksDbCursor) delCurrent() error {
 	dbv.Delete(valueStamp)
 
 	if dbv.IsEmpty() {
-		return c.rtx.delete(c.table, curK)
+		if err := c.rtx.delete(c.table, curK); err != nil {
+			return err
+		}
+	} else {
+		if err := c.rtx.putOverwrite(c.table, curK, dbv); err != nil {
+			return err
+		}
 	}
-	return c.rtx.putOverwrite(c.table, curK, dbv)
+
+	return nil
 }
 
 // DeleteCurrent This function deletes the key/data pair to which the cursor refers.
@@ -562,6 +567,7 @@ func (c *RocksDbCursor) delAllDupData() (err error) {
 		if !errors.Is(err, common.ErrInvalidIter) {
 			return err
 		}
+		c.it.invalidCurrent()
 	}
 	defer func() {
 		if err != nil {

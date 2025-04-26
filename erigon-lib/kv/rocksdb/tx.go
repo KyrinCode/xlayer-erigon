@@ -69,6 +69,9 @@ func (rtx *RocksDbTx) UpdateSnapshot() {
 func (rtx *RocksDbTx) Has(table string, key []byte) (bool, error) {
 	_, err := rtx.tx.Get(rtx.ropts, common.MergeKey(table, key))
 	if err != nil {
+		if errors.Is(err, common.ErrKeyNotExist) {
+			return false, nil
+		}
 		return false, err
 	}
 

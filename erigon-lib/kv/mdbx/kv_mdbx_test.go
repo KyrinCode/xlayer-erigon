@@ -1680,6 +1680,39 @@ func TestMdbxCursor_delAllDupData(t *testing.T) {
 	require.Nil(t, v)
 }
 
+func TestMdbxCursor_delCurrentWithPrev(t *testing.T) {
+	_, _, ci := BaseCase(t)
+
+	k, v, err := ci.Last()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.3"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.3"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Equal(t, []byte("key1"), k)
+	require.Equal(t, []byte("value1.1"), v)
+
+	require.NoError(t, ci.DeleteCurrent())
+	k, v, err = ci.Prev()
+	require.NoError(t, err)
+	require.Nil(t, k)
+	require.Nil(t, v)
+}
+
 func TestMdbxCursor_delCurrent(t *testing.T) {
 	_, tx, ci := BaseCase(t)
 
@@ -1717,14 +1750,13 @@ func TestMdbxCursor_delCurrent(t *testing.T) {
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.1"), v)
 
+	// after delCurrent:
+	// 1. if call Current() first then call Next():
+	//    current will be the value next to be deleted, Next will the value next to current
+	// 2. if call Next() first then call Current():
+	//    Next() will return the value next to be deleted, Current will be the value same to Next()
 	require.NoError(t, c.delCurrent())
-
 	k, v, err = c.Current()
-	require.NoError(t, err)
-	require.Equal(t, []byte("key1"), k)
-	require.Equal(t, []byte("value1.3"), v)
-
-	k, v, err = c.First()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key1"), k)
 	require.Equal(t, []byte("value1.3"), v)
@@ -1732,14 +1764,13 @@ func TestMdbxCursor_delCurrent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)
 	require.Equal(t, []byte("value3.1"), v)
+
+	k, v, err = c.SeekExact([]byte("key1"))
+	require.NoError(t, c.delCurrent())
 	k, v, err = c.Next()
 	require.NoError(t, err)
-	require.Nil(t, k)
-	require.Nil(t, v)
-
-	_, _, err = c.First()
-	require.NoError(t, err)
-	require.NoError(t, c.delCurrent())
+	require.Equal(t, []byte("key3"), k)
+	require.Equal(t, []byte("value3.1"), v)
 	k, v, err = c.Current()
 	require.NoError(t, err)
 	require.Equal(t, []byte("key3"), k)

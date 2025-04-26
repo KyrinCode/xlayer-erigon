@@ -3,6 +3,7 @@ package rocksdb
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb/rdb/common"
@@ -45,10 +46,141 @@ func (ic iterCache) isValid() bool {
 
 // the order of rocksdb's iterator is inverse with order of mdbx's cursor,
 // so we have to wrap a iterator to make the order consist with mdbx.
-type iteratorWrapper struct {
-	rdb.RDBIterator
+type alwaysValidRDBIterator struct {
+	tx rdb.RDBTransaction
+
+	it           rdb.RDBIterator
+	currentKey   []byte
+	currentValue *common.DBValue
 
 	table string
+	// beginPrefix and endPrefix come from table.
+	// beginPrefix is included but endPrefix is excluded.
+	beginPrefix []byte
+	endPrefix   []byte
+}
+
+func newalwaysValidRDBIterator(tx rdb.RDBTransaction, table string, beginPrefix, endPrefix []byte) *alwaysValidRDBIterator {
+	avit := &alwaysValidRDBIterator{
+		tx: tx,
+
+		it:           nil,
+		currentKey:   nil,
+		currentValue: nil,
+
+		table:       table,
+		beginPrefix: beginPrefix,
+		endPrefix:   endPrefix,
+	}
+	avit.reCreate()
+
+	return avit
+}
+
+func (avit *alwaysValidRDBIterator) InvalidCurrent() {
+	avit.currentKey = nil
+	avit.currentValue = nil
+}
+
+func (avit *alwaysValidRDBIterator) Current() ([]byte, *common.DBValue, bool) {
+	return avit.currentKey, avit.currentValue, avit.currentKey != nil
+}
+
+func (avit *alwaysValidRDBIterator) SeekToFirst() ([]byte, *common.DBValue, bool) {
+	avit.it.SeekToFirst()
+	if !avit.it.Valid() {
+		return nil, nil, false
+	}
+	avit.currentKey = avit.it.Key()
+	avit.currentValue = avit.it.Value()
+
+	return avit.currentKey, avit.currentValue, true
+}
+
+func (avit *alwaysValidRDBIterator) SeekToLast() ([]byte, *common.DBValue, bool) {
+	avit.it.SeekToLast()
+	if !avit.it.Valid() {
+		return nil, nil, false
+	}
+	avit.currentKey = avit.it.Key()
+	avit.currentValue = avit.it.Value()
+
+	return avit.currentKey, avit.currentValue, true
+}
+
+func (avit *alwaysValidRDBIterator) Next() ([]byte, *common.DBValue, bool) {
+	avit.it.Next()
+	if !avit.it.Valid() {
+		avit.reCreate()
+		return nil, nil, false
+	}
+	avit.currentKey = avit.it.Key()
+	avit.currentValue = avit.it.Value()
+
+	return avit.currentKey, avit.currentValue, true
+}
+
+func (avit *alwaysValidRDBIterator) Prev() ([]byte, *common.DBValue, bool) {
+	avit.it.Prev()
+	if !avit.it.Valid() {
+		avit.reCreate()
+		return nil, nil, false
+	}
+	avit.currentKey = avit.it.Key()
+	avit.currentValue = avit.it.Value()
+
+	return avit.currentKey, avit.currentValue, true
+}
+
+func (avit *alwaysValidRDBIterator) Seek(key []byte) ([]byte, *common.DBValue, bool) {
+	avit.it.Seek(key)
+	if !avit.it.Valid() {
+		avit.reCreate()
+		return nil, nil, false
+	}
+	avit.currentKey = avit.it.Key()
+	avit.currentValue = avit.it.Value()
+
+	return avit.currentKey, avit.currentValue, true
+}
+
+func (avit *alwaysValidRDBIterator) Clone() *alwaysValidRDBIterator {
+	return newalwaysValidRDBIterator(avit.tx, avit.table, avit.beginPrefix, avit.endPrefix)
+}
+
+func (avit *alwaysValidRDBIterator) Close() {
+	avit.it.Close()
+	avit.tx = nil
+	avit.it = nil
+	avit.currentKey = nil
+	avit.currentValue = nil
+}
+
+func (avit *alwaysValidRDBIterator) reCreate() {
+	if avit.it != nil {
+		avit.it.Close()
+	}
+
+	avit.it = avit.tx.NewIterator(avit.beginPrefix, avit.endPrefix)
+
+	// seek to old position and initialize currentValue
+	if avit.currentKey != nil {
+		avit.it.Seek(avit.currentKey)
+		if !avit.it.Valid() {
+			panic(fmt.Sprintf("seek to %x should always valid", avit.currentKey))
+		}
+		avit.currentValue = avit.it.Value()
+	} else {
+		avit.it.SeekToFirst()
+		if avit.it.Valid() {
+			avit.currentKey = avit.it.Key()
+			avit.currentValue = avit.it.Value()
+		} else {
+			avit.currentKey = nil
+			avit.currentValue = nil
+		}
+	}
+
 }
 
 type RocksDbIterator struct {
@@ -56,7 +188,7 @@ type RocksDbIterator struct {
 
 	// iterator of rocksdb.
 	// when iterate values, must iterate dbvIter first if dbvIter is not null
-	it *iteratorWrapper
+	it *alwaysValidRDBIterator
 
 	table string
 	// beginPrefix and endPrefix come from table.
@@ -71,12 +203,12 @@ func NewRocksDbIterator(tx rdb.RDBTransaction, table string) *RocksDbIterator {
 	beginPrefix := common.MergeKey(table, []byte{})
 	endPrefix, _ := kv.NextSubtree(beginPrefix)
 
-	it := &iteratorWrapper{RDBIterator: tx.NewIterator(beginPrefix, endPrefix), table: table}
-	it.SeekToFirst()
+	it := newalwaysValidRDBIterator(tx, table, beginPrefix, endPrefix)
 
+	k, dbv, valid := it.Current()
 	current := invalidIterCache()
-	if it.Valid() {
-		current = createCacheWithPriorFirst(it)
+	if valid {
+		current = createCacheWithPriorFirst(k, dbv)
 	}
 
 	return &RocksDbIterator{
@@ -92,7 +224,7 @@ func NewRocksDbIterator(tx rdb.RDBTransaction, table string) *RocksDbIterator {
 
 func (iter *RocksDbIterator) UpdateSnapshot() {
 	// create a new iterator will use the latest snapshot
-	iter.reCreateIterator()
+	iter.it.reCreate()
 }
 
 func (iter *RocksDbIterator) Close() {
@@ -103,21 +235,23 @@ func (iter *RocksDbIterator) Close() {
 }
 
 func (iter *RocksDbIterator) First() ([]byte, []byte, error) {
-	iter.it.SeekToFirst()
-	if !iter.it.Valid() {
-		return nil, nil, iter.it.Err()
+	k, dbv, valid := iter.it.SeekToFirst()
+	if !valid {
+		return nil, nil, common.ErrInvalidIter
 	}
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+
+	iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
 	v, _ := iter.current.value.Current()
 	return iter.current.key, v, nil
 }
 
 func (iter *RocksDbIterator) Last() ([]byte, []byte, error) {
-	iter.it.SeekToLast()
-	if !iter.it.Valid() {
+	k, dbv, valid := iter.it.SeekToLast()
+	if !valid {
 		return nil, nil, common.ErrInvalidIter
 	}
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+
+	iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
 	v, ok := iter.current.value.SeekToLast()
 	if !ok {
 		panic("must have a value for Last")
@@ -136,22 +270,21 @@ func (iter *RocksDbIterator) Current() ([]byte, []byte, error) {
 }
 
 func (iter *RocksDbIterator) NextKey() error {
-	iter.it.Next()
-	if !iter.it.Valid() {
-		iter.current = invalidIterCache()
+	k, dbv, valid := iter.it.Next()
+	if !valid {
 		return common.ErrInvalidIter
 	}
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
 	return nil
 }
 
 func (iter *RocksDbIterator) Count() (uint64, error) {
-	it := &iteratorWrapper{RDBIterator: iter.tx.NewIterator(iter.beginPrefix, iter.endPrefix), table: iter.table}
+	it := iter.it.Clone()
 	defer it.Close()
 
 	count := uint64(0)
-	for it.SeekToFirst(); it.Valid(); it.Next() {
-		count += createCacheWithFirstValueIsCurrent(it).value.Count()
+	for k, dbv, valid := it.SeekToFirst(); valid; k, dbv, valid = it.Next() {
+		count += createCacheWithFirstValueIsCurrent(k, dbv).value.Count()
 	}
 
 	return count, nil
@@ -168,11 +301,11 @@ func (iter *RocksDbIterator) SeekWithValue(key, seekValue []byte) (k []byte, v [
 		}
 	}()
 
-	iter.it.Seek(common.MergeKey(iter.table, key))
-	if !iter.it.Valid() {
+	k, dbv, valid := iter.it.Seek(common.MergeKey(iter.table, key))
+	if !valid {
 		return nil, nil, common.ErrNotFound
 	}
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
 	v, err = iter.current.value.Seek(seekValue)
 	return iter.current.key, v, err
 }
@@ -208,21 +341,12 @@ func (iter *RocksDbIterator) Next() ([]byte, []byte, error) {
 		}
 	}
 
-	iter.it.Next()
-	if !iter.it.Valid() {
-		// in rocksdb, if an Iterator get invalid by calling Next or Prev,
-		// it can't be used again( e.g. can't be iterated to the contrary direction)
-		// Now we got an invalid iterator, maybe because by calling Prev previously,
-		// so we need to create it again and try call Next again.
-		iter.reCreateIterator()
-		iter.it.Seek(common.MergeKey(iter.table, iter.current.key))
-		iter.it.Next()
-		if !iter.it.Valid() {
-			return nil, nil, common.ErrInvalidIter
-		}
+	nextK, nextDbv, valid := iter.it.Next()
+	if !valid {
+		return nil, nil, common.ErrInvalidIter
 	}
 
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(nextK, nextDbv)
 	v, _ := iter.current.value.Current()
 	return iter.current.key, v, nil
 }
@@ -234,21 +358,12 @@ func (iter *RocksDbIterator) Prev() ([]byte, []byte, error) {
 		}
 	}
 
-	iter.it.Prev()
-	if !iter.it.Valid() {
-		// in rocksdb, if an Iterator get invalid by calling Next or Prev,
-		// it can't be used again( e.g. can't be iterated to the contrary direction)
-		// Now we got an invalid iterator, maybe because by calling Next previously,
-		// so we need to create it again and try call Prev again.
-		iter.reCreateIterator()
-		iter.it.Seek(common.MergeKey(iter.table, iter.current.key))
-		iter.it.Prev()
-		if !iter.it.Valid() {
-			return nil, nil, common.ErrInvalidIter
-		}
+	prevK, prevDbv, valid := iter.it.Prev()
+	if !valid {
+		return nil, nil, common.ErrInvalidIter
 	}
 
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(prevK, prevDbv)
 	v, _ := iter.current.value.SeekToLast()
 	return iter.current.key, v, nil
 }
@@ -260,12 +375,12 @@ func (iter *RocksDbIterator) LastDup() ([]byte, []byte, error) {
 		}
 	}
 
-	iter.it.Next()
-	if !iter.it.Valid() {
+	nextK, nextDbv, valid := iter.it.Next()
+	if !valid {
 		return nil, nil, common.ErrInvalidIter
 	}
 
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(nextK, nextDbv)
 	v, _ := iter.current.value.SeekToLast()
 	return iter.current.key, v, nil
 }
@@ -277,12 +392,12 @@ func (iter *RocksDbIterator) FirstDup() ([]byte, []byte, error) {
 		}
 	}
 
-	iter.it.Next()
-	if !iter.it.Valid() {
+	nextK, nextDbv, valid := iter.it.Next()
+	if !valid {
 		return nil, nil, common.ErrInvalidIter
 	}
 
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(nextK, nextDbv)
 	v, _ := iter.current.value.SeekToFirst()
 	return iter.current.key, v, nil
 }
@@ -306,21 +421,21 @@ func (iter *RocksDbIterator) PrevDup() ([]byte, []byte, error) {
 }
 
 func (iter *RocksDbIterator) seekExactKeyWithValueSeekFunc(key []byte, valueSeekFunc func(valueIter *common.DBValueIterator) ([]byte, error)) (k []byte, v []byte, err error) {
-	iter.it.Seek(common.MergeKey(iter.table, key))
-	if !iter.it.Valid() {
+	k, dbv, valid := iter.it.Seek(common.MergeKey(iter.table, key))
+	if !valid {
 		iter.invalidCurrent()
 		return nil, nil, common.ErrNotFound
 	}
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
 
-	sk := iter.it.Key()
-	if !bytes.Equal(sk, common.MergeKey(iter.table, key)) {
+	if !bytes.Equal(k, common.MergeKey(iter.table, key)) {
 		return nil, nil, common.ErrNotFound
 	}
 
 	v, err = valueSeekFunc(iter.current.value)
 	if err != nil {
 		iter.invalidCurrent()
+		return nil, nil, err
 	}
 	return iter.current.key, v, err
 }
@@ -333,43 +448,70 @@ func (iter *RocksDbIterator) currentKeyAndValueStamp() ([]byte, common.DBValueSt
 }
 
 func (iter *RocksDbIterator) mustSeekToKeyValue(key, value []byte) {
-	iter.it.Seek(common.MergeKey(iter.table, key))
-	if !iter.it.Valid() {
+	k, dbv, valid := iter.it.Seek(common.MergeKey(iter.table, key))
+	if !valid {
 		panic("seek to key must success")
 	}
 
-	iter.current = createCacheWithFirstValueIsCurrent(iter.it)
+	iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
 	iter.current.value.MustSeekToValue(value)
 }
 
 func (iter *RocksDbIterator) invalidCurrent() {
 	iter.current = invalidIterCache()
+	iter.it.InvalidCurrent()
 }
 
-func (iter *RocksDbIterator) reCreateIterator() {
-	if iter.it != nil {
-		iter.it.Close()
+func (iter *RocksDbIterator) deleteCurrent() {
+	if !iter.current.isValid() {
+		panic("deleteCurrent: current is invalid")
+	}
+	iter.current.value.DeleteCurrent()
+
+	if !iter.current.value.IsEmpty() {
+		return
 	}
 
-	iter.it = &iteratorWrapper{RDBIterator: iter.tx.NewIterator(iter.beginPrefix, iter.endPrefix)}
+	// current cache is empty, we must valid it
+	if k, dbv, valid := iter.it.Next(); valid {
+		iter.current = createCacheWithFirstValueIsCurrent(k, dbv)
+		// todo: it's not appropriate to set nextIsCurrent flag here
+		iter.current.value.SetNextIsCurrent()
+	} else {
+		if k, dbv, valid = iter.it.Prev(); valid {
+			iter.current = createCacheWithAfterLast(k, dbv)
+		} else {
+			//  both Next and Prev is invalid
+			iter.invalidCurrent()
+		}
+	}
+
 }
 
-func createCacheWithFirstValueIsCurrent(it *iteratorWrapper) iterCache {
-	cache := createCacheWithPriorFirst(it)
+func createCacheWithFirstValueIsCurrent(key []byte, value *common.DBValue) iterCache {
+	cache := createCacheWithPriorFirst(key, value)
 
 	// the current of DBValueIterator is invalid when it is created,
 	// so we should call Next to make the current get valid (which is the first one)
-	cache.value.Next()
-	_, ok := cache.value.Current()
-	if !ok {
-		panic("invalid DBValue")
+	_, valid := cache.value.Next()
+	if !valid {
+		panic(fmt.Sprintf("invalid DBValue: %v. %v", cache.value, value))
 	}
 	return cache
 }
 
-func createCacheWithPriorFirst(it *iteratorWrapper) iterCache {
-	_, key := common.SplitKey(it.Key())
-	valueIter := common.NewDBValueIterator(it.Value())
+func createCacheWithPriorFirst(key []byte, value *common.DBValue) iterCache {
+	_, key = common.SplitKey(key)
+	valueIter := common.NewDBValueIterator(value)
+	return iterCache{
+		key:   key,
+		value: valueIter,
+	}
+}
+
+func createCacheWithAfterLast(key []byte, value *common.DBValue) iterCache {
+	_, key = common.SplitKey(key)
+	valueIter := common.NewDBValueIteratorOverLast(value)
 	return iterCache{
 		key:   key,
 		value: valueIter,
