@@ -3,13 +3,17 @@ package combinedb
 import (
 	"context"
 	"fmt"
+	"path"
+	"sync"
+	"sync/atomic"
+	"unsafe"
+
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
 	"github.com/ledgerwatch/erigon-lib/kv/rocksdb"
-	"path"
-	"sync/atomic"
-	"unsafe"
 )
+
+var commitLock sync.RWMutex
 
 type CombineDB struct {
 	mdbx    kv.RwDB
@@ -77,6 +81,9 @@ func (db *CombineDB) ReadOnly() bool {
 }
 
 func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
+	commitLock.RLock()
+	defer commitLock.RUnlock()
+
 	db.logger.Info("View")
 	defer db.logger.Info("View done")
 
@@ -89,6 +96,9 @@ func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
 }
 
 func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
+	commitLock.RLock()
+	defer commitLock.RUnlock()
+
 	db.logger.Info("BeginRo")
 	defer db.logger.Info("BeginRo done")
 
@@ -133,6 +143,9 @@ func (db *CombineDB) CHandle() unsafe.Pointer {
 }
 
 func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error {
+	commitLock.RLock()
+	defer commitLock.RUnlock()
+
 	db.logger.Info("Update")
 	defer db.logger.Info("Update done")
 
@@ -145,6 +158,9 @@ func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error
 }
 
 func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error) error {
+	commitLock.RLock()
+	defer commitLock.RUnlock()
+
 	db.logger.Info("UpdateNosync")
 	defer db.logger.Info("UpdateNosync done")
 
@@ -157,6 +173,9 @@ func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error)
 }
 
 func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
+	commitLock.RLock()
+	defer commitLock.RUnlock()
+
 	db.logger.Info("BeginRw")
 	defer db.logger.Info("BeginRw done")
 
@@ -168,6 +187,9 @@ func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
 }
 
 func (db *CombineDB) BeginRwNosync(ctx context.Context) (kv.RwTx, error) {
+	commitLock.RLock()
+	defer commitLock.RUnlock()
+
 	db.logger.Info("BeginRwNosync")
 	defer db.logger.Info("BeginRwNosync done")
 

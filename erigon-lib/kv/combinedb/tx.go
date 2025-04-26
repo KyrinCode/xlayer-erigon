@@ -182,6 +182,9 @@ func (tx *CombineTx) ForAmount(table string, prefix []byte, amount uint32, walke
 }
 
 func (tx *CombineTx) Commit() error {
+	commitLock.Lock()
+	defer commitLock.Unlock()
+
 	tx.logger.Info("Commit")
 	defer tx.logger.Info("Commit done")
 
