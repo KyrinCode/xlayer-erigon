@@ -362,6 +362,7 @@ func sequencingBatchStep(
 	sendersToSkip := make(map[common.Address]struct{})
 
 	blockNumber := uint64(0)
+	breakBatchLoop := false
 BatchLoop:
 	for blockNumber = executionAt + 1; runLoopBlocks; blockNumber++ {
 		if batchTimedOut {
@@ -818,7 +819,7 @@ BatchLoop:
 				break
 			}
 			log.Warn(fmt.Sprintf("[%s] Closing batch to keep liveness when encountering empty block", logPrefix, blockNumber))
-			break BatchLoop
+			breakBatchLoop = true
 		}
 
 		if batchContext.sdb.supportAC {
@@ -960,6 +961,10 @@ BatchLoop:
 		// For X Layer
 		metrics.GetLogStatistics().SetTag(metrics.FinalizeBlockNumber, strconv.Itoa(int(blockNumber)))
 		metrics.GetLogStatistics().SummaryCheckpoint()
+
+		if breakBatchLoop {
+			break BatchLoop
+		}
 	}
 
 	/*
