@@ -31,8 +31,8 @@ tasks:
     events:
       - pull_request
 
-  - name: unwind-ac-split
-    command: make test-unwind-ac-split
+  - name: unwind-split-db
+    command: make test-unwind-split-db
     type: base
     events:
       - pull_request

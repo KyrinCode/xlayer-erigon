@@ -167,7 +167,7 @@ test:
 		run_test lint; \
 		run_test check_chinese_characters; \
 		run_test test-unwind-default; \
-		run_test test-unwind-ac-split; \
+		run_test test-unwind-split-db; \
 		run_test kurtosis-cdk; \
 		run_test resequence-default; \
 		run_test resequence-ac-split; \
@@ -186,9 +186,9 @@ test-unwind-default:
 	cd ../ && make test-unwind-default
 	echo "Unwind tests passed"
 
-.PHONY: test-unwind-ac-split
-test-unwind-ac-split:
-	cd ../ && make test-unwind-ac-split
+.PHONY: test-unwind-split-db
+test-unwind-split-db:
+	cd ../ && make test-unwind-split-db
 	kill 
 	echo "Unwind tests passed"
 
