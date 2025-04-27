@@ -817,7 +817,7 @@ BatchLoop:
 				log.Warn(fmt.Sprintf("[%s] Skipping block: no transactions mined in block %d, skipping block for now", logPrefix, blockNumber))
 				break
 			}
-			log.Warn(fmt.Sprintf("[%s] Closing batch to keep liveness when encountering empty block", logPrefix, blockNumber))
+			log.Warn(fmt.Sprintf("[%s] Closing batch to keep liveness when encountering empty block %d", logPrefix, blockNumber))
 			breakBatchLoop = true
 		}
 
