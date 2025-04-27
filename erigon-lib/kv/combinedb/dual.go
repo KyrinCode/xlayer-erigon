@@ -24,9 +24,9 @@ func newCombineDual(parentLogger *combineLogger, mdbxDual iter.KV, rocksdbDual i
 	}
 }
 
-func (d *CombineDual) Next() ([]byte, []byte, error) {
+func (d *CombineDual) Next() (k []byte, v []byte, err error) {
 	d.logger.Info("Next")
-	defer d.logger.Info("Next done")
+	defer d.logger.Infof("Next done. k=%x, v=%x, err=%v", k, v, err)
 
 	k1, v1, err1 := d.mdbxDual.Next()
 	k2, v2, err2 := d.rocksdbDual.Next()
@@ -39,9 +39,9 @@ func (d *CombineDual) Next() ([]byte, []byte, error) {
 	return k1, v1, nil
 }
 
-func (d *CombineDual) HasNext() bool {
+func (d *CombineDual) HasNext() (b bool) {
 	d.logger.Info("HasNext")
-	defer d.logger.Info("HasNext done")
+	defer d.logger.Infof("HasNext done. b=%v", b)
 
 	b1 := d.mdbxDual.HasNext()
 	b2 := d.rocksdbDual.HasNext()

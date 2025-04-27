@@ -69,9 +69,9 @@ func (db *CombineDB) Close() {
 	db.rocksdb = nil
 }
 
-func (db *CombineDB) ReadOnly() bool {
+func (db *CombineDB) ReadOnly() (b bool) {
 	db.logger.Info("ReadOnly")
-	defer db.logger.Info("ReadOnly done")
+	defer db.logger.Infof("ReadOnly done. b=%v", b)
 
 	b1 := db.mdbx.ReadOnly()
 	b2 := db.rocksdb.ReadOnly()
@@ -80,12 +80,12 @@ func (db *CombineDB) ReadOnly() bool {
 	return b1
 }
 
-func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
+func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) (err error) {
 	commitLock.RLock()
 	defer commitLock.RUnlock()
 
 	db.logger.Info("View")
-	defer db.logger.Info("View done")
+	defer db.logger.Infof("View done. err=%v", err)
 
 	return db.mdbx.View(ctx, func(mdbxTx kv.Tx) error {
 		return db.rocksdb.View(ctx, func(rocksdbTx kv.Tx) error {
@@ -95,12 +95,12 @@ func (db *CombineDB) View(ctx context.Context, f func(tx kv.Tx) error) error {
 	})
 }
 
-func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
+func (db *CombineDB) BeginRo(ctx context.Context) (t kv.Tx, err error) {
 	commitLock.RLock()
 	defer commitLock.RUnlock()
 
 	db.logger.Info("BeginRo")
-	defer db.logger.Info("BeginRo done")
+	defer db.logger.Infof("BeginRo done. err=%v", err)
 
 	mdbxTx, err1 := db.mdbx.BeginRo(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRo(ctx)
@@ -111,9 +111,9 @@ func (db *CombineDB) BeginRo(ctx context.Context) (kv.Tx, error) {
 	return newCombineTx(db.logger, mdbxTx, rocksdbTx), nil
 }
 
-func (db *CombineDB) AllTables() kv.TableCfg {
+func (db *CombineDB) AllTables() (tables kv.TableCfg) {
 	db.logger.Info("AllTables")
-	defer db.logger.Info("AllTables done")
+	defer db.logger.Infof("AllTables done. tables=%v", tables)
 
 	mdbxTables := db.mdbx.AllTables()
 	rocksdbTables := db.rocksdb.AllTables()
@@ -122,9 +122,9 @@ func (db *CombineDB) AllTables() kv.TableCfg {
 	return mdbxTables
 }
 
-func (db *CombineDB) PageSize() uint64 {
+func (db *CombineDB) PageSize() (s uint64) {
 	db.logger.Info("PageSize")
-	defer db.logger.Info("PageSize done")
+	defer db.logger.Infof("PageSize done. s=%d", s)
 
 	mdbxPageSize := db.mdbx.PageSize()
 	rocksdbPageSize := db.rocksdb.PageSize()
@@ -144,12 +144,12 @@ func (db *CombineDB) CHandle() unsafe.Pointer {
 	return mdbxH
 }
 
-func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error {
+func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) (err error) {
 	commitLock.RLock()
 	defer commitLock.RUnlock()
 
 	db.logger.Info("Update")
-	defer db.logger.Info("Update done")
+	defer db.logger.Infof("Update done. err=%v", err)
 
 	return db.mdbx.Update(ctx, func(mdbxTx kv.RwTx) error {
 		return db.rocksdb.Update(ctx, func(rocksdbTx kv.RwTx) error {
@@ -159,12 +159,12 @@ func (db *CombineDB) Update(ctx context.Context, f func(tx kv.RwTx) error) error
 	})
 }
 
-func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error) error {
+func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error) (err error) {
 	commitLock.RLock()
 	defer commitLock.RUnlock()
 
 	db.logger.Info("UpdateNosync")
-	defer db.logger.Info("UpdateNosync done")
+	defer db.logger.Infof("UpdateNosync done. err=%v", err)
 
 	return db.mdbx.UpdateNosync(ctx, func(mdbxTx kv.RwTx) error {
 		return db.rocksdb.Update(ctx, func(rocksdbTx kv.RwTx) error {
@@ -174,12 +174,12 @@ func (db *CombineDB) UpdateNosync(ctx context.Context, f func(tx kv.RwTx) error)
 	})
 }
 
-func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
+func (db *CombineDB) BeginRw(ctx context.Context) (t kv.RwTx, err error) {
 	commitLock.RLock()
 	defer commitLock.RUnlock()
 
 	db.logger.Info("BeginRw")
-	defer db.logger.Info("BeginRw done")
+	defer db.logger.Infof("BeginRw done. err=%v", err)
 
 	mdbxTx, err1 := db.mdbx.BeginRw(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRw(ctx)
@@ -190,12 +190,12 @@ func (db *CombineDB) BeginRw(ctx context.Context) (kv.RwTx, error) {
 	return newCombineRwTx(db.logger, mdbxTx, rocksdbTx), nil
 }
 
-func (db *CombineDB) BeginRwNosync(ctx context.Context) (kv.RwTx, error) {
+func (db *CombineDB) BeginRwNosync(ctx context.Context) (t kv.RwTx, err error) {
 	commitLock.RLock()
 	defer commitLock.RUnlock()
 
 	db.logger.Info("BeginRwNosync")
-	defer db.logger.Info("BeginRwNosync done")
+	defer db.logger.Infof("BeginRwNosync done. err=%v", err)
 
 	mdbxTx, err1 := db.mdbx.BeginRwNosync(ctx)
 	rocksdbTx, err2 := db.rocksdb.BeginRwNosync(ctx)

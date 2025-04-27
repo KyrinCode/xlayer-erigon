@@ -55,7 +55,7 @@ func newCombineRwTx(parentLogger *combineLogger, mdbxTx kv.RwTx, rocksdbTx kv.Rw
 
 func (tx *CombineTx) Has(table string, key []byte) (b bool, err error) {
 	tx.logger.Infof("Has(table=%s, key=%x)", table, key)
-	defer tx.logger.Info("Has(table=%s, key=%x) done: b=%v. err=%v", table, key, b, err)
+	defer tx.logger.Infof("Has(table=%s, key=%x) done: b=%v. err=%v", table, key, b, err)
 
 	b1, err1 := tx.mdbxTx.Has(table, key)
 	b2, err2 := tx.rocksdbTx.Has(table, key)
@@ -69,7 +69,7 @@ func (tx *CombineTx) Has(table string, key []byte) (b bool, err error) {
 
 func (tx *CombineTx) GetOne(table string, key []byte) (val []byte, err error) {
 	tx.logger.Infof("GetOne(table=%s, key=%x)", table, key)
-	defer tx.logger.Infof("GetOne done. table=%s, key=%x, val=%x, err=%v", table, key, val, err)
+	defer tx.logger.Infof("GetOne(table=%s, key=%x) done. val=%x, err=%v", table, key, val, err)
 
 	v1, err1 := tx.mdbxTx.GetOne(table, key)
 	v2, err2 := tx.rocksdbTx.GetOne(table, key)
@@ -81,9 +81,9 @@ func (tx *CombineTx) GetOne(table string, key []byte) (val []byte, err error) {
 	return v2, nil
 }
 
-func (tx *CombineTx) ForEach(table string, fromPrefix []byte, walker func(k, v []byte) error) error {
-	tx.logger.Infof("ForEach(table=%s, key=%x)", table, fromPrefix)
-	defer tx.logger.Info("ForEach done")
+func (tx *CombineTx) ForEach(table string, fromPrefix []byte, walker func(k, v []byte) error) (err error) {
+	tx.logger.Infof("ForEach(table=%s, fromPrefix=%x)", table, fromPrefix)
+	defer tx.logger.Infof("ForEach(table=%s, fromPrefix=%x) done: err=%v", table, fromPrefix, err)
 
 	mdbxPairs := make([]kvPair, 0)
 	rocksdbPairs := make([]kvPair, 0)
@@ -109,9 +109,9 @@ func (tx *CombineTx) ForEach(table string, fromPrefix []byte, walker func(k, v [
 	return nil
 }
 
-func (tx *CombineTx) ForPrefix(table string, prefix []byte, walker func(k, v []byte) error) error {
-	tx.logger.Infof("ForPrefix(table=%s, key=%x)", table, prefix)
-	defer tx.logger.Info("ForPrefix done")
+func (tx *CombineTx) ForPrefix(table string, prefix []byte, walker func(k, v []byte) error) (err error) {
+	tx.logger.Infof("ForPrefix(table=%s, prefix=%x)", table, prefix)
+	defer tx.logger.Infof("ForPrefix(table=%s, prefix=%x) done. err=%v", table, prefix, err)
 
 	mdbxPairs := make([]kvPair, 0)
 	rocksdbPairs := make([]kvPair, 0)
@@ -137,9 +137,9 @@ func (tx *CombineTx) ForPrefix(table string, prefix []byte, walker func(k, v []b
 	return nil
 }
 
-func (tx *CombineTx) ForAmount(table string, prefix []byte, amount uint32, walker func(k, v []byte) error) error {
+func (tx *CombineTx) ForAmount(table string, prefix []byte, amount uint32, walker func(k, v []byte) error) (err error) {
 	tx.logger.Infof("ForAmount(table=%s, prefix=%x, amount=%d)", table, prefix, amount)
-	defer tx.logger.Info("ForAmount done")
+	defer tx.logger.Infof("ForAmount(table=%s, prefix=%x, amount=%d) done. err=%v", table, prefix, amount, err)
 
 	mdbxPairs := make([]kvPair, 0)
 	rocksdbPairs := make([]kvPair, 0)
@@ -164,12 +164,12 @@ func (tx *CombineTx) ForAmount(table string, prefix []byte, amount uint32, walke
 	return nil
 }
 
-func (tx *CombineTx) Commit() error {
+func (tx *CombineTx) Commit() (err error) {
 	commitLock.Lock()
 	defer commitLock.Unlock()
 
 	tx.logger.Info("Commit")
-	defer tx.logger.Info("Commit done")
+	defer tx.logger.Infof("Commit done. err=%v", err)
 
 	var wg sync.WaitGroup
 
@@ -199,9 +199,9 @@ func (tx *CombineTx) Rollback() {
 	tx.rocksdbTx.Rollback()
 }
 
-func (tx *CombineTx) ReadSequence(table string) (uint64, error) {
+func (tx *CombineTx) ReadSequence(table string) (v uint64, err error) {
 	tx.logger.Infof("ReadSequence(table=%s)", table)
-	defer tx.logger.Info("ReadSequence done")
+	defer tx.logger.Infof("ReadSequence(table=%s) done. v=%d. err=%v", table, v, err)
 
 	s1, err1 := tx.mdbxTx.ReadSequence(table)
 	s2, err2 := tx.rocksdbTx.ReadSequence(table)
@@ -213,9 +213,9 @@ func (tx *CombineTx) ReadSequence(table string) (uint64, error) {
 	return s1, nil
 }
 
-func (tx *CombineTx) ListBuckets() ([]string, error) {
+func (tx *CombineTx) ListBuckets() (buckets []string, err error) {
 	tx.logger.Info("ListBuckets")
-	defer tx.logger.Info("ListBuckets done")
+	defer tx.logger.Infof("ListBuckets done: buckets=%v. err=%v", buckets, err)
 
 	table1, err1 := tx.mdbxTx.ListBuckets()
 	table2, err2 := tx.rocksdbTx.ListBuckets()
@@ -228,9 +228,9 @@ func (tx *CombineTx) ListBuckets() ([]string, error) {
 	return table1, nil
 }
 
-func (tx *CombineTx) ViewID() uint64 {
+func (tx *CombineTx) ViewID() (id uint64) {
 	tx.logger.Info("ViewID")
-	defer tx.logger.Info("ViewID done")
+	defer tx.logger.Infof("ViewID done. id=%d", id)
 
 	id1 := tx.mdbxTx.ViewID()
 	id2 := tx.rocksdbTx.ViewID()
@@ -239,9 +239,9 @@ func (tx *CombineTx) ViewID() uint64 {
 	return id1
 }
 
-func (tx *CombineTx) Cursor(table string) (kv.Cursor, error) {
+func (tx *CombineTx) Cursor(table string) (c kv.Cursor, err error) {
 	tx.logger.Infof("Cursor(table=%s)", table)
-	defer tx.logger.Info("Cursor done")
+	defer tx.logger.Infof("Cursor(table=%s) done. err=%v", table, err)
 
 	mdbxCursor, err1 := tx.mdbxTx.Cursor(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.Cursor(table)
@@ -252,9 +252,9 @@ func (tx *CombineTx) Cursor(table string) (kv.Cursor, error) {
 	return newCombineCursor(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }
 
-func (tx *CombineTx) CursorDupSort(table string) (kv.CursorDupSort, error) {
-	tx.logger.Infof("CursorDupSort table=%s", table)
-	defer tx.logger.Info("CursorDupSort done")
+func (tx *CombineTx) CursorDupSort(table string) (c kv.CursorDupSort, err error) {
+	tx.logger.Infof("CursorDupSort(table=%s)", table)
+	defer tx.logger.Infof("CursorDupSort(table=%s) done. err=%v", table, err)
 
 	mdbxCursor, err1 := tx.mdbxTx.CursorDupSort(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.CursorDupSort(table)
@@ -265,9 +265,9 @@ func (tx *CombineTx) CursorDupSort(table string) (kv.CursorDupSort, error) {
 	return newCombineCursorDupSort(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }
 
-func (tx *CombineTx) DBSize() (uint64, error) {
+func (tx *CombineTx) DBSize() (s uint64, err error) {
 	tx.logger.Info("DBSize")
-	defer tx.logger.Info("DBSize done")
+	defer tx.logger.Infof("DBSize done. s=%d. err=%v", s, err)
 
 	v1, err1 := tx.mdbxTx.DBSize()
 	v2, err2 := tx.rocksdbTx.DBSize()
@@ -279,9 +279,9 @@ func (tx *CombineTx) DBSize() (uint64, error) {
 	return v1, nil
 }
 
-func (tx *CombineTx) Range(table string, fromPrefix, toPrefix []byte) (iter.KV, error) {
+func (tx *CombineTx) Range(table string, fromPrefix, toPrefix []byte) (it iter.KV, err error) {
 	tx.logger.Infof("Range(table=%s,from=%x,to=%x)", table, fromPrefix, toPrefix)
-	defer tx.logger.Info("Range done")
+	defer tx.logger.Infof("Range(table=%s,from=%x,to=%x) done. err=%v", table, fromPrefix, toPrefix, err)
 
 	iter1, err1 := tx.mdbxTx.Range(table, fromPrefix, toPrefix)
 	iter2, err2 := tx.rocksdbTx.Range(table, fromPrefix, toPrefix)
@@ -292,9 +292,9 @@ func (tx *CombineTx) Range(table string, fromPrefix, toPrefix []byte) (iter.KV, 
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
 
-func (tx *CombineTx) RangeAscend(table string, fromPrefix, toPrefix []byte, limit int) (iter.KV, error) {
+func (tx *CombineTx) RangeAscend(table string, fromPrefix, toPrefix []byte, limit int) (it iter.KV, err error) {
 	tx.logger.Infof("RangeAscend(table=%s,from=%x,to=%x)", table, fromPrefix, toPrefix)
-	defer tx.logger.Info("RangeAscend done")
+	defer tx.logger.Infof("RangeAscend(table=%s,from=%x,to=%x) done. err=%v", table, fromPrefix, toPrefix, err)
 
 	iter1, err1 := tx.mdbxTx.RangeAscend(table, fromPrefix, toPrefix, limit)
 	iter2, err2 := tx.rocksdbTx.RangeAscend(table, fromPrefix, toPrefix, limit)
@@ -305,9 +305,9 @@ func (tx *CombineTx) RangeAscend(table string, fromPrefix, toPrefix []byte, limi
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
 
-func (tx *CombineTx) RangeDescend(table string, fromPrefix, toPrefix []byte, limit int) (iter.KV, error) {
+func (tx *CombineTx) RangeDescend(table string, fromPrefix, toPrefix []byte, limit int) (it iter.KV, err error) {
 	tx.logger.Infof("RangeDescend(table=%s,fromPrefix=%x,toPrefix=%x,limit=%d)", table, fromPrefix, toPrefix, limit)
-	defer tx.logger.Info("RangeDescend done")
+	defer tx.logger.Infof("RangeDescend(table=%s,fromPrefix=%x,toPrefix=%x,limit=%d) done. err=%v", table, fromPrefix, toPrefix, limit, err)
 
 	iter1, err1 := tx.mdbxTx.RangeDescend(table, fromPrefix, toPrefix, limit)
 	iter2, err2 := tx.rocksdbTx.RangeDescend(table, fromPrefix, toPrefix, limit)
@@ -318,9 +318,9 @@ func (tx *CombineTx) RangeDescend(table string, fromPrefix, toPrefix []byte, lim
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
 
-func (tx *CombineTx) Prefix(table string, prefix []byte) (iter.KV, error) {
+func (tx *CombineTx) Prefix(table string, prefix []byte) (it iter.KV, err error) {
 	tx.logger.Infof("Prefix(table=%s, prefix=%x)", table, prefix)
-	defer tx.logger.Info("Prefix done")
+	defer tx.logger.Infof("Prefix(table=%s, prefix=%x) done. err=%v", table, prefix, err)
 
 	iter1, err1 := tx.mdbxTx.Prefix(table, prefix)
 	iter2, err2 := tx.rocksdbTx.Prefix(table, prefix)
@@ -331,9 +331,9 @@ func (tx *CombineTx) Prefix(table string, prefix []byte) (iter.KV, error) {
 	return newCombineDual(tx.logger, iter1, iter2), nil
 }
 
-func (tx *CombineTx) RangeDupSort(table string, key []byte, fromPrefix, toPrefix []byte, asc order.By, limit int) (iter.KV, error) {
+func (tx *CombineTx) RangeDupSort(table string, key []byte, fromPrefix, toPrefix []byte, asc order.By, limit int) (it iter.KV, err error) {
 	tx.logger.Infof("RangeDupSort(table=%s, key=%x, fromPrefix=%x, toPrefix=%x, asc=%v, limit=%d)", table, key, fromPrefix, toPrefix, asc, limit)
-	defer tx.logger.Info("RangeDupSort done")
+	defer tx.logger.Infof("RangeDupSort(table=%s, key=%x, fromPrefix=%x, toPrefix=%x, asc=%v, limit=%d) done. err=%v", table, key, fromPrefix, toPrefix, asc, limit, err)
 
 	iter1, err1 := tx.mdbxTx.RangeDupSort(table, key, fromPrefix, toPrefix, asc, limit)
 	iter2, err2 := tx.rocksdbTx.RangeDupSort(table, key, fromPrefix, toPrefix, asc, limit)
@@ -351,9 +351,9 @@ func (tx *CombineTx) CHandle() unsafe.Pointer {
 	panic("CHandle not supported")
 }
 
-func (tx *CombineTx) BucketSize(table string) (uint64, error) {
+func (tx *CombineTx) BucketSize(table string) (s uint64, err error) {
 	tx.logger.Infof("BucketSize(table=%s)", table)
-	defer tx.logger.Info("BucketSize done")
+	defer tx.logger.Infof("BucketSize(table=%s) done. err=%v", table, err)
 
 	v1, err1 := tx.mdbxTx.BucketSize(table)
 	v2, err2 := tx.rocksdbTx.BucketSize(table)
@@ -365,18 +365,18 @@ func (tx *CombineTx) BucketSize(table string) (uint64, error) {
 	return v1, nil
 }
 
-func (tx *CombineRwTx) Put(table string, k, v []byte) error {
+func (tx *CombineRwTx) Put(table string, k, v []byte) (err error) {
 	tx.logger.Infof("Put(table=%s, k=%x, v=%x)", table, k, v)
-	defer tx.logger.Info("Put done")
+	defer tx.logger.Infof("Put(table=%s, k=%x, v=%x) done. err=%v", table, k, v, err)
 
 	err1 := tx.mdbxTx.Put(table, k, v)
 	err2 := tx.rocksdbTx.Put(table, k, v)
 	return assertError(tx.logger, err1, err2, "Put")
 }
 
-func (tx *CombineRwTx) Delete(table string, k []byte) error {
+func (tx *CombineRwTx) Delete(table string, k []byte) (err error) {
 	tx.logger.Infof("Delete(table=%s, k=%x)", table, k)
-	defer tx.logger.Info("Delete done")
+	defer tx.logger.Infof("Delete(table=%s, k=%x) done. error=%v", table, k, err)
 
 	// NOTE: don't know why if call mdbx Delete first the `k` will be changed
 	err2 := tx.rocksdbTx.Delete(table, k)
@@ -384,9 +384,9 @@ func (tx *CombineRwTx) Delete(table string, k []byte) error {
 	return assertError(tx.logger, err1, err2, "Delete")
 }
 
-func (tx *CombineRwTx) IncrementSequence(table string, amount uint64) (uint64, error) {
+func (tx *CombineRwTx) IncrementSequence(table string, amount uint64) (s uint64, err error) {
 	tx.logger.Infof("IncrementSequence(table=%s, amount=%d)", table, amount)
-	defer tx.logger.Info("IncrementSequence done")
+	defer tx.logger.Infof("IncrementSequence(table=%s, amount=%d) done. s=%d, err=%v", table, amount, s, err)
 
 	v1, err1 := tx.mdbxTx.IncrementSequence(table, amount)
 	v2, err2 := tx.rocksdbTx.IncrementSequence(table, amount)
@@ -398,27 +398,27 @@ func (tx *CombineRwTx) IncrementSequence(table string, amount uint64) (uint64, e
 	return v1, nil
 }
 
-func (tx *CombineRwTx) Append(table string, k, v []byte) error {
+func (tx *CombineRwTx) Append(table string, k, v []byte) (err error) {
 	tx.logger.Infof("Append(table=%s, k=%x, v=%x)", table, k, v)
-	defer tx.logger.Info("Append done")
+	defer tx.logger.Infof("Append(table=%s, k=%x, v=%x) done. err=%v", table, k, v, err)
 
 	err1 := tx.mdbxTx.Append(table, k, v)
 	err2 := tx.rocksdbTx.Append(table, k, v)
 	return assertError(tx.logger, err1, err2, "Append")
 }
 
-func (tx *CombineRwTx) AppendDup(table string, k, v []byte) error {
+func (tx *CombineRwTx) AppendDup(table string, k, v []byte) (err error) {
 	tx.logger.Infof("AppendDup(table=%s, k=%x, v=%x)", table, k, v)
-	defer tx.logger.Info("AppendDup done")
+	defer tx.logger.Infof("AppendDup(table=%s, k=%x, v=%x) done. err=%v", table, k, v, err)
 
 	err1 := tx.mdbxTx.AppendDup(table, k, v)
 	err2 := tx.rocksdbTx.AppendDup(table, k, v)
 	return assertError(tx.logger, err1, err2, "AppendDup")
 }
 
-func (tx *CombineRwTx) ListBuckets() ([]string, error) {
+func (tx *CombineRwTx) ListBuckets() (buckets []string, err error) {
 	tx.logger.Info("ListBuckets()")
-	defer tx.logger.Info("ListBuckets done")
+	defer tx.logger.Infof("ListBuckets() done. buckets=%v, err=%v", buckets, err)
 
 	list1, err1 := tx.mdbxTx.ListBuckets()
 	list2, err2 := tx.rocksdbTx.ListBuckets()
@@ -430,27 +430,27 @@ func (tx *CombineRwTx) ListBuckets() ([]string, error) {
 	return list1, nil
 }
 
-func (tx *CombineRwTx) DropBucket(table string) error {
+func (tx *CombineRwTx) DropBucket(table string) (err error) {
 	tx.logger.Infof("DropBucket(table=%s)", table)
-	defer tx.logger.Info("DropBucket done")
+	defer tx.logger.Infof("DropBucket(table=%s) done. err=%v", table, err)
 
 	err1 := tx.mdbxTx.DropBucket(table)
 	err2 := tx.rocksdbTx.DropBucket(table)
 	return assertError(tx.logger, err1, err2, "DropBucket")
 }
 
-func (tx *CombineRwTx) CreateBucket(table string) error {
+func (tx *CombineRwTx) CreateBucket(table string) (err error) {
 	tx.logger.Infof("CreateBucket(table=%s)", table)
-	defer tx.logger.Info("CreateBucket done")
+	defer tx.logger.Infof("CreateBucket(table=%s) done. err=%v", table, err)
 
 	err1 := tx.mdbxTx.CreateBucket(table)
 	err2 := tx.rocksdbTx.CreateBucket(table)
 	return assertError(tx.logger, err1, err2, "CreateBucket")
 }
 
-func (tx *CombineRwTx) ExistsBucket(table string) (bool, error) {
+func (tx *CombineRwTx) ExistsBucket(table string) (b bool, err error) {
 	tx.logger.Infof("ExistsBucket(table=%s)", table)
-	defer tx.logger.Info("ExistsBucket done")
+	defer tx.logger.Infof("ExistsBucket(table=%s) done. b=%t, err=%v", table, b, err)
 
 	exists1, err1 := tx.mdbxTx.ExistsBucket(table)
 	exists2, err2 := tx.rocksdbTx.ExistsBucket(table)
@@ -462,18 +462,18 @@ func (tx *CombineRwTx) ExistsBucket(table string) (bool, error) {
 	return exists1, nil
 }
 
-func (tx *CombineRwTx) ClearBucket(table string) error {
+func (tx *CombineRwTx) ClearBucket(table string) (err error) {
 	tx.logger.Infof("ClearBucket(table=%s)", table)
-	defer tx.logger.Info("ClearBucket done")
+	defer tx.logger.Infof("ClearBucket(table=%s) done. err=%v", table, err)
 
 	err1 := tx.mdbxTx.ClearBucket(table)
 	err2 := tx.rocksdbTx.ClearBucket(table)
 	return assertError(tx.logger, err1, err2, "ClearBucket")
 }
 
-func (tx *CombineRwTx) RwCursor(table string) (kv.RwCursor, error) {
+func (tx *CombineRwTx) RwCursor(table string) (c kv.RwCursor, err error) {
 	tx.logger.Infof("RwCursor(table=%s)", table)
-	defer tx.logger.Info("RwCursor done")
+	defer tx.logger.Infof("RwCursor(table=%s) done. err=%v", table, err)
 
 	mdbxCursor, err1 := tx.mdbxTx.RwCursor(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.RwCursor(table)
@@ -484,9 +484,9 @@ func (tx *CombineRwTx) RwCursor(table string) (kv.RwCursor, error) {
 	return newCombineRwCursor(tx.logger, mdbxCursor, rocksdbCursor, table), nil
 }
 
-func (tx *CombineRwTx) RwCursorDupSort(table string) (kv.RwCursorDupSort, error) {
-	tx.logger.Infof("RwCursorDupSort table=%s", table)
-	defer tx.logger.Info("RwCursorDupSort done")
+func (tx *CombineRwTx) RwCursorDupSort(table string) (c kv.RwCursorDupSort, err error) {
+	tx.logger.Infof("RwCursorDupSort(table=%s)", table)
+	defer tx.logger.Infof("RwCursorDupSort(table=%s) done. error=%v", table, err)
 
 	mdbxCursor, err1 := tx.mdbxTx.RwCursorDupSort(table)
 	rocksdbCursor, err2 := tx.rocksdbTx.RwCursorDupSort(table)
@@ -505,11 +505,11 @@ func (tx *CombineRwTx) CollectMetrics() {
 	tx.rocksdbTx.CollectMetrics()
 }
 
-func (tx *CombineRwTx) SpaceDirty() (uint64, uint64, error) {
+func (tx *CombineRwTx) SpaceDirty() (v1 uint64, v2 uint64, err error) {
 	tx.logger.Info("SpaceDirty")
-	defer tx.logger.Info("SpaceDirty done")
+	defer tx.logger.Infof("SpaceDirty done. v1=%d, v2=%d. err=%v", v1, v2, err)
 
-	v1, v2, err := tx.mdbxTx.SpaceDirty()
+	v1, v2, err = tx.mdbxTx.SpaceDirty()
 	tx.logger.Infof("SpaceDirty: %d, %d, err=%v", v1, v2, err)
 	// we don't compare the returned value because rocksdb don't support this function
 	return v1, v2, err
