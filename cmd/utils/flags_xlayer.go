@@ -296,6 +296,9 @@ var (
 	StandaloneSMTDatabase = cli.BoolFlag{
 		Name:  "zkevm.standalone-smt-db",
 		Usage: "Use standalone SMT database, not integrated with chaindb",
+	SequencerSkipEmptyBlocks = cli.BoolFlag{
+		Name:  "zkevm.sequencer-skip-empty-blocks",
+		Usage: "Skip empty blocks",
 		Value: false,
 	}
 )
